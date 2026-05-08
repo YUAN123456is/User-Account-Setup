@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useListUsers, useAssignAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
-import { CreditCard, UserPlus, Search } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { CreditCard, UserPlus, Search, Trash2 } from "lucide-react";
 
 interface Account {
   id: number;
@@ -84,6 +85,21 @@ export default function AccountsPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [assignAccount, setAssignAccount] = useState<Account | null>(null);
+  const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const deleteHook = useDeleteAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        setDeleteAccount(null);
+        toast({ title: "账户已删除" });
+      },
+      onError: () => {
+        toast({ title: "删除失败", description: "请稍后重试。", variant: "destructive" });
+      },
+    },
+  });
 
   const apiParams: Record<string, string> = {};
   if (statusFilter !== "all") apiParams.status = statusFilter;
@@ -217,9 +233,14 @@ export default function AccountsPage() {
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAssignAccount(a)}>
-                    <UserPlus className="h-3.5 w-3.5" /> 分配
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAssignAccount(a)}>
+                      <UserPlus className="h-3.5 w-3.5" /> 分配
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteAccount(a)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -229,6 +250,29 @@ export default function AccountsPage() {
       </div>
 
       {assignAccount && <AssignDialog account={assignAccount} onClose={() => setAssignAccount(null)} />}
+
+      {deleteAccount && (
+        <Dialog open onOpenChange={() => setDeleteAccount(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>删除账户</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground py-2">
+              确认删除账户 <span className="font-semibold text-foreground">{deleteAccount.accountName}</span>？此操作不可撤销。
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteAccount(null)}>取消</Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteHook.mutate({ id: deleteAccount.id })}
+                disabled={deleteHook.isPending}
+              >
+                {deleteHook.isPending ? "删除中..." : "确认删除"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -17,13 +17,13 @@ interface AuthContextType {
   setUser: (user: AuthUser | null) => void;
 }
 
-export const AuthContext = createContext<AuthContextType>({
+const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   setUser: () => {},
 });
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() { return useContext(AuthContext); }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // manualUser is set immediately after login so the UI updates without waiting for a refetch

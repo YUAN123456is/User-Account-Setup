@@ -1,12 +1,12 @@
 import { ReactNode } from "react";
 import { LayoutDashboard, Users, CreditCard, BarChart3, Wallet, AlertTriangle } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
-import { useGetBalanceAlerts } from "@workspace/api-client-react";
+import { useGetLowBalanceAlerts } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { data: alertsData } = useGetBalanceAlerts();
+  const { data: alertsData } = useGetLowBalanceAlerts({ threshold: 100 });
   const alertCount = Array.isArray(alertsData) ? alertsData.length : 0;
 
   const items = [

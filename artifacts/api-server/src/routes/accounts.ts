@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, SQL } from "drizzle-orm";
-import { db, accountsTable, usersTable } from "@workspace/db";
+import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import {
   CreateAccountBody,
   UpdateAccountBody,
@@ -148,11 +148,14 @@ router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<v
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [deleted] = await db.delete(accountsTable).where(eq(accountsTable.id, params.data.id)).returning();
-  if (!deleted) {
+  const existing = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.id, params.data.id));
+  if (!existing.length) {
     res.status(404).json({ error: "Account not found" });
     return;
   }
+  await db.delete(dailyStatsTable).where(eq(dailyStatsTable.accountId, params.data.id));
+  await db.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.accountId, params.data.id));
+  await db.delete(accountsTable).where(eq(accountsTable.id, params.data.id));
   res.status(204).end();
 });
 
