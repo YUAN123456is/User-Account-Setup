@@ -9,6 +9,7 @@ import {
   GetAccountParams,
   UpdateAccountParams,
   AssignAccountParams,
+  DeleteAccountParams,
 } from "@workspace/api-zod";
 import { requireAuth, requireRole } from "../middlewares/require-auth";
 

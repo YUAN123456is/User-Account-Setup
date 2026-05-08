@@ -297,6 +297,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Account"
 
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Delete an account (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /accounts/{id}/assign:
     post:
       operationId: assignAccount
