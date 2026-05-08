@@ -1,0 +1,113 @@
+广告账户管理与充值系统 (AdOps) 开发任务书
+1. 项目概述
+构建一个三端隔离的广告账户管理系统。
+
+超级管理员（我）： 拥有上帝视角，管理用户、分配资源、查看全局报表。
+
+开户商（Provider）： 负责“供货”（上传新账号）和“充值确认”。
+
+投手（Pitcher）： 负责“消耗”（手动填报）和“申请充值”。
+
+2. 核心功能需求 (Functional Requirements)
+A. 超级管理员端 (Super Admin)
+用户管理： 创建/编辑/禁用“开户商”和“投手”账号。
+
+资源调度（核心）：
+
+查看所有开户商提交的“闲置账号（Idle）”。
+
+将特定账号指派给特定投手。
+
+全局看板：
+
+维度1： 按开户商统计今日/历史总消耗。
+
+维度2： 按投手统计今日/历史总消耗。
+
+维度3： 交叉查询（某个投手在某个代理商那消耗了多少）。
+
+财务审核： 审核充值流水，确保账目对齐。
+
+B. 开户商端 (Provider Portal)
+账号录入： 手动录入新开的广告账号（ID、名称、平台、初始金额）。
+
+我的库存： 只能看到自己开出的户及其状态（空闲、使用中、已封禁）。
+
+充值工单： 接收系统推送的属于该代理商下账号的充值申请，确认充值。
+
+C. 投手端 (Pitcher Portal)
+账号列表： 仅显示管理员分配给自己的账号。
+
+每日填报： 手动输入每个账号的“今日消耗”和“当前实际余额”。
+
+充值申请： 针对余额不足的账号提交充值申请（填写金额）。
+
+3. 数据库核心设计 (Database Schema)
+AI 开发助手请参考以下模型：
+
+Users Table: id, username, password_hash, role (admin/provider/pitcher)
+
+Accounts Table:
+
+id, platform_account_id, account_name, platform (FB/GG/etc)
+
+provider_id (FK), pitcher_id (FK, nullable)
+
+status (idle, active, banned)
+
+current_balance (decimal), last_reported_at
+
+Daily_Stats Table (手动填报记录):
+
+id, account_id, date, spend_amount, real_balance, pitcher_id
+
+Recharge_Orders Table:
+
+id, account_id, amount, status (pending, completed), provider_id
+
+4. 开发日志与路线图 (Development Roadmap)
+第一阶段：基础架构与权限 (Foundation)
+[ ] 实现 RBAC 权限系统，确保三端登录后看到的 URL 和数据完全隔离。
+
+[ ] 管理员创建开户商和投手的功能。
+
+第二阶段：资源流转逻辑 (Account Workflow)
+[ ] 开户商上号： 实现开户商录入界面。
+
+[ ] 管理员分配： 实现“账号池”管理，支持管理员一键指派账号给投手。
+
+第三阶段：手动填报与预警 (Manual Reporting)
+[ ] 投手报数： 开发每日消耗填报表单。
+
+[ ] 计算逻辑： 系统理论余额 = 前日余额 + 充值金额 - 今日填报消耗。
+
+[ ] 差异报警： 如果 理论余额 与 投手填报余额 误差超过 5%，在管理员后台标红。
+
+第四阶段：通知闭环 (Notification)
+[ ] 自动化推送： 当投手点击“申请充值”时，系统根据 provider_id 自动识别。
+
+[ ] Webhook 对接： 推送充值消息到对应开户商的 Telegram 或 企业微信 Bot（需配置每个开户商的专属 Webhook）。
+
+5. 优化路径 (Optimization Roadmap)
+短期优化（手动阶段）：
+
+Excel 批量导入： 允许开户商批量上传账号，允许投手批量上传消耗，减少点击次数。
+
+财务自动结算： 系统自动计算每个代理商的充值总额扣除返点后应付金额。
+
+中期优化（API 介入）：
+
+余额自动同步： 对接 Facebook/Google Marketing API，自动抓取账户实时余额（取代投手手动填余额）。
+
+状态自动更新： API 检测到账户被封禁（Banned）时，系统自动给投手和管理员发通知。
+
+长期优化（智能化）：
+
+智能配号： 系统根据开户商账号的“存活率”和“稳定性”自动推荐给高消耗投手。
+
+消耗预测： 基于历史消耗，提前 48 小时预测哪些账号需要充值，防止断费。
+
+6. 给 AI 开发助手的提示 (Prompt)
+"请基于以上需求，使用 Python (FastAPI/Flask) 或 Node.js 后端，结合 Vue/React 前端，采用 PostgreSQL/MySQL 数据库进行开发。
+
+重点： 请务必在所有数据查询中加入 tenant_id 或 role_id 过滤，确保开户商 A 绝对看不到开户商 B 的数据。请先生成数据库初始化脚本（SQL），然后按阶段实现功能。"

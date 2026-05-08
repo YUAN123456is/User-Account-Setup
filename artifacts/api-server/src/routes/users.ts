@@ -1,0 +1,116 @@
+import { Router, type IRouter } from "express";
+import { eq, ne } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
+import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
+import { requireRole } from "../middlewares/require-auth";
+import { hashPassword } from "../lib/auth";
+
+const router: IRouter = Router();
+
+function formatUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    portalSlug: user.portalSlug,
+    isActive: user.isActive,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
+
+router.get("/users", requireRole("admin"), async (req, res): Promise<void> => {
+  const params = ListUsersQueryParams.safeParse(req.query);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  let query = db.select().from(usersTable).$dynamic();
+  if (params.data.role) {
+    query = query.where(eq(usersTable.role, params.data.role));
+  } else {
+    query = query.where(ne(usersTable.role, "admin"));
+  }
+
+  const users = await query;
+  res.json(users.map(formatUser));
+});
+
+router.post("/users", requireRole("admin"), async (req, res): Promise<void> => {
+  const parsed = CreateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { username, displayName, password, role, portalSlug } = parsed.data;
+
+  const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
+  if (existing.length > 0) {
+    res.status(400).json({ error: "Username already taken" });
+    return;
+  }
+
+  const slugExisting = await db.select().from(usersTable).where(eq(usersTable.portalSlug, portalSlug));
+  if (slugExisting.length > 0) {
+    res.status(400).json({ error: "Portal path already taken" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  const [user] = await db.insert(usersTable).values({ username, displayName, passwordHash, role, portalSlug }).returning();
+  res.status(201).json(formatUser(user));
+});
+
+router.get("/users/:id", requireRole("admin"), async (req, res): Promise<void> => {
+  const params = GetUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(formatUser(user));
+});
+
+router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void> => {
+  const params = UpdateUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const parsed = UpdateUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+  if (parsed.data.displayName != null) updates.displayName = parsed.data.displayName;
+  if (parsed.data.isActive != null) updates.isActive = parsed.data.isActive;
+  if (parsed.data.portalSlug != null) updates.portalSlug = parsed.data.portalSlug;
+  if (parsed.data.password) updates.passwordHash = await hashPassword(parsed.data.password);
+
+  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.id)).returning();
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(formatUser(user));
+});
+
+router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void> => {
+  const params = DeleteUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  await db.update(usersTable).set({ isActive: false }).where(eq(usersTable.id, params.data.id));
+  res.sendStatus(204);
+});
+
+export default router;

@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AdOps - Ad Account Management System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management (admin only)
+  - name: accounts
+    description: Ad account management
+  - name: daily-stats
+    description: Daily spend reporting
+  - name: recharge-orders
+    description: Recharge order management
+  - name: dashboard
+    description: Dashboard and analytics
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,556 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Auth ─────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user info
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Users (Admin only) ───────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin)
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [admin, provider, pitcher]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete/disable a user (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Accounts ─────────────────────────────────────────────────────────────
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List ad accounts (role-filtered automatically)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [idle, active, banned]
+        - in: query
+          name: providerId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: pitcherId
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Create/upload a new ad account (provider)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountBody"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  /accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get an account by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Update an account (admin or provider)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountBody"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  /accounts/{id}/assign:
+    post:
+      operationId: assignAccount
+      tags: [accounts]
+      summary: Assign an idle account to a pitcher (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignAccountBody"
+      responses:
+        "200":
+          description: Account assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  # ─── Daily Stats ──────────────────────────────────────────────────────────
+  /daily-stats:
+    get:
+      operationId: listDailyStats
+      tags: [daily-stats]
+      summary: List daily spend reports (role-filtered)
+      parameters:
+        - in: query
+          name: accountId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: pitcherId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of daily stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyStat"
+
+    post:
+      operationId: createDailyStat
+      tags: [daily-stats]
+      summary: Submit daily spend report (pitcher)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDailyStatBody"
+      responses:
+        "201":
+          description: Daily stat created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyStat"
+
+  /daily-stats/{id}:
+    patch:
+      operationId: updateDailyStat
+      tags: [daily-stats]
+      summary: Update a daily stat entry (pitcher)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDailyStatBody"
+      responses:
+        "200":
+          description: Updated daily stat
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyStat"
+
+  # ─── Recharge Orders ──────────────────────────────────────────────────────
+  /recharge-orders:
+    get:
+      operationId: listRechargeOrders
+      tags: [recharge-orders]
+      summary: List recharge orders (role-filtered)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, completed, rejected]
+        - in: query
+          name: accountId
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of recharge orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RechargeOrder"
+
+    post:
+      operationId: createRechargeOrder
+      tags: [recharge-orders]
+      summary: Submit a recharge request (pitcher)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRechargeOrderBody"
+      responses:
+        "201":
+          description: Recharge order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RechargeOrder"
+
+  /recharge-orders/{id}:
+    get:
+      operationId: getRechargeOrder
+      tags: [recharge-orders]
+      summary: Get a recharge order by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recharge order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RechargeOrder"
+
+    patch:
+      operationId: updateRechargeOrder
+      tags: [recharge-orders]
+      summary: Confirm or reject a recharge order (provider or admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRechargeOrderBody"
+      responses:
+        "200":
+          description: Updated recharge order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RechargeOrder"
+
+  # ─── Dashboard / Analytics ────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get global dashboard summary (admin)
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/spend-by-provider:
+    get:
+      operationId: getSpendByProvider
+      tags: [dashboard]
+      summary: Total spend grouped by provider (admin)
+      parameters:
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Spend by provider
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpendByProvider"
+
+  /dashboard/spend-by-pitcher:
+    get:
+      operationId: getSpendByPitcher
+      tags: [dashboard]
+      summary: Total spend grouped by pitcher (admin)
+      parameters:
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Spend by pitcher
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpendByPitcher"
+
+  /dashboard/cross-report:
+    get:
+      operationId: getCrossReport
+      tags: [dashboard]
+      summary: Cross report - pitcher spend per provider (admin)
+      parameters:
+        - in: query
+          name: pitcherId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: providerId
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Cross report data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrossReportRow"
+
+  /dashboard/balance-alerts:
+    get:
+      operationId: getBalanceAlerts
+      tags: [dashboard]
+      summary: Accounts with balance discrepancy > 5% (admin)
+      responses:
+        "200":
+          description: Balance alert items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BalanceAlert"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +596,416 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ─── Auth ─────────────────────────────────────────────────────────────
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - user
+
+    # ─── Users ────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [admin, provider, pitcher]
+        portalSlug:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - displayName
+        - role
+        - isActive
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [provider, pitcher]
+        portalSlug:
+          type: string
+      required:
+        - username
+        - displayName
+        - password
+        - role
+        - portalSlug
+
+    UpdateUserBody:
+      type: object
+      properties:
+        displayName:
+          type: string
+        password:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        portalSlug:
+          type: ["string", "null"]
+
+    # ─── Accounts ─────────────────────────────────────────────────────────
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+        platformAccountId:
+          type: string
+        accountName:
+          type: string
+        platform:
+          type: string
+          enum: [FB, GG, TT, TW, OTHER]
+        providerId:
+          type: integer
+        providerName:
+          type: ["string", "null"]
+        pitcherId:
+          type: ["integer", "null"]
+        pitcherName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [idle, active, banned]
+        currentBalance:
+          type: string
+        theoreticalBalance:
+          type: ["string", "null"]
+        lastReportedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - platformAccountId
+        - accountName
+        - platform
+        - providerId
+        - status
+        - currentBalance
+        - createdAt
+
+    CreateAccountBody:
+      type: object
+      properties:
+        platformAccountId:
+          type: string
+        accountName:
+          type: string
+        platform:
+          type: string
+          enum: [FB, GG, TT, TW, OTHER]
+        initialBalance:
+          type: string
+      required:
+        - platformAccountId
+        - accountName
+        - platform
+        - initialBalance
+
+    UpdateAccountBody:
+      type: object
+      properties:
+        accountName:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+
+    AssignAccountBody:
+      type: object
+      properties:
+        pitcherId:
+          type: ["integer", "null"]
+      required:
+        - pitcherId
+
+    # ─── Daily Stats ──────────────────────────────────────────────────────
+    DailyStat:
+      type: object
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        accountName:
+          type: ["string", "null"]
+        platformAccountId:
+          type: ["string", "null"]
+        date:
+          type: string
+        spendAmount:
+          type: string
+        realBalance:
+          type: string
+        pitcherId:
+          type: integer
+        pitcherName:
+          type: ["string", "null"]
+        hasAlert:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - accountId
+        - date
+        - spendAmount
+        - realBalance
+        - pitcherId
+        - hasAlert
+        - createdAt
+
+    CreateDailyStatBody:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        date:
+          type: string
+        spendAmount:
+          type: string
+        realBalance:
+          type: string
+      required:
+        - accountId
+        - date
+        - spendAmount
+        - realBalance
+
+    UpdateDailyStatBody:
+      type: object
+      properties:
+        spendAmount:
+          type: ["string", "null"]
+        realBalance:
+          type: ["string", "null"]
+
+    # ─── Recharge Orders ──────────────────────────────────────────────────
+    RechargeOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        accountName:
+          type: ["string", "null"]
+        platformAccountId:
+          type: ["string", "null"]
+        amount:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, rejected]
+        providerId:
+          type: integer
+        providerName:
+          type: ["string", "null"]
+        pitcherId:
+          type: ["integer", "null"]
+        pitcherName:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - accountId
+        - amount
+        - status
+        - providerId
+        - createdAt
+        - updatedAt
+
+    CreateRechargeOrderBody:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        amount:
+          type: string
+        note:
+          type: ["string", "null"]
+      required:
+        - accountId
+        - amount
+
+    UpdateRechargeOrderBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [completed, rejected]
+        note:
+          type: ["string", "null"]
+      required:
+        - status
+
+    # ─── Dashboard ────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        totalAccounts:
+          type: integer
+        idleAccounts:
+          type: integer
+        activeAccounts:
+          type: integer
+        bannedAccounts:
+          type: integer
+        totalProviders:
+          type: integer
+        totalPitchers:
+          type: integer
+        todayTotalSpend:
+          type: string
+        pendingRechargeOrders:
+          type: integer
+        alertCount:
+          type: integer
+      required:
+        - totalAccounts
+        - idleAccounts
+        - activeAccounts
+        - bannedAccounts
+        - totalProviders
+        - totalPitchers
+        - todayTotalSpend
+        - pendingRechargeOrders
+        - alertCount
+
+    SpendByProvider:
+      type: object
+      properties:
+        providerId:
+          type: integer
+        providerName:
+          type: string
+        todaySpend:
+          type: string
+        totalSpend:
+          type: string
+        accountCount:
+          type: integer
+      required:
+        - providerId
+        - providerName
+        - todaySpend
+        - totalSpend
+        - accountCount
+
+    SpendByPitcher:
+      type: object
+      properties:
+        pitcherId:
+          type: integer
+        pitcherName:
+          type: string
+        todaySpend:
+          type: string
+        totalSpend:
+          type: string
+        accountCount:
+          type: integer
+      required:
+        - pitcherId
+        - pitcherName
+        - todaySpend
+        - totalSpend
+        - accountCount
+
+    CrossReportRow:
+      type: object
+      properties:
+        pitcherId:
+          type: integer
+        pitcherName:
+          type: string
+        providerId:
+          type: integer
+        providerName:
+          type: string
+        totalSpend:
+          type: string
+        accountCount:
+          type: integer
+      required:
+        - pitcherId
+        - pitcherName
+        - providerId
+        - providerName
+        - totalSpend
+        - accountCount
+
+    BalanceAlert:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        platformAccountId:
+          type: string
+        pitcherId:
+          type: ["integer", "null"]
+        pitcherName:
+          type: ["string", "null"]
+        theoreticalBalance:
+          type: string
+        reportedBalance:
+          type: string
+        discrepancyPct:
+          type: number
+        lastReportedAt:
+          type: ["string", "null"]
+      required:
+        - accountId
+        - accountName
+        - platformAccountId
+        - theoreticalBalance
+        - reportedBalance
+        - discrepancyPct
