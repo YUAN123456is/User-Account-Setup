@@ -191,9 +191,15 @@ function DeleteConfirmDialog({ user, onClose }: { user: UserRow; onClose: () => 
           <p className="text-sm text-muted-foreground">
             你确定要删除用户 <span className="font-semibold text-foreground">「{user.displayName}」</span> 吗？
           </p>
-          <p className="text-sm text-muted-foreground">
-            此操作将停用该账号，已关联的数据不会被删除。
-          </p>
+          {user.role === "provider" ? (
+            <p className="text-sm text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2">
+              该用户是<strong>开户商</strong>，删除后其名下所有广告账户、每日数据及充值订单将被一并永久删除，操作不可恢复。
+            </p>
+          ) : (
+            <p className="text-sm text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2">
+              该用户是<strong>投手</strong>，删除后其名下所有每日上报数据将被永久删除，已绑定的账户将解除绑定，操作不可恢复。
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>

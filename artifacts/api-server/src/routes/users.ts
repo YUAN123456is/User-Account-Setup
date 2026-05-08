@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ne } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { eq, ne, inArray } from "drizzle-orm";
+import { db, usersTable, accountsTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-auth";
 import { hashPassword } from "../lib/auth";
@@ -111,7 +111,29 @@ router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void
     res.status(400).json({ error: params.error.message });
     return;
   }
-  await db.update(usersTable).set({ isActive: false }).where(eq(usersTable.id, params.data.id));
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (user.role === "provider") {
+    const providerAccounts = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.providerId, params.data.id));
+    const accountIds = providerAccounts.map((a) => a.id);
+    if (accountIds.length > 0) {
+      await db.delete(dailyStatsTable).where(inArray(dailyStatsTable.accountId, accountIds));
+      await db.delete(rechargeOrdersTable).where(inArray(rechargeOrdersTable.accountId, accountIds));
+      await db.delete(accountsTable).where(eq(accountsTable.providerId, params.data.id));
+    }
+    await db.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.providerId, params.data.id));
+  } else if (user.role === "pitcher") {
+    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.pitcherId, params.data.id));
+    await db.update(accountsTable).set({ pitcherId: null }).where(eq(accountsTable.pitcherId, params.data.id));
+    await db.update(rechargeOrdersTable).set({ pitcherId: null }).where(eq(rechargeOrdersTable.pitcherId, params.data.id));
+  }
+
+  await db.delete(usersTable).where(eq(usersTable.id, params.data.id));
   res.sendStatus(204);
 });
 
