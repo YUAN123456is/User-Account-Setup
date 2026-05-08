@@ -57,7 +57,7 @@ function CreateAccountDialog({ open, onClose }: { open: boolean; onClose: () => 
         onClose();
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "新增失败，请重试";
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "新增失败，请重试";
         setFormError(msg);
       },
     },

@@ -47,7 +47,7 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
         onClose();
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "创建失败，请重试";
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "创建失败，请重试";
         setFormError(msg);
       },
     },
@@ -117,7 +117,7 @@ function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
         onClose();
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "更新失败，请重试";
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "更新失败，请重试";
         setFormError(msg);
       },
     },
