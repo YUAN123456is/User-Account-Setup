@@ -73,7 +73,7 @@ export const CreateUserBody = zod.object({
   displayName: zod.string(),
   password: zod.string(),
   role: zod.enum(["provider", "pitcher"]),
-  portalSlug: zod.string(),
+  portalSlug: zod.string().optional(),
 });
 
 /**

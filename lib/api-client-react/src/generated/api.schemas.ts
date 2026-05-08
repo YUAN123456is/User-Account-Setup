@@ -54,7 +54,7 @@ export interface CreateUserBody {
   displayName: string;
   password: string;
   role: CreateUserBodyRole;
-  portalSlug: string;
+  portalSlug?: string;
 }
 
 export interface UpdateUserBody {

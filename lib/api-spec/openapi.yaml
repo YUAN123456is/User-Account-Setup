@@ -670,7 +670,6 @@ components:
         - displayName
         - password
         - role
-        - portalSlug
 
     UpdateUserBody:
       type: object

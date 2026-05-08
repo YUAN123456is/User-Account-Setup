@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListUsers, useCreateUser, useUpdateUser } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,38 @@ interface UserRow {
 
 function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({ username: "", displayName: "", password: "", role: "provider" as Role, portalSlug: "" });
-  const create = useCreateUser({ mutation: { onSuccess: onClose } });
+  const [formError, setFormError] = useState("");
+  const { toast } = useToast();
+
+  const create = useCreateUser({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "用户已创建" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "创建失败，请重试";
+        setFormError(msg);
+      },
+    },
+  });
+
+  const handleCreate = () => {
+    setFormError("");
+    if (!form.displayName.trim() || !form.username.trim() || !form.password.trim()) {
+      setFormError("显示名称、用户名和密码为必填项");
+      return;
+    }
+    create.mutate({
+      data: {
+        username: form.username,
+        displayName: form.displayName,
+        password: form.password,
+        role: form.role,
+        portalSlug: form.portalSlug || undefined,
+      },
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -32,19 +64,19 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
         <DialogHeader><DialogTitle>新建用户</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label className="text-sm">显示名称</Label>
+            <Label className="text-sm">显示名称 <span className="text-destructive">*</span></Label>
             <Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="如：开户商A" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm">用户名</Label>
+            <Label className="text-sm">用户名 <span className="text-destructive">*</span></Label>
             <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="登录用户名" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm">密码</Label>
+            <Label className="text-sm">密码 <span className="text-destructive">*</span></Label>
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="设置登录密码" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm">门户路径（slug）</Label>
+            <Label className="text-sm">门户路径（slug）<span className="text-muted-foreground text-xs ml-1">选填</span></Label>
             <Input value={form.portalSlug} onChange={(e) => setForm({ ...form, portalSlug: e.target.value })} placeholder="如：provider-a" />
           </div>
           <div className="space-y-1.5">
@@ -57,13 +89,15 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
               </SelectContent>
             </Select>
           </div>
+          {formError && (
+            <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              {formError}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button
-            onClick={() => create.mutate({ data: { username: form.username, displayName: form.displayName, password: form.password, role: form.role, portalSlug: form.portalSlug } })}
-            disabled={create.isPending}
-          >
+          <Button onClick={handleCreate} disabled={create.isPending}>
             {create.isPending ? "创建中..." : "创建"}
           </Button>
         </DialogFooter>

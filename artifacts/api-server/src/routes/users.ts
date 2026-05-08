@@ -48,18 +48,20 @@ router.post("/users", requireRole("admin"), async (req, res): Promise<void> => {
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
   if (existing.length > 0) {
-    res.status(400).json({ error: "Username already taken" });
+    res.status(400).json({ error: "用户名已被占用" });
     return;
   }
 
-  const slugExisting = await db.select().from(usersTable).where(eq(usersTable.portalSlug, portalSlug));
-  if (slugExisting.length > 0) {
-    res.status(400).json({ error: "Portal path already taken" });
-    return;
+  if (portalSlug) {
+    const slugExisting = await db.select().from(usersTable).where(eq(usersTable.portalSlug, portalSlug));
+    if (slugExisting.length > 0) {
+      res.status(400).json({ error: "门户路径已被占用" });
+      return;
+    }
   }
 
   const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(usersTable).values({ username, displayName, passwordHash, role, portalSlug }).returning();
+  const [user] = await db.insert(usersTable).values({ username, displayName, passwordHash, role, portalSlug: portalSlug || null }).returning();
   res.status(201).json(formatUser(user));
 });
 
