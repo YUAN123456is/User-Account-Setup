@@ -142,6 +142,20 @@ router.patch("/accounts/:id", requireRole("admin", "provider"), async (req, res)
   res.json(await formatAccount(updated));
 });
 
+router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<void> => {
+  const params = DeleteAccountParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [deleted] = await db.delete(accountsTable).where(eq(accountsTable.id, params.data.id)).returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+  res.status(204).end();
+});
+
 router.post("/accounts/:id/assign", requireRole("admin"), async (req, res): Promise<void> => {
   const params = AssignAccountParams.safeParse(req.params);
   if (!params.success) {

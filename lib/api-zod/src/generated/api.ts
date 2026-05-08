@@ -212,6 +212,13 @@ export const UpdateAccountResponse = zod.object({
 });
 
 /**
+ * @summary Delete an account (admin)
+ */
+export const DeleteAccountParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Assign an idle account to a pitcher (admin)
  */
 export const AssignAccountParams = zod.object({
