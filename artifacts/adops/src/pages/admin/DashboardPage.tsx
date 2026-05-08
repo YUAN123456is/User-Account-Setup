@@ -68,8 +68,8 @@ export default function DashboardPage() {
         <KpiCard title="已封禁" value={s?.bannedAccounts ?? 0} icon={Ban} className="text-red-600" />
         <KpiCard title="今日总消耗" value={`$${Number(s?.todayTotalSpend ?? 0).toFixed(2)}`} icon={TrendingUp} />
         <KpiCard title="待处理充值" value={s?.pendingRechargeOrders ?? 0} icon={Clock} />
-        <KpiCard title="余额预警" value={s?.balanceAlerts ?? 0} icon={AlertTriangle} className={(s?.balanceAlerts ?? 0) > 0 ? "text-red-600" : ""} />
-        <KpiCard title="用户总数" value={(s?.providerCount ?? 0) + (s?.pitcherCount ?? 0)} icon={CreditCard} />
+        <KpiCard title="余额预警" value={s?.alertCount ?? 0} icon={AlertTriangle} className={(s?.alertCount ?? 0) > 0 ? "text-red-600" : ""} />
+        <KpiCard title="用户总数" value={(s?.totalProviders ?? 0) + (s?.totalPitchers ?? 0)} icon={CreditCard} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

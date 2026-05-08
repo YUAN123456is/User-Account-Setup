@@ -35,57 +35,8 @@ const queryClient = new QueryClient({
   },
 });
 
-function AdminRoutes() {
-  return (
-    <AdminLayout>
-      <Switch>
-        <Route path="/admin/dashboard" component={DashboardPage} />
-        <Route path="/admin/users" component={UsersPage} />
-        <Route path="/admin/accounts" component={AccountsPage} />
-        <Route path="/admin/reports/provider" component={ProviderReportPage} />
-        <Route path="/admin/reports/pitcher" component={PitcherReportPage} />
-        <Route path="/admin/reports/cross" component={CrossReportPage} />
-        <Route path="/admin/finance" component={FinancePage} />
-        <Route path="/admin/alerts" component={AlertsPage} />
-        <Route path="/admin">
-          <Redirect to="/admin/dashboard" />
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </AdminLayout>
-  );
-}
-
-function ProviderRoutes() {
-  return (
-    <ProviderLayout>
-      <Switch>
-        <Route path="/provider/accounts" component={ProviderAccountsPage} />
-        <Route path="/provider/recharge-orders" component={ProviderRechargeOrdersPage} />
-        <Route path="/provider">
-          <Redirect to="/provider/accounts" />
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </ProviderLayout>
-  );
-}
-
-function PitcherRoutes() {
-  return (
-    <PitcherLayout>
-      <Switch>
-        <Route path="/pitcher/accounts" component={PitcherAccountsPage} />
-        <Route path="/pitcher/report" component={DailyReportPage} />
-        <Route path="/pitcher/recharge" component={RechargeRequestPage} />
-        <Route path="/pitcher/history" component={PitcherHistoryPage} />
-        <Route path="/pitcher">
-          <Redirect to="/pitcher/accounts" />
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </PitcherLayout>
-  );
+function A(Layout: React.ComponentType<{ children: React.ReactNode }>, Page: React.ComponentType) {
+  return () => <Layout><Page /></Layout>;
 }
 
 function AppRoutes() {
@@ -96,7 +47,7 @@ function AppRoutes() {
       <div className="min-h-screen flex items-center justify-center bg-[hsl(222,50%,8%)]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          <span className="text-[hsl(215,20%,50%)] text-sm">Loading...</span>
+          <span className="text-[hsl(215,20%,50%)] text-sm">加载中...</span>
         </div>
       </div>
     );
@@ -115,14 +66,42 @@ function AppRoutes() {
 
   return (
     <Switch>
-      <Route path="/admin/:rest*" component={AdminRoutes} />
-      <Route path="/provider/:rest*" component={ProviderRoutes} />
-      <Route path="/pitcher/:rest*" component={PitcherRoutes} />
+      {/* Admin routes — flat listing avoids Wouter v3 nested-context path stripping */}
+      <Route path="/admin/dashboard" component={A(AdminLayout, DashboardPage)} />
+      <Route path="/admin/users" component={A(AdminLayout, UsersPage)} />
+      <Route path="/admin/accounts" component={A(AdminLayout, AccountsPage)} />
+      <Route path="/admin/reports/provider" component={A(AdminLayout, ProviderReportPage)} />
+      <Route path="/admin/reports/pitcher" component={A(AdminLayout, PitcherReportPage)} />
+      <Route path="/admin/reports/cross" component={A(AdminLayout, CrossReportPage)} />
+      <Route path="/admin/finance" component={A(AdminLayout, FinancePage)} />
+      <Route path="/admin/alerts" component={A(AdminLayout, AlertsPage)} />
+      <Route path="/admin">
+        <Redirect to="/admin/dashboard" />
+      </Route>
+
+      {/* Provider routes */}
+      <Route path="/provider/accounts" component={A(ProviderLayout, ProviderAccountsPage)} />
+      <Route path="/provider/recharge-orders" component={A(ProviderLayout, ProviderRechargeOrdersPage)} />
+      <Route path="/provider">
+        <Redirect to="/provider/accounts" />
+      </Route>
+
+      {/* Pitcher routes */}
+      <Route path="/pitcher/accounts" component={A(PitcherLayout, PitcherAccountsPage)} />
+      <Route path="/pitcher/report" component={A(PitcherLayout, DailyReportPage)} />
+      <Route path="/pitcher/recharge" component={A(PitcherLayout, RechargeRequestPage)} />
+      <Route path="/pitcher/history" component={A(PitcherLayout, PitcherHistoryPage)} />
+      <Route path="/pitcher">
+        <Redirect to="/pitcher/accounts" />
+      </Route>
+
+      {/* Root redirect by role */}
       <Route path="/">
         {user.role === "admin" ? <Redirect to="/admin/dashboard" /> :
          user.role === "provider" ? <Redirect to="/provider/accounts" /> :
          <Redirect to="/pitcher/accounts" />}
       </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
