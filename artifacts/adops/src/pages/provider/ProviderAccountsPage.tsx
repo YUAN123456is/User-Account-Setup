@@ -181,7 +181,6 @@ export default function ProviderAccountsPage() {
               <TableHead>账户名称</TableHead>
               <TableHead>平台账户ID</TableHead>
               <TableHead>平台</TableHead>
-              <TableHead>分配投手</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>余额</TableHead>
               <TableHead>最近上报</TableHead>
@@ -195,14 +194,13 @@ export default function ProviderAccountsPage() {
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={8}><EmptyState icon={CreditCard} title="暂无账户" description="点击右上角「新增账户」开始添加您的广告账户。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7}><EmptyState icon={CreditCard} title="暂无账户" description="点击右上角「新增账户」开始添加您的广告账户。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium max-w-[160px] truncate">{a.accountName}</TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground">{a.platformAccountId}</TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell className="text-sm">{a.pitcherName ? <span>{a.pitcherName}</span> : <span className="text-amber-500 text-xs">待管理员分配</span>}</TableCell>
                 <TableCell><AccountStatusBadge status={a.status} /></TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
