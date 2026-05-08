@@ -95,6 +95,13 @@ function AppRoutes() {
         <Redirect to="/pitcher/accounts" />
       </Route>
 
+      {/* Redirect authenticated users away from /login */}
+      <Route path="/login">
+        {user.role === "admin" ? <Redirect to="/admin/dashboard" /> :
+         user.role === "provider" ? <Redirect to="/provider/accounts" /> :
+         <Redirect to="/pitcher/accounts" />}
+      </Route>
+
       {/* Root redirect by role */}
       <Route path="/">
         {user.role === "admin" ? <Redirect to="/admin/dashboard" /> :

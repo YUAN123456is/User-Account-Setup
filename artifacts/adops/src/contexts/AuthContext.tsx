@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, ReactNode } from "react";
 import { useGetMe } from "@workspace/api-client-react";
 
 export interface AuthUser {
@@ -26,20 +26,24 @@ export const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  // manualUser is set immediately after login so the UI updates without waiting for a refetch
+  const [manualUser, setManualUser] = useState<AuthUser | null>(null);
   const { data, isLoading, isError } = useGetMe();
 
-  useEffect(() => {
-    if (data) {
-      setUser(data as AuthUser);
-    }
-    if (isError) {
-      setUser(null);
-    }
-  }, [data, isError]);
+  // Derive user synchronously in the same render that React Query updates —
+  // this eliminates the one-render gap where isLoading=false but user=null
+  // that causes the spurious redirect to /login → NotFound on refresh.
+  const user = useMemo<AuthUser | null>(() => {
+    if (data) return data as AuthUser;
+    return manualUser;
+  }, [data, manualUser]);
+
+  // isLoading is true only while the initial fetch is in flight and we have
+  // no user at all (not from server, not from a manual login).
+  const contextIsLoading = isLoading && !isError && !user;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: isLoading && !isError, setUser }}>
+    <AuthContext.Provider value={{ user, isLoading: contextIsLoading, setUser: setManualUser }}>
       {children}
     </AuthContext.Provider>
   );
