@@ -64,7 +64,8 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId));
-  if (!user) {
+  if (!user || !user.isActive) {
+    req.session.destroy(() => {});
     res.status(401).json({ error: "Not authenticated" });
     return;
   }

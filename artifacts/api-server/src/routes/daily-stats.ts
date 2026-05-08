@@ -84,6 +84,14 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
+  const existing = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
+    and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date))
+  );
+  if (existing.length > 0) {
+    res.status(409).json({ error: "该账户今日数据已上报，如需修改请使用编辑功能" });
+    return;
+  }
+
   const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
   const spend = parseFloat(parsed.data.spendAmount);
 

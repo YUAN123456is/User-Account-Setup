@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useGetSpendByPitcher, useGetPitcherAccounts } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -184,9 +184,8 @@ export default function PitcherReportPage() {
             {!isLoading && paged.map((r) => {
               const isOpen = expanded.has(r.pitcherId);
               return (
-                <>
+                <Fragment key={r.pitcherId}>
                   <TableRow
-                    key={r.pitcherId}
                     className={cn("cursor-pointer select-none transition-colors", isOpen && "bg-primary/5 border-l-2 border-l-primary")}
                     onClick={() => toggleExpand(r.pitcherId)}
                   >
@@ -207,13 +206,12 @@ export default function PitcherReportPage() {
                   </TableRow>
                   {isOpen && (
                     <AccountDetailPanel
-                      key={`detail-${r.pitcherId}`}
                       pitcherId={r.pitcherId}
                       dateRange={dateRange}
                       hasFilter={hasFilter}
                     />
                   )}
-                </>
+                </Fragment>
               );
             })}
           </TableBody>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useGetSpendByProvider, useGetProviderAccounts } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -187,9 +187,8 @@ export default function ProviderReportPage() {
             {!isLoading && paged.map((r) => {
               const isOpen = expanded.has(r.providerId);
               return (
-                <>
+                <Fragment key={r.providerId}>
                   <TableRow
-                    key={r.providerId}
                     className={cn("cursor-pointer select-none transition-colors", isOpen && "bg-primary/5 border-l-2 border-l-primary")}
                     onClick={() => toggleExpand(r.providerId)}
                   >
@@ -210,13 +209,12 @@ export default function ProviderReportPage() {
                   </TableRow>
                   {isOpen && (
                     <AccountDetailPanel
-                      key={`detail-${r.providerId}`}
                       providerId={r.providerId}
                       dateRange={dateRange}
                       hasFilter={hasFilter}
                     />
                   )}
-                </>
+                </Fragment>
               );
             })}
           </TableBody>

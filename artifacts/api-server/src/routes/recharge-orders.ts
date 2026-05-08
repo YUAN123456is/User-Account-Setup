@@ -135,6 +135,10 @@ router.patch("/recharge-orders/:id", requireRole("provider", "admin"), async (re
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  if (order.status !== "pending") {
+    res.status(409).json({ error: "该订单已处理，无法重复操作" });
+    return;
+  }
 
   const [updated] = await db.update(rechargeOrdersTable).set({
     status: parsed.data.status,
