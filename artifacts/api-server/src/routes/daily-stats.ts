@@ -84,26 +84,24 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
-  const realBal = parseFloat(parsed.data.realBalance);
   const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
   const spend = parseFloat(parsed.data.spendAmount);
 
-  const newTheoretical = theoreticalBal - spend;
-  const diff = theoreticalBal > 0 ? Math.abs(newTheoretical - realBal) / theoreticalBal : 0;
-  const hasAlert = diff > 0.05;
+  // System auto-calculates the new balance; pitcher only reports spend amount
+  const newBalance = (theoreticalBal - spend).toFixed(2);
 
   const [stat] = await db.insert(dailyStatsTable).values({
     accountId: parsed.data.accountId,
     date: parsed.data.date,
     spendAmount: parsed.data.spendAmount,
-    realBalance: parsed.data.realBalance,
+    realBalance: newBalance,
     pitcherId: req.session.userId!,
-    hasAlert,
+    hasAlert: false,
   }).returning();
 
   await db.update(accountsTable).set({
-    currentBalance: parsed.data.realBalance,
-    theoreticalBalance: newTheoretical.toFixed(2),
+    currentBalance: newBalance,
+    theoreticalBalance: newBalance,
     lastReportedAt: new Date(),
   }).where(eq(accountsTable.id, parsed.data.accountId));
 

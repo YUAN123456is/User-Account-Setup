@@ -820,13 +820,10 @@ components:
           type: string
         spendAmount:
           type: string
-        realBalance:
-          type: string
       required:
         - accountId
         - date
         - spendAmount
-        - realBalance
 
     UpdateDailyStatBody:
       type: object
