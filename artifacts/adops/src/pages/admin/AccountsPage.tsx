@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListAccounts, useListUsers, useAssignAccount } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListAccounts, useListUsers, useAssignAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,8 +27,16 @@ interface UserRow { id: number; displayName: string; role: string; }
 
 function AssignDialog({ account, onClose }: { account: Account; onClose: () => void }) {
   const [pitcherId, setPitcherId] = useState<string>(account.pitcherId?.toString() ?? "");
+  const queryClient = useQueryClient();
   const { data: usersData } = useListUsers({ role: "pitcher" });
-  const assign = useAssignAccount({ mutation: { onSuccess: onClose } });
+  const assign = useAssignAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        onClose();
+      },
+    },
+  });
 
   const pitchers = Array.isArray(usersData) ? (usersData as UserRow[]).filter((u) => u.role === "pitcher") : [];
 

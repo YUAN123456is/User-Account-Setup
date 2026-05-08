@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, SQL } from "drizzle-orm";
 import { db, dailyStatsTable, accountsTable, usersTable } from "@workspace/db";
 import {
   CreateDailyStatBody,
@@ -53,7 +53,7 @@ router.get("/daily-stats", requireAuth, async (req, res): Promise<void> => {
       res.json([]);
       return;
     }
-    conditions.push(eq(dailyStatsTable.accountId, ids[0]));
+    conditions.push(inArray(dailyStatsTable.accountId, ids));
   }
 
   if (params.data.accountId != null) conditions.push(eq(dailyStatsTable.accountId, params.data.accountId));

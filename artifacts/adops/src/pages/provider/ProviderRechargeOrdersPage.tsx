@@ -1,4 +1,5 @@
-import { useListRechargeOrders, useUpdateRechargeOrder } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListRechargeOrders, useUpdateRechargeOrder, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
@@ -16,8 +17,15 @@ interface RechargeOrder {
 }
 
 export default function ProviderRechargeOrdersPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useListRechargeOrders({});
-  const update = useUpdateRechargeOrder();
+  const update = useUpdateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+      },
+    },
+  });
   const orders = Array.isArray(data) ? (data as RechargeOrder[]) : [];
 
   return (

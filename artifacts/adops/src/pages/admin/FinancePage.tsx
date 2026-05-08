@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListRechargeOrders, useUpdateRechargeOrder } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListRechargeOrders, useUpdateRechargeOrder, getListRechargeOrdersQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,11 +24,20 @@ interface RechargeOrder {
 
 export default function FinancePage() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const queryClient = useQueryClient();
+
   const params: Record<string, string> = {};
   if (statusFilter !== "all") params.status = statusFilter;
 
   const { data, isLoading } = useListRechargeOrders(params);
-  const update = useUpdateRechargeOrder();
+  const update = useUpdateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      },
+    },
+  });
   const orders = Array.isArray(data) ? (data as RechargeOrder[]) : [];
 
   const handleAction = (id: number, status: "completed" | "rejected") => {

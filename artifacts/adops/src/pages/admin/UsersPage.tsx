@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useListUsers, useCreateUser, useUpdateUser } from "@workspace/api-client-react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,14 +24,25 @@ interface UserRow {
   createdAt: string;
 }
 
+const BLANK_FORM = { username: "", displayName: "", password: "", role: "provider" as Role, portalSlug: "" };
+
 function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [form, setForm] = useState({ username: "", displayName: "", password: "", role: "provider" as Role, portalSlug: "" });
+  const [form, setForm] = useState(BLANK_FORM);
   const [formError, setFormError] = useState("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (open) {
+      setForm(BLANK_FORM);
+      setFormError("");
+    }
+  }, [open]);
 
   const create = useCreateUser({
     mutation: {
       onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
         toast({ title: "用户已创建" });
         onClose();
       },
@@ -108,7 +120,23 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
 
 function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const [form, setForm] = useState({ displayName: user.displayName, password: "", portalSlug: user.portalSlug ?? "", isActive: user.isActive });
-  const update = useUpdateUser({ mutation: { onSuccess: onClose } });
+  const [formError, setFormError] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const update = useUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+        toast({ title: "用户已更新" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "更新失败，请重试";
+        setFormError(msg);
+      },
+    },
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -137,6 +165,11 @@ function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
               </SelectContent>
             </Select>
           </div>
+          {formError && (
+            <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+              {formError}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
