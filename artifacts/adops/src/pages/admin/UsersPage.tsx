@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey } from "@workspace/api-client-react";
+import { useListUsers, useCreateUser, useUpdateUser, useDeleteUser, getListUsersQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
-import { Plus, Edit, Users, Search } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Search } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 type Role = "provider" | "pitcher";
@@ -163,11 +163,59 @@ function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
   );
 }
 
+function DeleteConfirmDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const del = useDeleteUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+        toast({ title: "用户已删除" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "删除失败，请重试";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>确认删除用户</DialogTitle>
+        </DialogHeader>
+        <div className="py-2 space-y-2">
+          <p className="text-sm text-muted-foreground">
+            你确定要删除用户 <span className="font-semibold text-foreground">「{user.displayName}」</span> 吗？
+          </p>
+          <p className="text-sm text-muted-foreground">
+            此操作将停用该账号，已关联的数据不会被删除。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button
+            variant="destructive"
+            onClick={() => del.mutate({ id: user.id })}
+            disabled={del.isPending}
+          >
+            {del.isPending ? "删除中..." : "确认删除"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const roleLabel: Record<string, string> = { provider: "开户商", pitcher: "投手", admin: "管理员" };
 
 export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [deleteUser, setDeleteUser] = useState<UserRow | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -242,7 +290,7 @@ export default function UsersPage() {
               <TableHead>门户路径</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>创建时间</TableHead>
-              <TableHead className="w-20">操作</TableHead>
+              <TableHead className="w-28">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -267,9 +315,19 @@ export default function UsersPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditUser(u)}>
-                    <Edit className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditUser(u)}>
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteUser(u)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -280,6 +338,7 @@ export default function UsersPage() {
 
       {showCreate && <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} />}
       {editUser && <EditDialog user={editUser} onClose={() => setEditUser(null)} />}
+      {deleteUser && <DeleteConfirmDialog user={deleteUser} onClose={() => setDeleteUser(null)} />}
     </div>
   );
 }

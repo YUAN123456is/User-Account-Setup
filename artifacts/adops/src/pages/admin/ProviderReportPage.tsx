@@ -34,12 +34,14 @@ interface ProviderAccountDetail {
 
 const PAGE_SIZE = 20;
 
-function AccountDetailRows({
+function AccountDetailPanel({
   providerId,
   dateRange,
+  hasFilter,
 }: {
   providerId: number;
   dateRange: DateRange;
+  hasFilter: boolean;
 }) {
   const params: Record<string, string | number> = { providerId };
   if (dateRange.from) params.dateFrom = dateRange.from;
@@ -48,47 +50,56 @@ function AccountDetailRows({
   const { data, isLoading } = useGetProviderAccounts(params as Parameters<typeof useGetProviderAccounts>[0]);
   const rows = Array.isArray(data) ? (data as ProviderAccountDetail[]) : [];
 
-  if (isLoading) {
-    return (
-      <TableRow>
-        <TableCell colSpan={9} className="bg-muted/20 py-6 text-center">
-          <Loader2 className="h-4 w-4 animate-spin inline-block text-muted-foreground" />
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <TableRow>
-        <TableCell colSpan={9} className="bg-muted/20 text-center text-sm text-muted-foreground py-4">
-          该开户商暂无账户
-        </TableCell>
-      </TableRow>
-    );
-  }
-
   return (
-    <>
-      <TableRow className="bg-muted/10 hover:bg-muted/10">
-        <TableCell colSpan={9} className="py-1.5 px-6">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">账户明细</span>
-        </TableCell>
-      </TableRow>
-      {rows.map((acc) => (
-        <TableRow key={acc.accountId} className="bg-muted/5 hover:bg-muted/10">
-          <TableCell className="pl-10 w-4" />
-          <TableCell className="font-medium text-sm">{acc.accountName}</TableCell>
-          <TableCell className="font-mono text-xs text-muted-foreground">{acc.platformAccountId}</TableCell>
-          <TableCell><PlatformBadge platform={acc.platform} /></TableCell>
-          <TableCell><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></TableCell>
-          <TableCell className="font-mono text-sm font-semibold text-primary">${Number(acc.currentBalance).toFixed(2)}</TableCell>
-          <TableCell className="font-mono text-sm">${Number(acc.todaySpend).toFixed(2)}</TableCell>
-          <TableCell className="font-mono text-sm">${Number(acc.totalSpend).toFixed(2)}</TableCell>
-          <TableCell className="text-sm text-muted-foreground">{acc.pitcherName ?? "—"}</TableCell>
-        </TableRow>
-      ))}
-    </>
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={8} className="p-0">
+        <div className="mx-4 my-2 rounded-lg border border-primary/20 bg-muted/30 overflow-hidden shadow-sm">
+          <div className="px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center gap-2">
+            <span className="text-xs font-semibold text-primary uppercase tracking-wider">账户明细</span>
+            {!isLoading && (
+              <span className="text-xs text-muted-foreground">（共 {rows.length} 个账户）</span>
+            )}
+          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6 gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              加载中...
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-5">该开户商暂无账户</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40">
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">账户名称</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台账户ID</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">状态</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">当前余额</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">今日消耗</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{hasFilter ? "期间消耗" : "累计消耗"}</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">绑定投手</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((acc, idx) => (
+                  <tr key={acc.accountId} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
+                    <td className="px-4 py-2 font-medium">{acc.accountName}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{acc.platformAccountId}</td>
+                    <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
+                    <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
+                    <td className="px-4 py-2 font-mono font-semibold text-primary">${Number(acc.currentBalance).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono">${Number(acc.todaySpend).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono">${Number(acc.totalSpend).toFixed(2)}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{acc.pitcherName ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -105,7 +116,7 @@ export default function ProviderReportPage() {
   const rows = Array.isArray(data) ? (data as ProviderSpend[]) : [];
   const paged = usePagination(rows, PAGE_SIZE, page);
 
-  const hasFilter = dateRange.from || dateRange.to;
+  const hasFilter = !!(dateRange.from || dateRange.to);
   const totalTodaySpend = rows.reduce((s, r) => s + Number(r.todaySpend), 0);
   const totalPeriodSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
   const totalBalance = rows.reduce((s, r) => s + Number(r.totalBalance), 0);
@@ -167,7 +178,11 @@ export default function ProviderReportPage() {
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={8}><EmptyState icon={BarChart3} title="暂无数据" description="投手上报每日数据后将在此显示。" /></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={8}>
+                  <EmptyState icon={BarChart3} title="暂无数据" description="投手上报每日数据后将在此显示。" />
+                </TableCell>
+              </TableRow>
             )}
             {!isLoading && paged.map((r) => {
               const isOpen = expanded.has(r.providerId);
@@ -175,22 +190,31 @@ export default function ProviderReportPage() {
                 <>
                   <TableRow
                     key={r.providerId}
-                    className={cn("cursor-pointer select-none", isOpen && "bg-muted/20")}
+                    className={cn("cursor-pointer select-none transition-colors", isOpen && "bg-primary/5 border-l-2 border-l-primary")}
                     onClick={() => toggleExpand(r.providerId)}
                   >
-                    <TableCell className="w-8 text-muted-foreground">
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <TableCell className="w-8 text-primary">
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
-                    <TableCell className="font-medium">{r.providerName}</TableCell>
+                    <TableCell className="font-semibold">{r.providerName}</TableCell>
                     <TableCell className="font-mono">${Number(r.todaySpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalSpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono font-semibold text-primary">${Number(r.totalBalance).toFixed(2)}</TableCell>
                     <TableCell className="font-mono text-amber-600">${Number(r.todayRecharge).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalRecharge).toFixed(2)}</TableCell>
-                    <TableCell>{r.accountCount}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center justify-center bg-muted text-muted-foreground text-xs rounded-full px-2 py-0.5 min-w-[24px]">
+                        {r.accountCount}
+                      </span>
+                    </TableCell>
                   </TableRow>
                   {isOpen && (
-                    <AccountDetailRows key={`detail-${r.providerId}`} providerId={r.providerId} dateRange={dateRange} />
+                    <AccountDetailPanel
+                      key={`detail-${r.providerId}`}
+                      providerId={r.providerId}
+                      dateRange={dateRange}
+                      hasFilter={hasFilter}
+                    />
                   )}
                 </>
               );
