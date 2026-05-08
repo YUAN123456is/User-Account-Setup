@@ -305,6 +305,8 @@ export const UpdateDailyStatResponse = zod.object({
 export const ListRechargeOrdersQueryParams = zod.object({
   status: zod.enum(["pending", "completed", "rejected"]).optional(),
   accountId: zod.coerce.number().nullish(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
 });
 
 export const ListRechargeOrdersResponseItem = zod.object({
@@ -445,6 +447,8 @@ export const GetSpendByPitcherResponse = zod.array(
 export const GetCrossReportQueryParams = zod.object({
   pitcherId: zod.coerce.number().nullish(),
   providerId: zod.coerce.number().nullish(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
 });
 
 export const GetCrossReportResponseItem = zod.object({

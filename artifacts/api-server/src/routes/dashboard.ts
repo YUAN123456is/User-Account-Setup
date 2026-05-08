@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte, lte, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 
@@ -53,23 +53,29 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
     .groupBy(accountsTable.providerId, usersTable.displayName);
 
   const result = await Promise.all(rows.map(async (row) => {
+    const dateConds: SQL[] = [eq(accountsTable.providerId, row.providerId)];
+    if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
+    if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
+
+    const todayConds: SQL[] = [eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, todayStr())];
+
+    const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+      .from(dailyStatsTable)
+      .leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
+      .where(and(...dateConds));
+
     const todayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
       .leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, todayStr())));
+      .where(and(...todayConds));
 
-    const totalQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable)
-      .leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(eq(accountsTable.providerId, row.providerId));
-
-    const [[today], [total]] = await Promise.all([todayQ, totalQ]);
+    const [[range], [today]] = await Promise.all([rangeQ, todayQ]);
 
     return {
       providerId: row.providerId,
       providerName: row.providerName ?? "Unknown",
       todaySpend: today?.total ?? "0",
-      totalSpend: total?.total ?? "0",
+      totalSpend: range?.total ?? "0",
       accountCount: row.accountCount,
     };
   }));
@@ -78,6 +84,8 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
 });
 
 router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res): Promise<void> => {
+  const { dateFrom, dateTo } = req.query as { dateFrom?: string; dateTo?: string };
+
   const rows = await db
     .select({
       pitcherId: accountsTable.pitcherId,
@@ -92,21 +100,25 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
   const result = await Promise.all(rows.map(async (row) => {
     if (!row.pitcherId) return null;
 
+    const dateConds: SQL[] = [eq(dailyStatsTable.pitcherId, row.pitcherId)];
+    if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
+    if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
+
     const todayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
       .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, todayStr())));
 
-    const totalQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+    const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
-      .where(eq(dailyStatsTable.pitcherId, row.pitcherId));
+      .where(and(...dateConds));
 
-    const [[today], [total]] = await Promise.all([todayQ, totalQ]);
+    const [[today], [range]] = await Promise.all([todayQ, rangeQ]);
 
     return {
       pitcherId: row.pitcherId,
       pitcherName: row.pitcherName ?? "Unknown",
       todaySpend: today?.total ?? "0",
-      totalSpend: total?.total ?? "0",
+      totalSpend: range?.total ?? "0",
       accountCount: row.accountCount,
     };
   }));
@@ -115,7 +127,11 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
 });
 
 router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Promise<void> => {
-  const { pitcherId, providerId } = req.query as { pitcherId?: string; providerId?: string };
+  const { pitcherId, providerId, dateFrom, dateTo } = req.query as { pitcherId?: string; providerId?: string; dateFrom?: string; dateTo?: string };
+
+  const dateConds: SQL[] = [];
+  if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
+  if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
   const rows = await db
     .select({
@@ -128,6 +144,7 @@ router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Pr
     .from(dailyStatsTable)
     .leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
     .leftJoin(usersTable, eq(dailyStatsTable.pitcherId, usersTable.id))
+    .where(dateConds.length > 0 ? and(...dateConds) : undefined)
     .groupBy(dailyStatsTable.pitcherId, usersTable.displayName, accountsTable.providerId);
 
   const providerIds = [...new Set(rows.map((r) => r.providerId).filter((id): id is number => id != null))];

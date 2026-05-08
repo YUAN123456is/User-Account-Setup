@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, SQL } from "drizzle-orm";
 import { db, rechargeOrdersTable, accountsTable, usersTable } from "@workspace/db";
 import {
   CreateRechargeOrderBody,
@@ -58,6 +58,12 @@ router.get("/recharge-orders", requireAuth, async (req, res): Promise<void> => {
 
   if (params.data.status) conditions.push(eq(rechargeOrdersTable.status, params.data.status));
   if (params.data.accountId != null) conditions.push(eq(rechargeOrdersTable.accountId, params.data.accountId));
+  if (params.data.dateFrom) conditions.push(gte(rechargeOrdersTable.createdAt, new Date(params.data.dateFrom)));
+  if (params.data.dateTo) {
+    const end = new Date(params.data.dateTo);
+    end.setHours(23, 59, 59, 999);
+    conditions.push(lte(rechargeOrdersTable.createdAt, end));
+  }
 
   const orders = conditions.length > 0
     ? await db.select().from(rechargeOrdersTable).where(and(...conditions))

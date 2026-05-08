@@ -329,6 +329,14 @@ export type ListRechargeOrdersParams = {
    * @nullable
    */
   accountId?: number | null;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
 };
 
 export type ListRechargeOrdersStatus =
@@ -371,4 +379,12 @@ export type GetCrossReportParams = {
    * @nullable
    */
   providerId?: number | null;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
 };

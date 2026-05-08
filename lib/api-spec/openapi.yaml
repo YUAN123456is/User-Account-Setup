@@ -414,6 +414,14 @@ paths:
           name: accountId
           schema:
             type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
       responses:
         "200":
           description: List of recharge orders
@@ -561,6 +569,14 @@ paths:
           name: providerId
           schema:
             type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
       responses:
         "200":
           description: Cross report data

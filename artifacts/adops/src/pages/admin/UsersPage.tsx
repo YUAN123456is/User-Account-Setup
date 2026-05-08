@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Users } from "lucide-react";
+import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
+import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { Plus, Edit, Users, Search } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 type Role = "provider" | "pitcher";
@@ -25,6 +27,7 @@ interface UserRow {
 }
 
 const BLANK_FORM = { username: "", displayName: "", password: "", role: "provider" as Role, portalSlug: "" };
+const PAGE_SIZE = 20;
 
 function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState(BLANK_FORM);
@@ -33,10 +36,7 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (open) {
-      setForm(BLANK_FORM);
-      setFormError("");
-    }
+    if (open) { setForm(BLANK_FORM); setFormError(""); }
   }, [open]);
 
   const create = useCreateUser({
@@ -56,18 +56,9 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const handleCreate = () => {
     setFormError("");
     if (!form.displayName.trim() || !form.username.trim() || !form.password.trim()) {
-      setFormError("显示名称、用户名和密码为必填项");
-      return;
+      setFormError("显示名称、用户名和密码为必填项"); return;
     }
-    create.mutate({
-      data: {
-        username: form.username,
-        displayName: form.displayName,
-        password: form.password,
-        role: form.role,
-        portalSlug: form.portalSlug || undefined,
-      },
-    });
+    create.mutate({ data: { username: form.username, displayName: form.displayName, password: form.password, role: form.role, portalSlug: form.portalSlug || undefined } });
   };
 
   return (
@@ -101,17 +92,11 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
               </SelectContent>
             </Select>
           </div>
-          {formError && (
-            <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
-              {formError}
-            </div>
-          )}
+          {formError && <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">{formError}</div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleCreate} disabled={create.isPending}>
-            {create.isPending ? "创建中..." : "创建"}
-          </Button>
+          <Button onClick={handleCreate} disabled={create.isPending}>{create.isPending ? "创建中..." : "创建"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -165,18 +150,11 @@ function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
               </SelectContent>
             </Select>
           </div>
-          {formError && (
-            <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
-              {formError}
-            </div>
-          )}
+          {formError && <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">{formError}</div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button
-            onClick={() => update.mutate({ id: user.id, data: { displayName: form.displayName, password: form.password || undefined, portalSlug: form.portalSlug || undefined, isActive: form.isActive } })}
-            disabled={update.isPending}
-          >
+          <Button onClick={() => update.mutate({ id: user.id, data: { displayName: form.displayName, password: form.password || undefined, portalSlug: form.portalSlug || undefined, isActive: form.isActive } })} disabled={update.isPending}>
             {update.isPending ? "保存中..." : "保存"}
           </Button>
         </DialogFooter>
@@ -190,12 +168,32 @@ const roleLabel: Record<string, string> = { provider: "开户商", pitcher: "投
 export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
-  const { data, isLoading } = useListUsers({ role: undefined });
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [page, setPage] = useState(1);
 
-  const users = Array.isArray(data) ? (data as UserRow[]).filter((u: UserRow) => u.role !== "admin") : [];
+  const { data, isLoading } = useListUsers({ role: roleFilter === "all" ? undefined : (roleFilter as "provider" | "pitcher") });
+  const allUsers = Array.isArray(data) ? (data as UserRow[]).filter((u) => u.role !== "admin") : [];
+
+  const filtered = useMemo(() => {
+    let rows = allUsers;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((u) => u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
+    }
+    if (statusFilter === "active") rows = rows.filter((u) => u.isActive);
+    if (statusFilter === "inactive") rows = rows.filter((u) => !u.isActive);
+    if (dateRange.from) rows = rows.filter((u) => u.createdAt >= dateRange.from);
+    if (dateRange.to) rows = rows.filter((u) => u.createdAt <= dateRange.to + "T23:59:59");
+    return rows;
+  }, [allUsers, search, statusFilter, dateRange]);
+
+  const paged = usePagination(filtered, PAGE_SIZE, page);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">用户管理</h1>
@@ -204,6 +202,34 @@ export default function UsersPage() {
         <Button onClick={() => setShowCreate(true)} size="sm" className="gap-1.5">
           <Plus className="h-4 w-4" /> 新建用户
         </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8 h-8 w-56 text-sm" placeholder="搜索姓名或用户名..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        </div>
+        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(1); }}>
+          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部角色</SelectItem>
+            <SelectItem value="provider">开户商</SelectItem>
+            <SelectItem value="pitcher">投手</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+          <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部状态</SelectItem>
+            <SelectItem value="active">启用</SelectItem>
+            <SelectItem value="inactive">停用</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
+        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -220,33 +246,24 @@ export default function UsersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && Array.from({ length: 3 }).map((_, i) => (
-              <TableRow key={i}>
-                {Array.from({ length: 7 }).map((__, j) => (
-                  <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
-                ))}
-              </TableRow>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+                <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
+              ))}</TableRow>
             ))}
-            {!isLoading && users.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" />
-                </TableCell>
-              </TableRow>
+            {!isLoading && paged.length === 0 && (
+              <TableRow><TableCell colSpan={7}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
             )}
-            {!isLoading && users.map((u: UserRow) => (
+            {!isLoading && paged.map((u) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.displayName}</TableCell>
                 <TableCell className="text-muted-foreground font-mono text-sm">{u.username}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{roleLabel[u.role] ?? u.role}</Badge>
-                </TableCell>
+                <TableCell><Badge variant="outline">{roleLabel[u.role] ?? u.role}</Badge></TableCell>
                 <TableCell className="text-muted-foreground font-mono text-sm">{u.portalSlug ?? "—"}</TableCell>
                 <TableCell>
                   {u.isActive
                     ? <Badge className="bg-green-500/15 text-green-600 border-green-500/30">启用</Badge>
-                    : <Badge variant="outline" className="text-muted-foreground">停用</Badge>
-                  }
+                    : <Badge variant="outline" className="text-muted-foreground">停用</Badge>}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
@@ -258,6 +275,7 @@ export default function UsersPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
       {showCreate && <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} />}

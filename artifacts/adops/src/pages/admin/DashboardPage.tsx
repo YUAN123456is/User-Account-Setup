@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useGetDashboardSummary, useGetSpendByProvider, useGetSpendByPitcher } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { CreditCard, TrendingUp, AlertTriangle, Clock, CheckCircle, Ban } from "lucide-react";
 
 function KpiCard({ title, value, icon: Icon, className }: { title: string; value: string | number; icon: typeof CreditCard; className?: string }) {
@@ -22,22 +24,25 @@ function KpiCard({ title, value, icon: Icon, className }: { title: string; value
 }
 
 export default function DashboardPage() {
+  const [chartDateRange, setChartDateRange] = useState<DateRange>({ from: "", to: "" });
+
   const { data: summary, isLoading } = useGetDashboardSummary();
-  const { data: providerSpend } = useGetSpendByProvider({});
-  const { data: pitcherSpend } = useGetSpendByPitcher({});
+
+  const chartParams: Record<string, string> = {};
+  if (chartDateRange.from) chartParams.dateFrom = chartDateRange.from;
+  if (chartDateRange.to) chartParams.dateTo = chartDateRange.to;
+
+  const { data: providerSpend } = useGetSpendByProvider(chartParams);
+  const { data: pitcherSpend } = useGetSpendByPitcher(chartParams);
+
+  const hasDateFilter = chartDateRange.from || chartDateRange.to;
 
   const providerChartData = Array.isArray(providerSpend)
-    ? providerSpend.map((p) => ({
-        name: p.providerName ?? "",
-        spend: Number(p.todaySpend ?? 0),
-      }))
+    ? providerSpend.map((p) => ({ name: p.providerName ?? "", spend: Number(hasDateFilter ? p.totalSpend : p.todaySpend ?? 0) }))
     : [];
 
   const pitcherChartData = Array.isArray(pitcherSpend)
-    ? pitcherSpend.map((p) => ({
-        name: p.pitcherName ?? "",
-        spend: Number(p.todaySpend ?? 0),
-      }))
+    ? pitcherSpend.map((p) => ({ name: p.pitcherName ?? "", spend: Number(hasDateFilter ? p.totalSpend : p.todaySpend ?? 0) }))
     : [];
 
   if (isLoading) {
@@ -72,54 +77,57 @@ export default function DashboardPage() {
         <KpiCard title="用户总数" value={(s?.totalProviders ?? 0) + (s?.totalPitchers ?? 0)} icon={CreditCard} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-foreground">开户商今日消耗</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {providerChartData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={providerChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6 }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
-                  <Bar dataKey="spend" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold">消耗统计</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">时间范围</span>
+            <DateRangePicker value={chartDateRange} onChange={setChartDateRange} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "开户商期间消耗" : "开户商今日消耗"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {providerChartData.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={providerChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6 }} labelStyle={{ color: "hsl(var(--foreground))" }} />
+                    <Bar dataKey="spend" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-foreground">投手今日消耗</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pitcherChartData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={pitcherChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6 }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
-                  <Bar dataKey="spend" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "投手期间消耗" : "投手今日消耗"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pitcherChartData.length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={pitcherChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 6 }} labelStyle={{ color: "hsl(var(--foreground))" }} />
+                    <Bar dataKey="spend" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
