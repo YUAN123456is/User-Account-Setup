@@ -1,5 +1,6 @@
 import { useState, Fragment } from "react";
 import { useGetSpendByProvider, useGetProviderAccounts } from "@workspace/api-client-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
@@ -84,8 +85,8 @@ function AccountDetailPanel({
               <tbody>
                 {rows.map((acc, idx) => (
                   <tr key={acc.accountId} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
-                    <td className="px-4 py-2 font-medium">{acc.accountName}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{acc.platformAccountId}</td>
+                    <td className="px-4 py-2 font-medium max-w-[160px]"><TruncatedCell value={acc.accountName} /></td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground max-w-[140px]"><TruncatedCell value={acc.platformAccountId} /></td>
                     <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
                     <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
                     <td className="px-4 py-2 font-mono font-semibold text-primary">${Number(acc.currentBalance).toFixed(2)}</td>

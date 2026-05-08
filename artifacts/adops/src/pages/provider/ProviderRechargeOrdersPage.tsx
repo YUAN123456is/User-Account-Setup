@@ -11,6 +11,7 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Receipt, Search } from "lucide-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface RechargeOrder {
   id: number;
@@ -120,7 +121,9 @@ export default function ProviderRechargeOrdersPage() {
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
-                <TableCell className="font-medium">{o.accountName ?? `账户 #${o.accountId}`}</TableCell>
+                <TableCell className="font-medium max-w-[180px]">
+                  <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
+                </TableCell>
                 <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>

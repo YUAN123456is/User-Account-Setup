@@ -13,6 +13,10 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, UserPlus, Search, Trash2 } from "lucide-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
+import { Label } from "@/components/ui/label";
+
+const DELETE_PASSWORD = "110112";
 
 interface Account {
   id: number;
@@ -86,6 +90,7 @@ export default function AccountsPage() {
   const [page, setPage] = useState(1);
   const [assignAccount, setAssignAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const deleteHook = useDeleteAccount({
@@ -223,11 +228,15 @@ export default function AccountsPage() {
             )}
             {!isLoading && paged.map((a) => (
               <TableRow key={a.id}>
-                <TableCell className="font-medium max-w-[160px] truncate">{a.accountName}</TableCell>
-                <TableCell className="font-mono text-sm text-muted-foreground">{a.platformAccountId}</TableCell>
+                <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
+                <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell className="text-sm text-muted-foreground">{a.providerName ?? "—"}</TableCell>
-                <TableCell className="text-sm">{a.pitcherName ?? <span className="text-amber-500 text-xs">未分配</span>}</TableCell>
+                <TableCell className="text-sm text-muted-foreground max-w-[100px]">
+                  {a.providerName ? <TruncatedCell value={a.providerName} /> : "—"}
+                </TableCell>
+                <TableCell className="text-sm max-w-[100px]">
+                  {a.pitcherName ? <TruncatedCell value={a.pitcherName} /> : <span className="text-amber-500 text-xs">未分配</span>}
+                </TableCell>
                 <TableCell><AccountStatusBadge status={a.status} /></TableCell>
                 <TableCell className="font-mono text-sm">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
@@ -252,20 +261,32 @@ export default function AccountsPage() {
       {assignAccount && <AssignDialog account={assignAccount} onClose={() => setAssignAccount(null)} />}
 
       {deleteAccount && (
-        <Dialog open onOpenChange={() => setDeleteAccount(null)}>
+        <Dialog open onOpenChange={() => { setDeleteAccount(null); setDeletePassword(""); }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>删除账户</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground py-2">
-              确认删除账户 <span className="font-semibold text-foreground">{deleteAccount.accountName}</span>？此操作不可撤销。
-            </p>
+            <div className="py-2 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                确认删除账户 <span className="font-semibold text-foreground">「{deleteAccount.accountName}」</span>？该账户的全部每日数据及充值订单将一并永久删除，操作不可撤销。
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-sm">请输入操作密码以确认</Label>
+                <Input
+                  type="password"
+                  placeholder="操作密码"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className={deletePassword && deletePassword !== DELETE_PASSWORD ? "border-destructive" : ""}
+                />
+              </div>
+            </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleteAccount(null)}>取消</Button>
+              <Button variant="outline" onClick={() => { setDeleteAccount(null); setDeletePassword(""); }}>取消</Button>
               <Button
                 variant="destructive"
                 onClick={() => deleteHook.mutate({ id: deleteAccount.id })}
-                disabled={deleteHook.isPending}
+                disabled={deleteHook.isPending || deletePassword !== DELETE_PASSWORD}
               >
                 {deleteHook.isPending ? "删除中..." : "确认删除"}
               </Button>

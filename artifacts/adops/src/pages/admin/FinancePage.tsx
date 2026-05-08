@@ -11,6 +11,7 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Wallet, Search } from "lucide-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface RechargeOrder {
   id: number;
@@ -126,10 +127,16 @@ export default function FinancePage() {
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
-                <TableCell className="font-medium">{o.accountName ?? `账户 #${o.accountId}`}</TableCell>
+                <TableCell className="font-medium max-w-[160px]">
+                  <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
+                </TableCell>
                 <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">{o.providerName ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">{o.pitcherName ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground text-sm max-w-[100px]">
+                  {o.providerName ? <TruncatedCell value={o.providerName} /> : "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm max-w-[100px]">
+                  {o.pitcherName ? <TruncatedCell value={o.pitcherName} /> : "—"}
+                </TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>

@@ -9,6 +9,7 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { History, Search } from "lucide-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface DailyStat {
   id: number;
@@ -124,7 +125,9 @@ export default function PitcherHistoryPage() {
             {!isLoading && paged.map((s) => (
               <TableRow key={s.id}>
                 <TableCell className="font-mono text-sm">{s.date}</TableCell>
-                <TableCell className="font-medium">{s.accountName ?? `账户 #${s.accountId}`}</TableCell>
+                <TableCell className="font-medium max-w-[180px]">
+                  <TruncatedCell value={s.accountName ?? `账户 #${s.accountId}`} />
+                </TableCell>
                 <TableCell className="font-mono">${Number(s.spendAmount).toFixed(2)}</TableCell>
                 <TableCell className="font-mono">${Number(s.realBalance).toFixed(2)}</TableCell>
                 <TableCell>

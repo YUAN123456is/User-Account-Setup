@@ -13,6 +13,9 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { Plus, Edit, Trash2, Users, Search } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
+
+const DELETE_PASSWORD = "110112";
 
 type Role = "provider" | "pitcher";
 
@@ -164,6 +167,7 @@ function EditDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
 }
 
 function DeleteConfirmDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [pwd, setPwd] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -187,7 +191,7 @@ function DeleteConfirmDialog({ user, onClose }: { user: UserRow; onClose: () => 
         <DialogHeader>
           <DialogTitle>确认删除用户</DialogTitle>
         </DialogHeader>
-        <div className="py-2 space-y-2">
+        <div className="py-2 space-y-3">
           <p className="text-sm text-muted-foreground">
             你确定要删除用户 <span className="font-semibold text-foreground">「{user.displayName}」</span> 吗？
           </p>
@@ -200,13 +204,23 @@ function DeleteConfirmDialog({ user, onClose }: { user: UserRow; onClose: () => 
               该用户是<strong>投手</strong>，删除后其名下所有每日上报数据将被永久删除，已绑定的账户将解除绑定，操作不可恢复。
             </p>
           )}
+          <div className="space-y-1.5">
+            <Label className="text-sm">请输入操作密码以确认</Label>
+            <Input
+              type="password"
+              placeholder="操作密码"
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              className={pwd && pwd !== DELETE_PASSWORD ? "border-destructive" : ""}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
           <Button
             variant="destructive"
             onClick={() => del.mutate({ id: user.id })}
-            disabled={del.isPending}
+            disabled={del.isPending || pwd !== DELETE_PASSWORD}
           >
             {del.isPending ? "删除中..." : "确认删除"}
           </Button>
@@ -310,10 +324,12 @@ export default function UsersPage() {
             )}
             {!isLoading && paged.map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.displayName}</TableCell>
-                <TableCell className="text-muted-foreground font-mono text-sm">{u.username}</TableCell>
+                <TableCell className="font-medium max-w-[140px]"><TruncatedCell value={u.displayName} /></TableCell>
+                <TableCell className="text-muted-foreground font-mono text-sm max-w-[140px]"><TruncatedCell value={u.username} /></TableCell>
                 <TableCell><Badge variant="outline">{roleLabel[u.role] ?? u.role}</Badge></TableCell>
-                <TableCell className="text-muted-foreground font-mono text-sm">{u.portalSlug ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground font-mono text-sm max-w-[120px]">
+                  {u.portalSlug ? <TruncatedCell value={u.portalSlug} /> : "—"}
+                </TableCell>
                 <TableCell>
                   {u.isActive
                     ? <Badge className="bg-green-500/15 text-green-600 border-green-500/30">启用</Badge>

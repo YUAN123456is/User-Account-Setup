@@ -8,6 +8,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { CheckCircle, AlertTriangle, Clock, Search } from "lucide-react";
 import { PlatformBadge } from "@/components/shared/StatusBadge";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { cn } from "@/lib/utils";
 
 interface LowBalanceAlert {
@@ -206,8 +207,8 @@ export default function AlertsPage() {
                 const isCritical = Number(r.currentBalance) < 50;
                 return (
                   <TableRow key={r.accountId} className={cn(isCritical && "bg-destructive/5")}>
-                    <TableCell className="font-medium">{r.accountName}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{r.platformAccountId}</TableCell>
+                    <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={r.accountName} /></TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={r.platformAccountId} /></TableCell>
                     <TableCell><PlatformBadge platform={r.platform} /></TableCell>
                     <TableCell>
                       <div className={cn("flex items-center gap-1.5 font-mono font-bold", isCritical ? "text-destructive" : "text-amber-600")}>
@@ -215,8 +216,12 @@ export default function AlertsPage() {
                         ${Number(r.currentBalance).toFixed(2)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.pitcherName ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.providerName ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[100px]">
+                      {r.pitcherName ? <TruncatedCell value={r.pitcherName} /> : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[100px]">
+                      {r.providerName ? <TruncatedCell value={r.providerName} /> : "—"}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {r.lastReportedAt ? new Date(r.lastReportedAt).toLocaleDateString("zh-CN") : "从未"}
                     </TableCell>
@@ -252,12 +257,16 @@ export default function AlertsPage() {
                 const isCritical = r.daysSinceReport >= 7;
                 return (
                   <TableRow key={r.accountId} className={cn(isCritical && "bg-destructive/5")}>
-                    <TableCell className="font-medium">{r.accountName}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{r.platformAccountId}</TableCell>
+                    <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={r.accountName} /></TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={r.platformAccountId} /></TableCell>
                     <TableCell><PlatformBadge platform={r.platform} /></TableCell>
                     <TableCell className="font-mono">${Number(r.currentBalance).toFixed(2)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.pitcherName ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.providerName ?? "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[100px]">
+                      {r.pitcherName ? <TruncatedCell value={r.pitcherName} /> : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[100px]">
+                      {r.providerName ? <TruncatedCell value={r.providerName} /> : "—"}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {r.lastReportedAt ? new Date(r.lastReportedAt).toLocaleDateString("zh-CN") : "从未上报"}
                     </TableCell>

@@ -9,6 +9,7 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { CreditCard, Search } from "lucide-react";
+import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface Account {
   id: number;
@@ -122,8 +123,8 @@ export default function PitcherAccountsPage() {
             )}
             {!isLoading && paged.map((a) => (
               <TableRow key={a.id}>
-                <TableCell className="font-medium">{a.accountName}</TableCell>
-                <TableCell className="font-mono text-sm text-muted-foreground">{a.platformAccountId}</TableCell>
+                <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
+                <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
                 <TableCell><AccountStatusBadge status={a.status} /></TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
