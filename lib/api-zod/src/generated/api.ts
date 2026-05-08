@@ -270,7 +270,6 @@ export const CreateDailyStatBody = zod.object({
   accountId: zod.number(),
   date: zod.string(),
   spendAmount: zod.string(),
-  realBalance: zod.string(),
 });
 
 /**

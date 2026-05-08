@@ -157,7 +157,6 @@ export interface CreateDailyStatBody {
   accountId: number;
   date: string;
   spendAmount: string;
-  realBalance: string;
 }
 
 export interface UpdateDailyStatBody {
