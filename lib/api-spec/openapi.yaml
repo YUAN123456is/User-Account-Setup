@@ -602,6 +602,124 @@ paths:
                 items:
                   $ref: "#/components/schemas/BalanceAlert"
 
+  /dashboard/low-balance-alerts:
+    get:
+      operationId: getLowBalanceAlerts
+      tags: [dashboard]
+      summary: Accounts with balance below threshold (admin)
+      parameters:
+        - in: query
+          name: threshold
+          schema:
+            type: ["number", "null"]
+      responses:
+        "200":
+          description: Low balance alert items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LowBalanceAlert"
+
+  /dashboard/overdue-alerts:
+    get:
+      operationId: getOverdueAlerts
+      tags: [dashboard]
+      summary: Accounts not reported in N days (admin)
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Overdue report alert items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OverdueAlert"
+
+  /dashboard/daily-trend:
+    get:
+      operationId: getDailyTrend
+      tags: [dashboard]
+      summary: Daily spend trend for the last N days (admin)
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Daily trend points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyTrendPoint"
+
+  /dashboard/pitcher-accounts:
+    get:
+      operationId: getPitcherAccounts
+      tags: [dashboard]
+      summary: Account detail breakdown for a pitcher (admin)
+      parameters:
+        - in: query
+          name: pitcherId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Pitcher account details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PitcherAccountDetail"
+
+  /dashboard/provider-accounts:
+    get:
+      operationId: getProviderAccounts
+      tags: [dashboard]
+      summary: Account detail breakdown for a provider (admin)
+      parameters:
+        - in: query
+          name: providerId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Provider account details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProviderAccountDetail"
+
 components:
   schemas:
     HealthStatus:
@@ -915,6 +1033,10 @@ components:
           type: integer
         todayTotalSpend:
           type: string
+        totalBalance:
+          type: string
+        todayRecharge:
+          type: string
         pendingRechargeOrders:
           type: integer
         alertCount:
@@ -927,6 +1049,8 @@ components:
         - totalProviders
         - totalPitchers
         - todayTotalSpend
+        - totalBalance
+        - todayRecharge
         - pendingRechargeOrders
         - alertCount
 
@@ -941,6 +1065,12 @@ components:
           type: string
         totalSpend:
           type: string
+        totalRecharge:
+          type: string
+        todayRecharge:
+          type: string
+        totalBalance:
+          type: string
         accountCount:
           type: integer
       required:
@@ -948,6 +1078,9 @@ components:
         - providerName
         - todaySpend
         - totalSpend
+        - totalRecharge
+        - todayRecharge
+        - totalBalance
         - accountCount
 
     SpendByPitcher:
@@ -961,6 +1094,12 @@ components:
           type: string
         totalSpend:
           type: string
+        totalRecharge:
+          type: string
+        todayRecharge:
+          type: string
+        totalBalance:
+          type: string
         accountCount:
           type: integer
       required:
@@ -968,7 +1107,136 @@ components:
         - pitcherName
         - todaySpend
         - totalSpend
+        - totalRecharge
+        - todayRecharge
+        - totalBalance
         - accountCount
+
+    PitcherAccountDetail:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        platformAccountId:
+          type: string
+        platform:
+          type: string
+        status:
+          type: string
+        currentBalance:
+          type: string
+        todaySpend:
+          type: string
+        totalSpend:
+          type: string
+      required:
+        - accountId
+        - accountName
+        - platformAccountId
+        - platform
+        - status
+        - currentBalance
+        - todaySpend
+        - totalSpend
+
+    ProviderAccountDetail:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        platformAccountId:
+          type: string
+        platform:
+          type: string
+        status:
+          type: string
+        currentBalance:
+          type: string
+        todaySpend:
+          type: string
+        totalSpend:
+          type: string
+        pitcherName:
+          type: ["string", "null"]
+      required:
+        - accountId
+        - accountName
+        - platformAccountId
+        - platform
+        - status
+        - currentBalance
+        - todaySpend
+        - totalSpend
+
+    LowBalanceAlert:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        platformAccountId:
+          type: string
+        platform:
+          type: string
+        pitcherName:
+          type: ["string", "null"]
+        providerName:
+          type: ["string", "null"]
+        currentBalance:
+          type: string
+        lastReportedAt:
+          type: ["string", "null"]
+      required:
+        - accountId
+        - accountName
+        - platformAccountId
+        - platform
+        - currentBalance
+
+    OverdueAlert:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        accountName:
+          type: string
+        platformAccountId:
+          type: string
+        platform:
+          type: string
+        pitcherName:
+          type: ["string", "null"]
+        providerName:
+          type: ["string", "null"]
+        currentBalance:
+          type: string
+        lastReportedAt:
+          type: ["string", "null"]
+        daysSinceReport:
+          type: integer
+      required:
+        - accountId
+        - accountName
+        - platformAccountId
+        - platform
+        - currentBalance
+        - daysSinceReport
+
+    DailyTrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        totalSpend:
+          type: string
+      required:
+        - date
+        - totalSpend
 
     CrossReportRow:
       type: object

@@ -226,6 +226,8 @@ export interface DashboardSummary {
   totalProviders: number;
   totalPitchers: number;
   todayTotalSpend: string;
+  totalBalance: string;
+  todayRecharge: string;
   pendingRechargeOrders: number;
   alertCount: number;
 }
@@ -235,6 +237,9 @@ export interface SpendByProvider {
   providerName: string;
   todaySpend: string;
   totalSpend: string;
+  totalRecharge: string;
+  todayRecharge: string;
+  totalBalance: string;
   accountCount: number;
 }
 
@@ -243,7 +248,68 @@ export interface SpendByPitcher {
   pitcherName: string;
   todaySpend: string;
   totalSpend: string;
+  totalRecharge: string;
+  todayRecharge: string;
+  totalBalance: string;
   accountCount: number;
+}
+
+export interface PitcherAccountDetail {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+  platform: string;
+  status: string;
+  currentBalance: string;
+  todaySpend: string;
+  totalSpend: string;
+}
+
+export interface ProviderAccountDetail {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+  platform: string;
+  status: string;
+  currentBalance: string;
+  todaySpend: string;
+  totalSpend: string;
+  /** @nullable */
+  pitcherName?: string | null;
+}
+
+export interface LowBalanceAlert {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+  platform: string;
+  /** @nullable */
+  pitcherName?: string | null;
+  /** @nullable */
+  providerName?: string | null;
+  currentBalance: string;
+  /** @nullable */
+  lastReportedAt?: string | null;
+}
+
+export interface OverdueAlert {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+  platform: string;
+  /** @nullable */
+  pitcherName?: string | null;
+  /** @nullable */
+  providerName?: string | null;
+  currentBalance: string;
+  /** @nullable */
+  lastReportedAt?: string | null;
+  daysSinceReport: number;
+}
+
+export interface DailyTrendPoint {
+  date: string;
+  totalSpend: string;
 }
 
 export interface CrossReportRow {
@@ -378,6 +444,51 @@ export type GetCrossReportParams = {
    * @nullable
    */
   providerId?: number | null;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
+};
+
+export type GetLowBalanceAlertsParams = {
+  /**
+   * @nullable
+   */
+  threshold?: number | null;
+};
+
+export type GetOverdueAlertsParams = {
+  /**
+   * @nullable
+   */
+  days?: number | null;
+};
+
+export type GetDailyTrendParams = {
+  /**
+   * @nullable
+   */
+  days?: number | null;
+};
+
+export type GetPitcherAccountsParams = {
+  pitcherId: number;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
+};
+
+export type GetProviderAccountsParams = {
+  providerId: number;
   /**
    * @nullable
    */

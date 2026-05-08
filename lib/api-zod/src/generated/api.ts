@@ -398,6 +398,8 @@ export const GetDashboardSummaryResponse = zod.object({
   totalProviders: zod.number(),
   totalPitchers: zod.number(),
   todayTotalSpend: zod.string(),
+  totalBalance: zod.string(),
+  todayRecharge: zod.string(),
   pendingRechargeOrders: zod.number(),
   alertCount: zod.number(),
 });
@@ -415,6 +417,9 @@ export const GetSpendByProviderResponseItem = zod.object({
   providerName: zod.string(),
   todaySpend: zod.string(),
   totalSpend: zod.string(),
+  totalRecharge: zod.string(),
+  todayRecharge: zod.string(),
+  totalBalance: zod.string(),
   accountCount: zod.number(),
 });
 export const GetSpendByProviderResponse = zod.array(
@@ -434,6 +439,9 @@ export const GetSpendByPitcherResponseItem = zod.object({
   pitcherName: zod.string(),
   todaySpend: zod.string(),
   totalSpend: zod.string(),
+  totalRecharge: zod.string(),
+  todayRecharge: zod.string(),
+  totalBalance: zod.string(),
   accountCount: zod.number(),
 });
 export const GetSpendByPitcherResponse = zod.array(
@@ -475,3 +483,104 @@ export const GetBalanceAlertsResponseItem = zod.object({
   lastReportedAt: zod.string().nullish(),
 });
 export const GetBalanceAlertsResponse = zod.array(GetBalanceAlertsResponseItem);
+
+/**
+ * @summary Accounts with balance below threshold (admin)
+ */
+export const GetLowBalanceAlertsQueryParams = zod.object({
+  threshold: zod.coerce.number().nullish(),
+});
+
+export const GetLowBalanceAlertsResponseItem = zod.object({
+  accountId: zod.number(),
+  accountName: zod.string(),
+  platformAccountId: zod.string(),
+  platform: zod.string(),
+  pitcherName: zod.string().nullish(),
+  providerName: zod.string().nullish(),
+  currentBalance: zod.string(),
+  lastReportedAt: zod.string().nullish(),
+});
+export const GetLowBalanceAlertsResponse = zod.array(
+  GetLowBalanceAlertsResponseItem,
+);
+
+/**
+ * @summary Accounts not reported in N days (admin)
+ */
+export const GetOverdueAlertsQueryParams = zod.object({
+  days: zod.coerce.number().nullish(),
+});
+
+export const GetOverdueAlertsResponseItem = zod.object({
+  accountId: zod.number(),
+  accountName: zod.string(),
+  platformAccountId: zod.string(),
+  platform: zod.string(),
+  pitcherName: zod.string().nullish(),
+  providerName: zod.string().nullish(),
+  currentBalance: zod.string(),
+  lastReportedAt: zod.string().nullish(),
+  daysSinceReport: zod.number(),
+});
+export const GetOverdueAlertsResponse = zod.array(GetOverdueAlertsResponseItem);
+
+/**
+ * @summary Daily spend trend for the last N days (admin)
+ */
+export const GetDailyTrendQueryParams = zod.object({
+  days: zod.coerce.number().nullish(),
+});
+
+export const GetDailyTrendResponseItem = zod.object({
+  date: zod.string(),
+  totalSpend: zod.string(),
+});
+export const GetDailyTrendResponse = zod.array(GetDailyTrendResponseItem);
+
+/**
+ * @summary Account detail breakdown for a pitcher (admin)
+ */
+export const GetPitcherAccountsQueryParams = zod.object({
+  pitcherId: zod.coerce.number(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
+});
+
+export const GetPitcherAccountsResponseItem = zod.object({
+  accountId: zod.number(),
+  accountName: zod.string(),
+  platformAccountId: zod.string(),
+  platform: zod.string(),
+  status: zod.string(),
+  currentBalance: zod.string(),
+  todaySpend: zod.string(),
+  totalSpend: zod.string(),
+});
+export const GetPitcherAccountsResponse = zod.array(
+  GetPitcherAccountsResponseItem,
+);
+
+/**
+ * @summary Account detail breakdown for a provider (admin)
+ */
+export const GetProviderAccountsQueryParams = zod.object({
+  providerId: zod.coerce.number(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
+});
+
+export const GetProviderAccountsResponseItem = zod.object({
+  accountId: zod.number(),
+  accountName: zod.string(),
+  platformAccountId: zod.string(),
+  platform: zod.string(),
+  status: zod.string(),
+  currentBalance: zod.string(),
+  todaySpend: zod.string(),
+  totalSpend: zod.string(),
+  pitcherName: zod.string().nullish(),
+});
+export const GetProviderAccountsResponse = zod.array(
+  GetProviderAccountsResponseItem,
+);

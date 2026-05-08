@@ -26,9 +26,15 @@ import type {
   CreateUserBody,
   CrossReportRow,
   DailyStat,
+  DailyTrendPoint,
   DashboardSummary,
   ErrorResponse,
   GetCrossReportParams,
+  GetDailyTrendParams,
+  GetLowBalanceAlertsParams,
+  GetOverdueAlertsParams,
+  GetPitcherAccountsParams,
+  GetProviderAccountsParams,
   GetSpendByPitcherParams,
   GetSpendByProviderParams,
   HealthStatus,
@@ -38,6 +44,10 @@ import type {
   ListUsersParams,
   LoginBody,
   LoginResponse,
+  LowBalanceAlert,
+  OverdueAlert,
+  PitcherAccountDetail,
+  ProviderAccountDetail,
   RechargeOrder,
   SpendByPitcher,
   SpendByProvider,
@@ -2289,6 +2299,509 @@ export function useGetBalanceAlerts<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetBalanceAlertsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Accounts with balance below threshold (admin)
+ */
+export const getGetLowBalanceAlertsUrl = (
+  params?: GetLowBalanceAlertsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/low-balance-alerts?${stringifiedParams}`
+    : `/api/dashboard/low-balance-alerts`;
+};
+
+export const getLowBalanceAlerts = async (
+  params?: GetLowBalanceAlertsParams,
+  options?: RequestInit,
+): Promise<LowBalanceAlert[]> => {
+  return customFetch<LowBalanceAlert[]>(getGetLowBalanceAlertsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLowBalanceAlertsQueryKey = (
+  params?: GetLowBalanceAlertsParams,
+) => {
+  return [
+    `/api/dashboard/low-balance-alerts`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetLowBalanceAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLowBalanceAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetLowBalanceAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLowBalanceAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetLowBalanceAlertsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLowBalanceAlerts>>
+  > = ({ signal }) =>
+    getLowBalanceAlerts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLowBalanceAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLowBalanceAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLowBalanceAlerts>>
+>;
+export type GetLowBalanceAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Accounts with balance below threshold (admin)
+ */
+
+export function useGetLowBalanceAlerts<
+  TData = Awaited<ReturnType<typeof getLowBalanceAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetLowBalanceAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLowBalanceAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLowBalanceAlertsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Accounts not reported in N days (admin)
+ */
+export const getGetOverdueAlertsUrl = (params?: GetOverdueAlertsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/overdue-alerts?${stringifiedParams}`
+    : `/api/dashboard/overdue-alerts`;
+};
+
+export const getOverdueAlerts = async (
+  params?: GetOverdueAlertsParams,
+  options?: RequestInit,
+): Promise<OverdueAlert[]> => {
+  return customFetch<OverdueAlert[]>(getGetOverdueAlertsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOverdueAlertsQueryKey = (
+  params?: GetOverdueAlertsParams,
+) => {
+  return [
+    `/api/dashboard/overdue-alerts`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetOverdueAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOverdueAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetOverdueAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOverdueAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOverdueAlertsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOverdueAlerts>>
+  > = ({ signal }) => getOverdueAlerts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOverdueAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOverdueAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOverdueAlerts>>
+>;
+export type GetOverdueAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Accounts not reported in N days (admin)
+ */
+
+export function useGetOverdueAlerts<
+  TData = Awaited<ReturnType<typeof getOverdueAlerts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetOverdueAlertsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOverdueAlerts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOverdueAlertsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Daily spend trend for the last N days (admin)
+ */
+export const getGetDailyTrendUrl = (params?: GetDailyTrendParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/daily-trend?${stringifiedParams}`
+    : `/api/dashboard/daily-trend`;
+};
+
+export const getDailyTrend = async (
+  params?: GetDailyTrendParams,
+  options?: RequestInit,
+): Promise<DailyTrendPoint[]> => {
+  return customFetch<DailyTrendPoint[]>(getGetDailyTrendUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDailyTrendQueryKey = (params?: GetDailyTrendParams) => {
+  return [`/api/dashboard/daily-trend`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetDailyTrendQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDailyTrend>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDailyTrendParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDailyTrend>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDailyTrendQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailyTrend>>> = ({
+    signal,
+  }) => getDailyTrend(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDailyTrend>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDailyTrendQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDailyTrend>>
+>;
+export type GetDailyTrendQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Daily spend trend for the last N days (admin)
+ */
+
+export function useGetDailyTrend<
+  TData = Awaited<ReturnType<typeof getDailyTrend>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetDailyTrendParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDailyTrend>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDailyTrendQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Account detail breakdown for a pitcher (admin)
+ */
+export const getGetPitcherAccountsUrl = (params: GetPitcherAccountsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/pitcher-accounts?${stringifiedParams}`
+    : `/api/dashboard/pitcher-accounts`;
+};
+
+export const getPitcherAccounts = async (
+  params: GetPitcherAccountsParams,
+  options?: RequestInit,
+): Promise<PitcherAccountDetail[]> => {
+  return customFetch<PitcherAccountDetail[]>(getGetPitcherAccountsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPitcherAccountsQueryKey = (
+  params?: GetPitcherAccountsParams,
+) => {
+  return [
+    `/api/dashboard/pitcher-accounts`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetPitcherAccountsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPitcherAccounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetPitcherAccountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPitcherAccounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPitcherAccountsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPitcherAccounts>>
+  > = ({ signal }) => getPitcherAccounts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPitcherAccounts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPitcherAccountsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPitcherAccounts>>
+>;
+export type GetPitcherAccountsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Account detail breakdown for a pitcher (admin)
+ */
+
+export function useGetPitcherAccounts<
+  TData = Awaited<ReturnType<typeof getPitcherAccounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetPitcherAccountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPitcherAccounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPitcherAccountsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Account detail breakdown for a provider (admin)
+ */
+export const getGetProviderAccountsUrl = (
+  params: GetProviderAccountsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/dashboard/provider-accounts?${stringifiedParams}`
+    : `/api/dashboard/provider-accounts`;
+};
+
+export const getProviderAccounts = async (
+  params: GetProviderAccountsParams,
+  options?: RequestInit,
+): Promise<ProviderAccountDetail[]> => {
+  return customFetch<ProviderAccountDetail[]>(
+    getGetProviderAccountsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetProviderAccountsQueryKey = (
+  params?: GetProviderAccountsParams,
+) => {
+  return [
+    `/api/dashboard/provider-accounts`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetProviderAccountsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProviderAccounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetProviderAccountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProviderAccounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProviderAccountsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProviderAccounts>>
+  > = ({ signal }) =>
+    getProviderAccounts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProviderAccounts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProviderAccountsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProviderAccounts>>
+>;
+export type GetProviderAccountsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Account detail breakdown for a provider (admin)
+ */
+
+export function useGetProviderAccounts<
+  TData = Awaited<ReturnType<typeof getProviderAccounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetProviderAccountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProviderAccounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProviderAccountsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
