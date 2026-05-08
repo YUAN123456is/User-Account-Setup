@@ -90,7 +90,7 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="如：admin"
+                placeholder=""
                 className="bg-[hsl(222,40%,14%)] border-[hsl(222,40%,22%)] text-white placeholder:text-[hsl(215,20%,35%)] focus:border-primary h-10"
                 data-testid="input-username"
                 autoComplete="username"
@@ -127,9 +127,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-8 border-t border-white/5 pt-6">
-            <p className="text-[hsl(215,20%,40%)] text-xs text-center">演示账号：admin / admin123</p>
-          </div>
         </div>
       </div>
     </div>

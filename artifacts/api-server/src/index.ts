@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { initAdminUser } from "./lib/init-admin";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,10 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+initAdminUser().catch((err) => {
+  logger.error({ err }, "Failed to initialize admin user");
+});
 
 app.listen(port, (err) => {
   if (err) {
