@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useCreateDailyStat, getListAccountsQueryKey, getListDailyStatsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useCreateDailyStat, useListDailyStats, getListAccountsQueryKey, getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,10 @@ export default function DailyReportPage() {
 
   const queryClient = useQueryClient();
   const { data: accountsData } = useListAccounts({});
+  const { data: todayStatsData } = useListDailyStats({ dateFrom: today, dateTo: today } as Record<string, string>);
   const accounts = Array.isArray(accountsData) ? (accountsData as Account[]) : [];
+  const todayStats = Array.isArray(todayStatsData) ? todayStatsData : [];
+  const reportedIds = useMemo(() => new Set((todayStats as Array<{ accountId: number }>).map((s) => s.accountId)), [todayStats]);
   const { toast } = useToast();
 
   const selectedAccount = accounts.find((a) => String(a.id) === form.accountId);
@@ -96,7 +99,7 @@ export default function DailyReportPage() {
                 <SelectContent>
                   {accounts.map((a) => (
                     <SelectItem key={a.id} value={String(a.id)}>
-                      {a.accountName}（{a.platform}）
+                      {a.accountName}（{a.platform}）{reportedIds.has(a.id) ? " ✓已上报" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

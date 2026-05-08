@@ -21,6 +21,7 @@ import ProviderAccountsPage from "@/pages/provider/ProviderAccountsPage";
 import ProviderRechargeOrdersPage from "@/pages/provider/ProviderRechargeOrdersPage";
 
 import PitcherLayout from "@/pages/pitcher/PitcherLayout";
+import PitcherDashboardPage from "@/pages/pitcher/PitcherDashboardPage";
 import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
@@ -38,6 +39,7 @@ const queryClient = new QueryClient({
 function roleHome(role: string) {
   if (role === "admin") return "/admin/dashboard";
   if (role === "provider") return "/provider/accounts";
+  if (role === "pitcher") return "/pitcher/dashboard";
   return "/pitcher/accounts";
 }
 
@@ -119,12 +121,13 @@ function AppRoutes() {
       </Route>
 
       {/* Pitcher routes — only accessible to pitcher role */}
+      <Route path="/pitcher/dashboard" component={PitcherRoute(PitcherLayout, PitcherDashboardPage)} />
       <Route path="/pitcher/accounts" component={PitcherRoute(PitcherLayout, PitcherAccountsPage)} />
       <Route path="/pitcher/report" component={PitcherRoute(PitcherLayout, DailyReportPage)} />
       <Route path="/pitcher/recharge" component={PitcherRoute(PitcherLayout, RechargeRequestPage)} />
       <Route path="/pitcher/history" component={PitcherRoute(PitcherLayout, PitcherHistoryPage)} />
       <Route path="/pitcher">
-        <Redirect to="/pitcher/accounts" />
+        <Redirect to="/pitcher/dashboard" />
       </Route>
 
       {/* Redirect authenticated users away from /login */}

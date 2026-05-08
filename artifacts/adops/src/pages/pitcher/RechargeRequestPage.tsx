@@ -1,23 +1,41 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useCreateRechargeOrder, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useCreateRechargeOrder, useListRechargeOrders, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, History } from "lucide-react";
 
 interface Account { id: number; accountName: string; platform: string; }
+interface RechargeOrder {
+  id: number;
+  accountName?: string;
+  amount: string;
+  status: "pending" | "completed" | "rejected";
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function RechargeRequestPage() {
   const [form, setForm] = useState({ accountId: "", amount: "", note: "" });
   const queryClient = useQueryClient();
   const { data: accountsData } = useListAccounts({});
+  const { data: ordersData, isLoading: ordersLoading } = useListRechargeOrders({} as Record<string, string>);
   const accounts = Array.isArray(accountsData) ? (accountsData as Account[]) : [];
+  const allOrders = Array.isArray(ordersData) ? (ordersData as RechargeOrder[]) : [];
   const { toast } = useToast();
+
+  const sortedOrders = useMemo(
+    () => [...allOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [allOrders],
+  );
 
   const create = useCreateRechargeOrder({
     mutation: {
@@ -48,12 +66,13 @@ export default function RechargeRequestPage() {
   };
 
   return (
-    <div className="space-y-5 max-w-xl">
+    <div className="space-y-5 max-w-3xl">
       <div>
         <h1 className="text-xl font-bold">申请充值</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">向开户商提交账户充值申请</p>
+        <p className="text-sm text-muted-foreground mt-0.5">向开户商提交账户充值申请，并查看历史申请状态</p>
       </div>
-      <Card>
+
+      <Card className="max-w-xl">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <PlusCircle className="h-4 w-4 text-primary" />
@@ -104,6 +123,62 @@ export default function RechargeRequestPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Recharge history */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <History className="h-4 w-4 text-muted-foreground" />
+          我的充值申请记录
+        </h2>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead>账户</TableHead>
+                <TableHead>金额</TableHead>
+                <TableHead>备注</TableHead>
+                <TableHead>申请时间</TableHead>
+                <TableHead>更新时间</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ordersLoading && Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((__, j) => (
+                    <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {!ordersLoading && sortedOrders.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
+                    暂无充值申请记录
+                  </TableCell>
+                </TableRow>
+              )}
+              {!ordersLoading && sortedOrders.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell className="font-medium text-sm max-w-[160px] truncate" title={o.accountName}>
+                    {o.accountName ?? `账户 #${o.id}`}
+                  </TableCell>
+                  <TableCell className="font-mono">${Number(o.amount).toFixed(2)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate" title={o.note ?? ""}>
+                    {o.note || "—"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(o.createdAt).toLocaleDateString("zh-CN")}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(o.updatedAt).toLocaleDateString("zh-CN")}
+                  </TableCell>
+                  <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
