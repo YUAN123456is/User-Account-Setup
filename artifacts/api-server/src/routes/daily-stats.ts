@@ -128,15 +128,43 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     return;
   }
 
-  const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
-  if (parsed.data.spendAmount != null) updates.spendAmount = parsed.data.spendAmount;
-  if (parsed.data.realBalance != null) updates.realBalance = parsed.data.realBalance;
-
-  const [stat] = await db.update(dailyStatsTable).set(updates).where(eq(dailyStatsTable.id, params.data.id)).returning();
-  if (!stat) {
+  const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, params.data.id));
+  if (!existing) {
     res.status(404).json({ error: "Stat not found" });
     return;
   }
+
+  if (existing.pitcherId !== req.session.userId!) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (parsed.data.spendAmount == null) {
+    res.json(await formatStat(existing));
+    return;
+  }
+
+  const oldSpend = parseFloat(existing.spendAmount);
+  const newSpend = parseFloat(parsed.data.spendAmount);
+  const spendDelta = newSpend - oldSpend;
+
+  const newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
+
+  const [stat] = await db.update(dailyStatsTable)
+    .set({ spendAmount: parsed.data.spendAmount, realBalance: newRealBalance })
+    .where(eq(dailyStatsTable.id, params.data.id))
+    .returning();
+
+  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+  if (account) {
+    const newBal = (parseFloat(account.currentBalance) - spendDelta).toFixed(2);
+    const newTheo = (parseFloat(account.theoreticalBalance ?? account.currentBalance) - spendDelta).toFixed(2);
+    await db.update(accountsTable).set({
+      currentBalance: newBal,
+      theoreticalBalance: newTheo,
+    }).where(eq(accountsTable.id, existing.accountId));
+  }
+
   res.json(await formatStat(stat));
 });
 

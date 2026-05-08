@@ -111,6 +111,15 @@ router.get("/recharge-orders/:id", requireAuth, async (req, res): Promise<void> 
     res.status(404).json({ error: "Order not found" });
     return;
   }
+  const { role, userId } = req.session as { role?: string; userId?: number };
+  if (role === "provider" && order.providerId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (role === "pitcher" && order.pitcherId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   res.json(await formatOrder(order));
 });
 

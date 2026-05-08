@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListAccounts, useCreateRechargeOrder } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListAccounts, useCreateRechargeOrder, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ interface Account { id: number; accountName: string; platform: string; }
 
 export default function RechargeRequestPage() {
   const [form, setForm] = useState({ accountId: "", amount: "", note: "" });
+  const queryClient = useQueryClient();
   const { data: accountsData } = useListAccounts({});
   const accounts = Array.isArray(accountsData) ? (accountsData as Account[]) : [];
   const { toast } = useToast();
@@ -20,6 +22,7 @@ export default function RechargeRequestPage() {
   const create = useCreateRechargeOrder({
     mutation: {
       onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
         toast({ title: "充值申请已提交", description: "请等待开户商审核处理。" });
         setForm({ accountId: "", amount: "", note: "" });
       },

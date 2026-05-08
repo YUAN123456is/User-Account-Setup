@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListAccounts, useCreateDailyStat } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListAccounts, useCreateDailyStat, getListAccountsQueryKey, getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ export default function DailyReportPage() {
   });
   const [submitted, setSubmitted] = useState(false);
 
+  const queryClient = useQueryClient();
   const { data: accountsData } = useListAccounts({});
   const accounts = Array.isArray(accountsData) ? (accountsData as Account[]) : [];
   const { toast } = useToast();
@@ -37,6 +39,8 @@ export default function DailyReportPage() {
   const create = useCreateDailyStat({
     mutation: {
       onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
         setSubmitted(true);
         toast({ title: "上报成功", description: "今日消耗数据已成功提交，余额已自动更新。" });
         setForm({ accountId: "", date: today, spendAmount: "" });
