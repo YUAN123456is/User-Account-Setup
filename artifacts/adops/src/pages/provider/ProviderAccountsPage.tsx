@@ -11,6 +11,7 @@ import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBad
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, CreditCard, Search } from "lucide-react";
 
@@ -19,8 +20,6 @@ interface Account {
   platformAccountId: string;
   accountName: string;
   platform: string;
-  pitcherId?: number | null;
-  pitcherName?: string | null;
   status: "idle" | "active" | "banned";
   currentBalance: string;
   lastReportedAt?: string | null;
@@ -134,6 +133,11 @@ export default function ProviderAccountsPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const activeCount = filtered.filter((a) => a.status === "active").length;
+  const idleCount = filtered.filter((a) => a.status === "idle").length;
+  const bannedCount = filtered.filter((a) => a.status === "banned").length;
+  const totalBalance = filtered.reduce((s, a) => s + Number(a.currentBalance), 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -174,6 +178,14 @@ export default function ProviderAccountsPage() {
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
+      <StatsBar items={[
+        { label: "账户总数", value: filtered.length },
+        { label: "运行中", value: activeCount, color: activeCount > 0 ? "green" : "default" },
+        { label: "空闲", value: idleCount, color: "amber" },
+        { label: "已封禁", value: bannedCount, color: bannedCount > 0 ? "red" : "default" },
+        { label: "账户余额合计", value: `$${totalBalance.toFixed(2)}`, color: "blue" },
+      ]} />
+
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -189,7 +201,7 @@ export default function ProviderAccountsPage() {
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
               ))}</TableRow>
             ))}

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { CheckCircle, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,10 @@ export default function AlertsPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const criticalCount = filtered.filter((r) => r.discrepancyPct > 20).length;
+  const avgDiscrepancy = filtered.length > 0 ? filtered.reduce((s, r) => s + r.discrepancyPct, 0) / filtered.length : 0;
+  const maxDiscrepancy = filtered.length > 0 ? Math.max(...filtered.map((r) => r.discrepancyPct)) : 0;
+
   return (
     <div className="space-y-4">
       <div>
@@ -66,6 +71,13 @@ export default function AlertsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      <StatsBar items={[
+        { label: "预警账户数", value: filtered.length, color: filtered.length > 0 ? "amber" : "default" },
+        { label: "严重预警（>20%）", value: criticalCount, color: criticalCount > 0 ? "red" : "default" },
+        { label: "平均偏差", value: filtered.length > 0 ? `${avgDiscrepancy.toFixed(1)}%` : "—", color: avgDiscrepancy > 10 ? "red" : avgDiscrepancy > 5 ? "amber" : "default" },
+        { label: "最高偏差", value: filtered.length > 0 ? `${maxDiscrepancy.toFixed(1)}%` : "—", color: maxDiscrepancy > 20 ? "red" : maxDiscrepancy > 10 ? "amber" : "default" },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

@@ -9,6 +9,7 @@ import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Receipt, Search } from "lucide-react";
 
 interface RechargeOrder {
@@ -16,7 +17,6 @@ interface RechargeOrder {
   accountId: number;
   accountName?: string;
   amount: string | number;
-  pitcherName?: string;
   status: "pending" | "completed" | "rejected";
   createdAt: string;
 }
@@ -50,15 +50,17 @@ export default function ProviderRechargeOrdersPage() {
     if (statusFilter !== "all") rows = rows.filter((o) => o.status === statusFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
-      rows = rows.filter((o) =>
-        (o.accountName ?? "").toLowerCase().includes(q) ||
-        (o.pitcherName ?? "").toLowerCase().includes(q)
-      );
+      rows = rows.filter((o) => (o.accountName ?? "").toLowerCase().includes(q));
     }
     return rows;
   }, [allOrders, statusFilter, search]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
+
+  const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
+  const pendingCount = filtered.filter((o) => o.status === "pending").length;
+  const completedCount = filtered.filter((o) => o.status === "completed").length;
+  const rejectedCount = filtered.filter((o) => o.status === "rejected").length;
 
   return (
     <div className="space-y-4">
@@ -70,7 +72,7 @@ export default function ProviderRechargeOrdersPage() {
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8 h-8 w-52 text-sm" placeholder="搜索账户或投手..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <Input className="pl-8 h-8 w-52 text-sm" placeholder="搜索账户名称..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
@@ -88,13 +90,20 @@ export default function ProviderRechargeOrdersPage() {
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
+      <StatsBar items={[
+        { label: "充值总额", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
+        { label: "待审核", value: pendingCount, color: pendingCount > 0 ? "amber" : "default" },
+        { label: "已完成", value: completedCount, color: "green" },
+        { label: "已拒绝", value: rejectedCount, color: rejectedCount > 0 ? "red" : "default" },
+        { label: "总订单数", value: filtered.length },
+      ]} />
+
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>账户</TableHead>
               <TableHead>充值金额</TableHead>
-              <TableHead>投手</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>提交时间</TableHead>
               <TableHead className="w-28">操作</TableHead>
@@ -102,18 +111,17 @@ export default function ProviderRechargeOrdersPage() {
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={6}><EmptyState icon={Receipt} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={5}><EmptyState icon={Receipt} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
                 <TableCell className="font-medium">{o.accountName ?? `账户 #${o.accountId}`}</TableCell>
                 <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">{o.pitcherName ?? "—"}</TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>

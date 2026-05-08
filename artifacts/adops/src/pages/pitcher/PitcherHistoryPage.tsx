@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { History, Search } from "lucide-react";
 
 interface DailyStat {
@@ -53,6 +54,11 @@ export default function PitcherHistoryPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const totalSpend = filtered.reduce((s, r) => s + Number(r.spendAmount), 0);
+  const alertCount = filtered.filter((s) => s.hasAlert).length;
+  const uniqueDays = new Set(filtered.map((s) => s.date)).size;
+  const uniqueAccounts = new Set(filtered.map((s) => s.accountId)).size;
+
   return (
     <div className="space-y-4">
       <div>
@@ -86,6 +92,14 @@ export default function PitcherHistoryPage() {
         <p className="text-xs text-muted-foreground mb-1.5">上报日期</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "总消耗金额", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
+        { label: "上报天数", value: uniqueDays },
+        { label: "涉及账户", value: uniqueAccounts },
+        { label: "预警次数", value: alertCount, color: alertCount > 0 ? "red" : "default" },
+        { label: "上报条数", value: filtered.length },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

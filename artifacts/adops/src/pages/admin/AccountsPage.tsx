@@ -10,6 +10,7 @@ import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBad
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { CreditCard, UserPlus, Search } from "lucide-react";
 
 interface Account {
@@ -113,6 +114,11 @@ export default function AccountsPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const activeCount = filtered.filter((a) => a.status === "active").length;
+  const idleCount = filtered.filter((a) => a.status === "idle").length;
+  const bannedCount = filtered.filter((a) => a.status === "banned").length;
+  const unassignedCount = filtered.filter((a) => !a.pitcherId).length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -163,6 +169,14 @@ export default function AccountsPage() {
         <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "账户总数", value: filtered.length },
+        { label: "运行中", value: activeCount, color: activeCount > 0 ? "green" : "default" },
+        { label: "空闲", value: idleCount, color: "amber" },
+        { label: "已封禁", value: bannedCount, color: bannedCount > 0 ? "red" : "default" },
+        { label: "未分配投手", value: unassignedCount, color: unassignedCount > 0 ? "amber" : "default" },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

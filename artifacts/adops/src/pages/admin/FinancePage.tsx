@@ -9,6 +9,7 @@ import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Wallet, Search } from "lucide-react";
 
 interface RechargeOrder {
@@ -60,6 +61,11 @@ export default function FinancePage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
+  const pendingCount = filtered.filter((o) => o.status === "pending").length;
+  const completedAmount = filtered.filter((o) => o.status === "completed").reduce((s, o) => s + Number(o.amount), 0);
+  const rejectedCount = filtered.filter((o) => o.status === "rejected").length;
+
   return (
     <div className="space-y-4">
       <div>
@@ -87,6 +93,14 @@ export default function FinancePage() {
         <p className="text-xs text-muted-foreground mb-1.5">提交时间</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "充值总额（当前筛选）", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
+        { label: "已完成金额", value: `$${completedAmount.toFixed(2)}`, color: "green" },
+        { label: "待审核笔数", value: pendingCount, color: pendingCount > 0 ? "amber" : "default" },
+        { label: "已拒绝笔数", value: rejectedCount, color: rejectedCount > 0 ? "red" : "default" },
+        { label: "总订单数", value: filtered.length },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

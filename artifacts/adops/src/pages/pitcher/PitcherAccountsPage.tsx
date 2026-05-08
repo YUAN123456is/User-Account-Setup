@@ -7,6 +7,7 @@ import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBad
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { CreditCard, Search } from "lucide-react";
 
 interface Account {
@@ -48,6 +49,11 @@ export default function PitcherAccountsPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const activeCount = filtered.filter((a) => a.status === "active").length;
+  const idleCount = filtered.filter((a) => a.status === "idle").length;
+  const bannedCount = filtered.filter((a) => a.status === "banned").length;
+  const totalBalance = filtered.reduce((s, a) => s + Number(a.currentBalance), 0);
+
   return (
     <div className="space-y-4">
       <div>
@@ -82,6 +88,14 @@ export default function PitcherAccountsPage() {
         <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "账户总数", value: filtered.length },
+        { label: "运行中", value: activeCount, color: activeCount > 0 ? "green" : "default" },
+        { label: "空闲", value: idleCount, color: "amber" },
+        { label: "已封禁", value: bannedCount, color: bannedCount > 0 ? "red" : "default" },
+        { label: "余额合计", value: `$${totalBalance.toFixed(2)}`, color: "blue" },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

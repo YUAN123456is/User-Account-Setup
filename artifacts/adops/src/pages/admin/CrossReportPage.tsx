@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { BarChart3, Search } from "lucide-react";
 
 interface CrossRow {
@@ -49,6 +50,11 @@ export default function CrossReportPage() {
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
+  const totalSpend = filtered.reduce((s, r) => s + Number(r.totalSpend), 0);
+  const totalAccounts = filtered.reduce((s, r) => s + r.accountCount, 0);
+  const uniquePitchers = new Set(filtered.map((r) => r.pitcherId)).size;
+  const uniqueProviders = new Set(filtered.map((r) => r.providerId)).size;
+
   return (
     <div className="space-y-4">
       <div>
@@ -81,6 +87,14 @@ export default function CrossReportPage() {
         <p className="text-xs text-muted-foreground mb-1.5">统计时间范围</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "总消耗金额", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
+        { label: "涉及投手", value: uniquePitchers },
+        { label: "涉及开户商", value: uniqueProviders },
+        { label: "账户总数", value: totalAccounts },
+        { label: "记录条数", value: filtered.length },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

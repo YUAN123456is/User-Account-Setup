@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { BarChart3 } from "lucide-react";
 
 interface ProviderSpend {
@@ -29,6 +30,10 @@ export default function ProviderReportPage() {
   const paged = usePagination(rows, PAGE_SIZE, page);
 
   const hasFilter = dateRange.from || dateRange.to;
+  const totalTodaySpend = rows.reduce((s, r) => s + Number(r.todaySpend), 0);
+  const totalPeriodSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
+  const totalAccounts = rows.reduce((s, r) => s + r.accountCount, 0);
+  const topProvider = rows.length > 0 ? rows.reduce((best, r) => Number(r.totalSpend) > Number(best.totalSpend) ? r : best) : null;
 
   return (
     <div className="space-y-4">
@@ -41,6 +46,14 @@ export default function ProviderReportPage() {
         <p className="text-xs text-muted-foreground mb-1.5">统计时间范围</p>
         <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
+
+      <StatsBar items={[
+        { label: "开户商数量", value: rows.length },
+        { label: "今日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" },
+        { label: hasFilter ? "期间总消耗" : "累计总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "purple" },
+        { label: "账户总数", value: totalAccounts },
+        { label: "消耗最高", value: topProvider ? topProvider.providerName : "—", color: "amber" },
+      ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
