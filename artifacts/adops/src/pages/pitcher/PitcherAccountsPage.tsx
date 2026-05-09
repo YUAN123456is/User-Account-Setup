@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListAccounts,
   useAssignAccount,
+  useUpdateAccount,
   useCreateRechargeOrder,
   useListRechargeOrders,
   useListUsers,
@@ -57,6 +58,48 @@ interface RechargeOrder {
 }
 
 const PAGE_SIZE = 20;
+
+const STATUS_LABELS: Record<string, string> = {
+  idle: "空闲",
+  active: "运行中",
+  banned: "已封禁",
+};
+
+function StatusSelect({ account }: { account: Account }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const update = useUpdateAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        toast({ title: "状态已更新" });
+      },
+      onError: () => {
+        toast({ title: "更新失败", variant: "destructive" });
+      },
+    },
+  });
+
+  return (
+    <Select
+      value={account.status}
+      onValueChange={(v) => {
+        if (v === account.status) return;
+        update.mutate({ id: account.id, data: { status: v } });
+      }}
+    >
+      <SelectTrigger className="h-7 w-28 text-xs border-0 shadow-none bg-transparent px-1 focus:ring-0">
+        <AccountStatusBadge status={account.status} />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(STATUS_LABELS).map(([val, label]) => (
+          <SelectItem key={val} value={val}>{label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function RechargeDialog({ account, onClose }: { account: Account; onClose: () => void }) {
   const [amount, setAmount] = useState("");
@@ -286,7 +329,6 @@ export default function PitcherAccountsPage() {
   const { data, isLoading } = useListAccounts({});
   const allAccounts = Array.isArray(data) ? (data as unknown as Account[]) : [];
 
-  // Split: my accounts vs unassigned pool (only visible when canAssign)
   const myAccounts = allAccounts.filter((a) => a.pitcherId === user?.id);
   const poolAccounts = canAssign ? allAccounts.filter((a) => a.pitcherId === null) : [];
 
@@ -311,7 +353,6 @@ export default function PitcherAccountsPage() {
 
   return (
     <div className="space-y-6">
-      {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">我的账户</h1>
@@ -322,7 +363,6 @@ export default function PitcherAccountsPage() {
         </Button>
       </div>
 
-      {/* ─── Filters ─── */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
@@ -358,7 +398,6 @@ export default function PitcherAccountsPage() {
         ...(canAssign ? [{ label: "待分配", value: poolAccounts.length, color: "amber" as const }] : []),
       ]} />
 
-      {/* ─── My Accounts Table ─── */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -387,7 +426,13 @@ export default function PitcherAccountsPage() {
                 <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell><AccountStatusBadge status={a.status} /></TableCell>
+                <TableCell className="p-0 pl-2">
+                  {canAssign ? (
+                    <StatusSelect account={a} />
+                  ) : (
+                    <AccountStatusBadge status={a.status} />
+                  )}
+                </TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="font-mono text-muted-foreground">${Number(a.theoreticalBalance ?? 0).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
@@ -408,7 +453,6 @@ export default function PitcherAccountsPage() {
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
-      {/* ─── Unassigned Pool (only for privileged pitchers) ─── */}
       {canAssign && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -425,6 +469,7 @@ export default function PitcherAccountsPage() {
                   <TableHead>账户名称</TableHead>
                   <TableHead>平台账户ID</TableHead>
                   <TableHead>平台</TableHead>
+                  <TableHead>状态</TableHead>
                   <TableHead>余额</TableHead>
                   <TableHead className="w-20">操作</TableHead>
                 </TableRow>
@@ -432,7 +477,7 @@ export default function PitcherAccountsPage() {
               <TableBody>
                 {pagedPool.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
                       暂无待分配账户
                     </TableCell>
                   </TableRow>
@@ -442,6 +487,9 @@ export default function PitcherAccountsPage() {
                     <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                     <TableCell><PlatformBadge platform={a.platform} /></TableCell>
+                    <TableCell className="p-0 pl-2">
+                      <StatusSelect account={a} />
+                    </TableCell>
                     <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                     <TableCell>
                       <Button
@@ -462,7 +510,6 @@ export default function PitcherAccountsPage() {
         </div>
       )}
 
-      {/* ─── Dialogs ─── */}
       {rechargeTarget && (
         <RechargeDialog account={rechargeTarget} onClose={() => setRechargeTarget(null)} />
       )}

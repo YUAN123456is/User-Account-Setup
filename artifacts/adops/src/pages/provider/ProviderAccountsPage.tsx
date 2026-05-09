@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, createAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useUpdateAccount, createAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, CreditCard, Search, Trash2, PlusCircle, ClipboardPaste, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Plus, CreditCard, Search, Trash2, PlusCircle, ClipboardPaste, CheckCircle, XCircle, Loader2, AlertTriangle, CheckCheck } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ interface Account {
   currentBalance: string;
   lastReportedAt?: string | null;
   createdAt: string;
+  banNotifyProvider?: boolean;
 }
 
 const PLATFORMS = [
@@ -69,7 +70,6 @@ function parsePastedText(raw: string): RowDraft[] {
 
     const accountName = nameLine.trim();
 
-    // Try to match platform account ID: "编号：XXXXXXX" or just a long number on next line
     let platformAccountId = "";
     let consumed = 1;
     if (/^编号[：:]/.test(idLine)) {
@@ -152,7 +152,6 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
   const errorCount = rows.filter((r) => r.status === "error").length;
 
   const handleSubmit = async () => {
-    // Validate
     const invalids = rows.filter((r) => !r.accountName.trim() || !r.platformAccountId.trim());
     if (invalids.length > 0) {
       toast({ title: "有未填写的行", description: "账户名称和广告编号为必填项，请填写完整或删除空行。", variant: "destructive" });
@@ -210,7 +209,6 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {/* Paste area */}
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <ClipboardPaste className="h-4 w-4 text-muted-foreground" />
@@ -224,13 +222,12 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
               className="text-xs font-mono min-h-[100px] resize-y"
               disabled={submitting}
             />
-            <Button size="sm" onClick={handleParse} disabled={!pasteText.trim() || submitting} className="gap-1.5">
+            <Button type="button" size="sm" onClick={handleParse} disabled={!pasteText.trim() || submitting} className="gap-1.5">
               <ClipboardPaste className="h-4 w-4" />
               解析并填入表格
             </Button>
           </div>
 
-          {/* Global apply */}
           {rows.length > 1 && (
             <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card px-4 py-3">
               <span className="text-xs text-muted-foreground whitespace-nowrap pt-5">批量设置</span>
@@ -254,13 +251,12 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
                   disabled={submitting}
                 />
               </div>
-              <Button size="sm" variant="outline" onClick={applyGlobal} disabled={submitting} className="text-xs">
+              <Button type="button" size="sm" variant="outline" onClick={applyGlobal} disabled={submitting} className="text-xs">
                 应用到全部行
               </Button>
             </div>
           )}
 
-          {/* Editable table */}
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -346,7 +342,7 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
             </table>
           </div>
 
-          <Button variant="outline" size="sm" onClick={addRow} disabled={submitting} className="gap-1.5 text-xs">
+          <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={submitting} className="gap-1.5 text-xs">
             <PlusCircle className="h-4 w-4" />
             手动添加一行
           </Button>
@@ -360,8 +356,8 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
               <span>共 {rows.length} 行 · {validRows.length} 行有效</span>
             )}
           </div>
-          <Button variant="outline" onClick={onClose} disabled={submitting}>取消</Button>
-          <Button onClick={handleSubmit} disabled={submitting || rows.length === 0} className="gap-1.5">
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>取消</Button>
+          <Button type="button" onClick={handleSubmit} disabled={submitting || rows.length === 0} className="gap-1.5">
             {submitting
               ? <><Loader2 className="h-4 w-4 animate-spin" />提交中…</>
               : <><Plus className="h-4 w-4" />批量提交 {rows.length} 个账户</>}
@@ -369,6 +365,46 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ClearBalanceRow({ account }: { account: Account }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const update = useUpdateAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        toast({ title: "已确认清零", description: `账户「${account.accountName}」余额已清零。` });
+      },
+      onError: () => {
+        toast({ title: "操作失败", variant: "destructive" });
+      },
+    },
+  });
+
+  return (
+    <div className="flex items-center justify-between gap-3 bg-destructive/5 border border-destructive/20 rounded-lg px-4 py-2.5">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-destructive truncate">{account.accountName}</p>
+          <p className="text-xs text-muted-foreground font-mono">{account.platformAccountId} · 当前余额 ${Number(account.currentBalance).toFixed(2)}</p>
+        </div>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 flex-shrink-0"
+        onClick={() => update.mutate({ id: account.id, data: { clearBalance: true } })}
+        disabled={update.isPending}
+      >
+        {update.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
+        确认已清零
+      </Button>
+    </div>
   );
 }
 
@@ -382,6 +418,8 @@ export default function ProviderAccountsPage() {
 
   const { data, isLoading } = useListAccounts({});
   const allAccounts = Array.isArray(data) ? (data as unknown as Account[]) : [];
+
+  const bannedPendingClear = allAccounts.filter((a) => a.banNotifyProvider);
 
   const filtered = useMemo(() => {
     let rows = allAccounts;
@@ -414,6 +452,20 @@ export default function ProviderAccountsPage() {
           <Plus className="h-4 w-4" /> 新增账户
         </Button>
       </div>
+
+      {bannedPendingClear.length > 0 && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-destructive font-medium text-sm">
+            <AlertTriangle className="h-4 w-4" />
+            以下账户已被封禁，请将余额清零后点击确认
+          </div>
+          <div className="space-y-2">
+            {bannedPendingClear.map((a) => (
+              <ClearBalanceRow key={a.id} account={a} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
@@ -474,11 +526,18 @@ export default function ProviderAccountsPage() {
               <TableRow><TableCell colSpan={7}><EmptyState icon={CreditCard} title="暂无账户" description="点击右上角「新增账户」开始添加您的广告账户。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((a) => (
-              <TableRow key={a.id}>
+              <TableRow key={a.id} className={a.banNotifyProvider ? "bg-destructive/5" : undefined}>
                 <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell><AccountStatusBadge status={a.status} /></TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <AccountStatusBadge status={a.status} />
+                    {a.banNotifyProvider && (
+                      <span className="text-xs text-destructive font-medium">待清零</span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>

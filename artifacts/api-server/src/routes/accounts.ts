@@ -37,6 +37,7 @@ async function formatAccount(account: typeof accountsTable.$inferSelect) {
     theoreticalBalance: account.theoreticalBalance ?? null,
     lastReportedAt: account.lastReportedAt?.toISOString() ?? null,
     createdAt: account.createdAt.toISOString(),
+    banNotifyProvider: account.banNotifyProvider,
   };
 }
 
@@ -118,7 +119,7 @@ router.get("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(await formatAccount(account));
 });
 
-router.patch("/accounts/:id", requireRole("admin", "provider"), async (req, res): Promise<void> => {
+router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateAccountParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -130,23 +131,65 @@ router.patch("/accounts/:id", requireRole("admin", "provider"), async (req, res)
     return;
   }
 
+  const { role, userId } = req.session as { role?: string; userId?: number };
+
   const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, params.data.id));
   if (!account) {
     res.status(404).json({ error: "Account not found" });
     return;
   }
-  if (req.session.role === "provider" && account.providerId !== req.session.userId) {
+
+  // Permission checks per role
+  if (role === "provider") {
+    if (account.providerId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    // Providers can only clear ban notification and balance — not change status
+    if (parsed.data.status != null) {
+      res.status(403).json({ error: "开户商不可修改状态" });
+      return;
+    }
+  } else if (role === "pitcher") {
+    const [caller] = await db.select({ canAssignAccounts: usersTable.canAssignAccounts })
+      .from(usersTable).where(eq(usersTable.id, userId!));
+    if (!caller?.canAssignAccounts) {
+      res.status(403).json({ error: "无权限" });
+      return;
+    }
+    // Privileged pitchers can only update status
+    if (parsed.data.accountName != null || parsed.data.clearBalance != null || parsed.data.banNotifyProvider != null) {
+      res.status(403).json({ error: "无权限" });
+      return;
+    }
+  } else if (role !== "admin") {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
 
   const updates: Partial<typeof accountsTable.$inferInsert> = {};
   if (parsed.data.accountName != null) updates.accountName = parsed.data.accountName;
-  if (parsed.data.status != null) updates.status = parsed.data.status as "idle" | "active" | "banned";
+
+  if (parsed.data.status != null) {
+    updates.status = parsed.data.status as "idle" | "active" | "banned";
+    // When banning: flag provider to clear balance
+    if (parsed.data.status === "banned") {
+      updates.banNotifyProvider = true;
+    }
+  }
+
+  if (parsed.data.clearBalance === true) {
+    updates.currentBalance = "0.00";
+    updates.theoreticalBalance = "0.00";
+    updates.banNotifyProvider = false;
+  }
+
+  if (parsed.data.banNotifyProvider === false) {
+    updates.banNotifyProvider = false;
+  }
 
   if (Object.keys(updates).length === 0) {
-    const [current] = await db.select().from(accountsTable).where(eq(accountsTable.id, params.data.id));
-    res.json(await formatAccount(current));
+    res.json(await formatAccount(account));
     return;
   }
 

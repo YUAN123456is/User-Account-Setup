@@ -874,6 +874,8 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        banNotifyProvider:
+          type: boolean
       required:
         - id
         - platformAccountId
@@ -883,6 +885,7 @@ components:
         - status
         - currentBalance
         - createdAt
+        - banNotifyProvider
 
     CreateAccountBody:
       type: object
@@ -909,6 +912,10 @@ components:
           type: ["string", "null"]
         status:
           type: ["string", "null"]
+        clearBalance:
+          type: ["boolean", "null"]
+        banNotifyProvider:
+          type: ["boolean", "null"]
 
     AssignAccountBody:
       type: object

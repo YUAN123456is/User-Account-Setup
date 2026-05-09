@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, useUpdateAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -32,9 +32,59 @@ interface Account {
   createdAt: string;
   providerName?: string | null;
   pitcherName?: string | null;
+  banNotifyProvider?: boolean;
 }
 
 interface UserRow { id: number; displayName: string; role: string; }
+
+const STATUS_LABELS: Record<string, string> = {
+  idle: "空闲",
+  active: "运行中",
+  banned: "已封禁",
+};
+
+function StatusSelect({ account }: { account: Account }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const update = useUpdateAccount({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        if ((data as unknown as Account).status === "banned") {
+          toast({
+            title: "账户已封禁",
+            description: "系统已通知开户商将该账户余额清零。",
+          });
+        } else {
+          toast({ title: "状态已更新" });
+        }
+      },
+      onError: () => {
+        toast({ title: "更新失败", variant: "destructive" });
+      },
+    },
+  });
+
+  return (
+    <Select
+      value={account.status}
+      onValueChange={(v) => {
+        if (v === account.status) return;
+        update.mutate({ id: account.id, data: { status: v } });
+      }}
+    >
+      <SelectTrigger className="h-7 w-28 text-xs border-0 shadow-none bg-transparent px-1 focus:ring-0">
+        <AccountStatusBadge status={account.status} />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(STATUS_LABELS).map(([val, label]) => (
+          <SelectItem key={val} value={val}>{label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function AssignDialog({ account, onClose }: { account: Account; onClose: () => void }) {
   const [pitcherId, setPitcherId] = useState<string>(account.pitcherId?.toString() ?? "");
@@ -227,7 +277,7 @@ export default function AccountsPage() {
               </TableCell></TableRow>
             )}
             {!isLoading && paged.map((a) => (
-              <TableRow key={a.id}>
+              <TableRow key={a.id} className={a.status === "banned" ? "bg-destructive/5" : undefined}>
                 <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
@@ -237,7 +287,9 @@ export default function AccountsPage() {
                 <TableCell className="text-sm max-w-[100px]">
                   {a.pitcherName ? <TruncatedCell value={a.pitcherName} /> : <span className="text-amber-500 text-xs">未分配</span>}
                 </TableCell>
-                <TableCell><AccountStatusBadge status={a.status} /></TableCell>
+                <TableCell className="p-0 pl-2">
+                  <StatusSelect account={a} />
+                </TableCell>
                 <TableCell className="font-mono text-sm">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>

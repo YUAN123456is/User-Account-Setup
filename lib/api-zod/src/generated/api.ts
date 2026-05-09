@@ -153,6 +153,7 @@ export const ListAccountsResponseItem = zod.object({
   theoreticalBalance: zod.string().nullish(),
   lastReportedAt: zod.string().nullish(),
   createdAt: zod.string(),
+  banNotifyProvider: zod.boolean(),
 });
 export const ListAccountsResponse = zod.array(ListAccountsResponseItem);
 
@@ -187,6 +188,7 @@ export const GetAccountResponse = zod.object({
   theoreticalBalance: zod.string().nullish(),
   lastReportedAt: zod.string().nullish(),
   createdAt: zod.string(),
+  banNotifyProvider: zod.boolean(),
 });
 
 /**
@@ -199,6 +201,8 @@ export const UpdateAccountParams = zod.object({
 export const UpdateAccountBody = zod.object({
   accountName: zod.string().nullish(),
   status: zod.string().nullish(),
+  clearBalance: zod.boolean().nullish(),
+  banNotifyProvider: zod.boolean().nullish(),
 });
 
 export const UpdateAccountResponse = zod.object({
@@ -215,6 +219,7 @@ export const UpdateAccountResponse = zod.object({
   theoreticalBalance: zod.string().nullish(),
   lastReportedAt: zod.string().nullish(),
   createdAt: zod.string(),
+  banNotifyProvider: zod.boolean(),
 });
 
 /**
@@ -249,6 +254,7 @@ export const AssignAccountResponse = zod.object({
   theoreticalBalance: zod.string().nullish(),
   lastReportedAt: zod.string().nullish(),
   createdAt: zod.string(),
+  banNotifyProvider: zod.boolean(),
 });
 
 /**

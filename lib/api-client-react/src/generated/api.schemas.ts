@@ -106,6 +106,7 @@ export interface Account {
   /** @nullable */
   lastReportedAt?: string | null;
   createdAt: string;
+  banNotifyProvider: boolean;
 }
 
 export type CreateAccountBodyPlatform =
@@ -131,6 +132,10 @@ export interface UpdateAccountBody {
   accountName?: string | null;
   /** @nullable */
   status?: string | null;
+  /** @nullable */
+  clearBalance?: boolean | null;
+  /** @nullable */
+  banNotifyProvider?: boolean | null;
 }
 
 export interface AssignAccountBody {
