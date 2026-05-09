@@ -6,7 +6,7 @@ export interface AuthUser {
   username: string;
   displayName: string;
   role: "admin" | "provider" | "pitcher";
-  portalSlug: string | null;
+  portalSlug?: string | null;
   canAssignAccounts: boolean;
   isActive: boolean;
   createdAt: string;

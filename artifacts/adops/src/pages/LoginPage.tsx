@@ -17,11 +17,10 @@ export default function LoginPage() {
   const login = useLogin({
     mutation: {
       onSuccess: (data) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const user = (data as any).user ?? data;
-        setUser(user);
-        if (user.role === "admin") setLocation("/admin/dashboard");
-        else if (user.role === "provider") setLocation("/provider/accounts");
+        const u = data.user;
+        setUser(u);
+        if (u.role === "admin") setLocation("/admin/dashboard");
+        else if (u.role === "provider") setLocation("/provider/accounts");
         else setLocation("/pitcher/accounts");
       },
       onError: () => {
