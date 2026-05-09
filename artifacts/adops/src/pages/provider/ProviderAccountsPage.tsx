@@ -67,9 +67,7 @@ function parsePastedText(raw: string): RowDraft[] {
     const nameLine = lines[i];
     const idLine = lines[i + 1] ?? "";
 
-    // Try to match name line: optionally starts with #XXXX - or similar prefix
-    const nameMatch = nameLine.match(/^#?\d*\s*[-–]?\s*(.+)$/);
-    const accountName = nameMatch ? nameMatch[1].trim() : nameLine.trim();
+    const accountName = nameLine.trim();
 
     // Try to match platform account ID: "编号：XXXXXXX" or just a long number on next line
     let platformAccountId = "";
