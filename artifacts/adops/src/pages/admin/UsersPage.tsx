@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,6 +25,7 @@ interface UserRow {
   role: string;
   portalSlug: string | null;
   magicToken: string | null;
+  canAssignAccounts: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -78,6 +80,42 @@ function CopyLinkButton({ token, userId, onGenerated }: { token: string | null; 
   );
 }
 
+function AssignPermToggle({ user }: { user: UserRow }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [pending, setPending] = useState(false);
+
+  const update = useUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+        setPending(false);
+      },
+      onError: () => {
+        toast({ title: "权限更新失败", variant: "destructive" });
+        setPending(false);
+      },
+    },
+  });
+
+  const toggle = () => {
+    setPending(true);
+    update.mutate({ id: user.id, data: { canAssignAccounts: !user.canAssignAccounts } });
+  };
+
+  return (
+    <div className="flex items-center gap-1.5" title={user.canAssignAccounts ? "已开启：可分配空闲账户给其他投手" : "未开启：无账户分配权限"}>
+      <Switch
+        checked={user.canAssignAccounts}
+        onCheckedChange={toggle}
+        disabled={pending}
+        className="scale-75 origin-left"
+      />
+      <span className="text-xs text-muted-foreground whitespace-nowrap">分配权</span>
+    </div>
+  );
+}
+
 function CreateProviderDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [displayName, setDisplayName] = useState("");
   const [formError, setFormError] = useState("");
@@ -95,7 +133,6 @@ function CreateProviderDialog({ open, onClose }: { open: boolean; onClose: () =>
       onSuccess: async (data) => {
         queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
         const user = data as UserRow;
-        // Auto-generate magic token after creation
         try {
           const r = await fetch(`/api/users/${user.id}/magic-token`, { method: "POST", credentials: "include" });
           const body = await r.json() as { magicToken?: string };
@@ -363,7 +400,6 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
-  // Track locally updated tokens from generate action so table updates without refetch delay
   const [localTokens, setLocalTokens] = useState<Record<number, string>>({});
 
   const { data, isLoading } = useListUsers({ role: roleFilter === "all" ? undefined : (roleFilter as "provider" | "pitcher") });
@@ -437,18 +473,19 @@ export default function UsersPage() {
               <TableHead>用户名</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
+              <TableHead>分配权限</TableHead>
               <TableHead>创建时间</TableHead>
-              <TableHead className="w-32">操作</TableHead>
+              <TableHead className="w-28">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={5}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((u) => {
               const effectiveToken = localTokens[u.id] ?? u.magicToken;
@@ -461,6 +498,11 @@ export default function UsersPage() {
                     {u.isActive
                       ? <Badge className="bg-green-500/15 text-green-600 border-green-500/30">启用</Badge>
                       : <Badge variant="outline" className="text-muted-foreground">停用</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    {u.role === "pitcher"
+                      ? <AssignPermToggle user={u} />
+                      : <span className="text-xs text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                   <TableCell>

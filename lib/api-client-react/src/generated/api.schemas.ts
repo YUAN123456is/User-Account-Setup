@@ -33,6 +33,7 @@ export interface User {
   role: UserRole;
   /** @nullable */
   portalSlug?: string | null;
+  canAssignAccounts: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -62,6 +63,7 @@ export interface UpdateUserBody {
   /** @nullable */
   password?: string | null;
   isActive?: boolean;
+  canAssignAccounts?: boolean;
   /** @nullable */
   portalSlug?: string | null;
 }

@@ -16,6 +16,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     role: user.role,
     portalSlug: user.portalSlug,
     magicToken: user.magicToken ?? null,
+    canAssignAccounts: user.canAssignAccounts,
     isActive: user.isActive,
     createdAt: user.createdAt.toISOString(),
   };
@@ -96,6 +97,7 @@ router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void>
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (parsed.data.displayName != null) updates.displayName = parsed.data.displayName;
   if (parsed.data.isActive != null) updates.isActive = parsed.data.isActive;
+  if (parsed.data.canAssignAccounts != null) updates.canAssignAccounts = parsed.data.canAssignAccounts;
   if (parsed.data.portalSlug != null) updates.portalSlug = parsed.data.portalSlug;
   if (parsed.data.password) updates.passwordHash = await hashPassword(parsed.data.password);
 
@@ -108,7 +110,7 @@ router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void>
 });
 
 router.post("/users/:id/magic-token", requireRole("admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const token = randomUUID().replace(/-/g, "");
   const [user] = await db.update(usersTable).set({ magicToken: token }).where(eq(usersTable.id, id)).returning();

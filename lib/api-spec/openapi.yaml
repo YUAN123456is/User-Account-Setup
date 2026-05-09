@@ -793,6 +793,8 @@ components:
           enum: [admin, provider, pitcher]
         portalSlug:
           type: ["string", "null"]
+        canAssignAccounts:
+          type: boolean
         isActive:
           type: boolean
         createdAt:
@@ -802,6 +804,7 @@ components:
         - username
         - displayName
         - role
+        - canAssignAccounts
         - isActive
         - createdAt
 
@@ -833,6 +836,8 @@ components:
         password:
           type: ["string", "null"]
         isActive:
+          type: boolean
+        canAssignAccounts:
           type: boolean
         portalSlug:
           type: ["string", "null"]

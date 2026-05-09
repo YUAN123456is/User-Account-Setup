@@ -2,10 +2,14 @@ import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListAccounts,
+  useAssignAccount,
   useCreateRechargeOrder,
   useListRechargeOrders,
+  useListUsers,
   getListRechargeOrdersQueryKey,
+  getListAccountsQueryKey,
 } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +24,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Search, History, Plus } from "lucide-react";
+import { CreditCard, Search, History, Plus, UserCheck } from "lucide-react";
 
 interface Account {
   id: number;
@@ -28,10 +32,17 @@ interface Account {
   accountName: string;
   platform: string;
   status: "idle" | "active" | "banned";
+  pitcherId: number | null;
   currentBalance: string;
   theoreticalBalance?: string | null;
   lastReportedAt?: string | null;
   createdAt: string;
+}
+
+interface PitcherUser {
+  id: number;
+  displayName: string;
+  role: string;
 }
 
 interface RechargeOrder {
@@ -119,6 +130,80 @@ function RechargeDialog({ account, onClose }: { account: Account; onClose: () =>
   );
 }
 
+function AssignDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+  const [selectedPitcherId, setSelectedPitcherId] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const { data: usersData } = useListUsers({ role: "pitcher" });
+  const pitchers = useMemo(() => {
+    const all = Array.isArray(usersData) ? (usersData as PitcherUser[]) : [];
+    return all.filter((p) => p.id !== user?.id);
+  }, [usersData, user]);
+
+  const assign = useAssignAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        toast({ title: "账户已分配成功" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "分配失败，请重试";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleAssign = () => {
+    if (!selectedPitcherId) {
+      toast({ title: "请选择目标投手", variant: "destructive" });
+      return;
+    }
+    assign.mutate({ id: account.id, data: { pitcherId: Number(selectedPitcherId) } });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>分配账户</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="text-muted-foreground text-xs mb-0.5">待分配账户</p>
+            <p className="font-medium truncate">{account.accountName}</p>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">{account.platformAccountId}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">分配给投手 <span className="text-destructive">*</span></Label>
+            <Select value={selectedPitcherId} onValueChange={setSelectedPitcherId}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择投手..." />
+              </SelectTrigger>
+              <SelectContent>
+                {pitchers.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+            分配后账户状态变为「运行中」。只有管理员可以转移已分配的账户。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleAssign} disabled={assign.isPending}>
+            {assign.isPending ? "分配中..." : "确认分配"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
   const { data, isLoading } = useListRechargeOrders({} as Record<string, string>);
   const orders = useMemo(() => {
@@ -185,19 +270,28 @@ function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
 }
 
 export default function PitcherAccountsPage() {
+  const { user } = useAuth();
+  const canAssign = user?.canAssignAccounts ?? false;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
+  const [poolPage, setPoolPage] = useState(1);
   const [rechargeTarget, setRechargeTarget] = useState<Account | null>(null);
+  const [assignTarget, setAssignTarget] = useState<Account | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const { data, isLoading } = useListAccounts({});
   const allAccounts = Array.isArray(data) ? (data as unknown as Account[]) : [];
 
+  // Split: my accounts vs unassigned pool (only visible when canAssign)
+  const myAccounts = allAccounts.filter((a) => a.pitcherId === user?.id);
+  const poolAccounts = canAssign ? allAccounts.filter((a) => a.pitcherId === null) : [];
+
   const filtered = useMemo(() => {
-    let rows = allAccounts;
+    let rows = myAccounts;
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter((a) => a.accountName.toLowerCase().includes(q) || a.platformAccountId.toLowerCase().includes(q));
@@ -207,17 +301,17 @@ export default function PitcherAccountsPage() {
     if (dateRange.from) rows = rows.filter((a) => a.createdAt >= dateRange.from);
     if (dateRange.to) rows = rows.filter((a) => a.createdAt <= dateRange.to + "T23:59:59");
     return rows;
-  }, [allAccounts, search, statusFilter, platformFilter, dateRange]);
+  }, [myAccounts, search, statusFilter, platformFilter, dateRange]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
+  const pagedPool = usePagination(poolAccounts, PAGE_SIZE, poolPage);
 
   const activeCount = filtered.filter((a) => a.status === "active").length;
-  const idleCount = filtered.filter((a) => a.status === "idle").length;
-  const bannedCount = filtered.filter((a) => a.status === "banned").length;
   const totalBalance = filtered.reduce((s, a) => s + Number(a.currentBalance), 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">我的账户</h1>
@@ -228,6 +322,7 @@ export default function PitcherAccountsPage() {
         </Button>
       </div>
 
+      {/* ─── Filters ─── */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
@@ -257,13 +352,13 @@ export default function PitcherAccountsPage() {
       </div>
 
       <StatsBar items={[
-        { label: "账户总数", value: filtered.length },
+        { label: "我的账户", value: filtered.length },
         { label: "运行中", value: activeCount, color: activeCount > 0 ? "green" : "default" },
-        { label: "空闲", value: idleCount, color: "amber" },
-        { label: "已封禁", value: bannedCount, color: bannedCount > 0 ? "red" : "default" },
         { label: "余额合计", value: `$${totalBalance.toFixed(2)}`, color: "blue" },
+        ...(canAssign ? [{ label: "待分配", value: poolAccounts.length, color: "amber" as const }] : []),
       ]} />
 
+      {/* ─── My Accounts Table ─── */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -313,8 +408,66 @@ export default function PitcherAccountsPage() {
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
+      {/* ─── Unassigned Pool (only for privileged pitchers) ─── */}
+      {canAssign && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-base font-semibold">待分配账户</h2>
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{poolAccounts.length}</span>
+          </div>
+          <p className="text-sm text-muted-foreground -mt-1">以下账户尚未分配给任何投手，您可以将它们分配给其他投手。</p>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>账户名称</TableHead>
+                  <TableHead>平台账户ID</TableHead>
+                  <TableHead>平台</TableHead>
+                  <TableHead>余额</TableHead>
+                  <TableHead className="w-20">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedPool.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
+                      暂无待分配账户
+                    </TableCell>
+                  </TableRow>
+                )}
+                {pagedPool.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
+                    <TableCell><PlatformBadge platform={a.platform} /></TableCell>
+                    <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1 px-2"
+                        onClick={() => setAssignTarget(a)}
+                      >
+                        <UserCheck className="h-3 w-3" /> 分配
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePagination page={poolPage} pageSize={PAGE_SIZE} total={poolAccounts.length} onPageChange={setPoolPage} />
+          </div>
+        </div>
+      )}
+
+      {/* ─── Dialogs ─── */}
       {rechargeTarget && (
         <RechargeDialog account={rechargeTarget} onClose={() => setRechargeTarget(null)} />
+      )}
+      {assignTarget && (
+        <AssignDialog account={assignTarget} onClose={() => setAssignTarget(null)} />
       )}
       {showHistory && (
         <RechargeHistoryDialog onClose={() => setShowHistory(false)} />

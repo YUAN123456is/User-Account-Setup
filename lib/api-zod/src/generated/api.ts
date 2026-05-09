@@ -29,6 +29,7 @@ export const LoginResponse = zod.object({
     displayName: zod.string(),
     role: zod.enum(["admin", "provider", "pitcher"]),
     portalSlug: zod.string().nullish(),
+    canAssignAccounts: zod.boolean(),
     isActive: zod.boolean(),
     createdAt: zod.string(),
   }),
@@ -43,6 +44,7 @@ export const GetMeResponse = zod.object({
   displayName: zod.string(),
   role: zod.enum(["admin", "provider", "pitcher"]),
   portalSlug: zod.string().nullish(),
+  canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -60,6 +62,7 @@ export const ListUsersResponseItem = zod.object({
   displayName: zod.string(),
   role: zod.enum(["admin", "provider", "pitcher"]),
   portalSlug: zod.string().nullish(),
+  canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -89,6 +92,7 @@ export const GetUserResponse = zod.object({
   displayName: zod.string(),
   role: zod.enum(["admin", "provider", "pitcher"]),
   portalSlug: zod.string().nullish(),
+  canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -104,6 +108,7 @@ export const UpdateUserBody = zod.object({
   displayName: zod.string().optional(),
   password: zod.string().nullish(),
   isActive: zod.boolean().optional(),
+  canAssignAccounts: zod.boolean().optional(),
   portalSlug: zod.string().nullish(),
 });
 
@@ -113,6 +118,7 @@ export const UpdateUserResponse = zod.object({
   displayName: zod.string(),
   role: zod.enum(["admin", "provider", "pitcher"]),
   portalSlug: zod.string().nullish(),
+  canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });

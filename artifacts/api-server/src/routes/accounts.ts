@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, SQL } from "drizzle-orm";
+import { eq, and, or, isNull, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import {
   CreateAccountBody,
@@ -53,7 +53,13 @@ router.get("/accounts", requireAuth, async (req, res): Promise<void> => {
   if (role === "provider") {
     conditions.push(eq(accountsTable.providerId, userId!));
   } else if (role === "pitcher") {
-    conditions.push(eq(accountsTable.pitcherId, userId!));
+    const [callerUser] = await db.select({ canAssignAccounts: usersTable.canAssignAccounts })
+      .from(usersTable).where(eq(usersTable.id, userId!));
+    if (callerUser?.canAssignAccounts) {
+      conditions.push(or(eq(accountsTable.pitcherId, userId!), isNull(accountsTable.pitcherId))!);
+    } else {
+      conditions.push(eq(accountsTable.pitcherId, userId!));
+    }
   } else {
     if (params.data.providerId != null) conditions.push(eq(accountsTable.providerId, params.data.providerId));
     if (params.data.pitcherId != null) conditions.push(eq(accountsTable.pitcherId, params.data.pitcherId));
@@ -138,6 +144,12 @@ router.patch("/accounts/:id", requireRole("admin", "provider"), async (req, res)
   if (parsed.data.accountName != null) updates.accountName = parsed.data.accountName;
   if (parsed.data.status != null) updates.status = parsed.data.status as "idle" | "active" | "banned";
 
+  if (Object.keys(updates).length === 0) {
+    const [current] = await db.select().from(accountsTable).where(eq(accountsTable.id, params.data.id));
+    res.json(await formatAccount(current));
+    return;
+  }
+
   const [updated] = await db.update(accountsTable).set(updates).where(eq(accountsTable.id, params.data.id)).returning();
   res.json(await formatAccount(updated));
 });
@@ -159,7 +171,7 @@ router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<v
   res.status(204).end();
 });
 
-router.post("/accounts/:id/assign", requireRole("admin"), async (req, res): Promise<void> => {
+router.post("/accounts/:id/assign", requireRole("admin", "pitcher"), async (req, res): Promise<void> => {
   const params = AssignAccountParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -169,6 +181,27 @@ router.post("/accounts/:id/assign", requireRole("admin"), async (req, res): Prom
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // Pitchers with canAssignAccounts can only assign idle (unassigned) accounts; no transfers
+  const { role, userId } = req.session as { role?: string; userId?: number };
+  if (role === "pitcher") {
+    const [caller] = await db.select({ canAssignAccounts: usersTable.canAssignAccounts })
+      .from(usersTable).where(eq(usersTable.id, userId!));
+    if (!caller?.canAssignAccounts) {
+      res.status(403).json({ error: "无账户分配权限" });
+      return;
+    }
+    const [existing] = await db.select({ pitcherId: accountsTable.pitcherId })
+      .from(accountsTable).where(eq(accountsTable.id, params.data.id));
+    if (!existing) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+    if (existing.pitcherId != null) {
+      res.status(403).json({ error: "已分配账户只有管理员可转移" });
+      return;
+    }
   }
 
   const newStatus = parsed.data.pitcherId != null ? "active" : "idle";
