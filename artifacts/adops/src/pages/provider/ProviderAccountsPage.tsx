@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useCreateAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, createAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,8 +14,9 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, CreditCard, Search } from "lucide-react";
+import { Plus, CreditCard, Search, Trash2, PlusCircle, ClipboardPaste, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
+import { cn } from "@/lib/utils";
 
 interface Account {
   id: number;
@@ -36,72 +38,336 @@ const PLATFORMS = [
 ];
 
 type Platform = "FB" | "GG" | "TT" | "TW" | "OTHER";
-const BLANK = { platformAccountId: "", accountName: "", platform: "FB" as Platform, initialBalance: "" };
 const PAGE_SIZE = 20;
 
-function CreateAccountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [form, setForm] = useState<{ platformAccountId: string; accountName: string; platform: Platform; initialBalance: string }>(BLANK);
-  const [formError, setFormError] = useState("");
+interface RowDraft {
+  id: string;
+  accountName: string;
+  platformAccountId: string;
+  platform: Platform;
+  initialBalance: string;
+  status: "idle" | "success" | "error" | "loading";
+  errorMsg?: string;
+}
+
+function detectPlatform(name: string): Platform {
+  const upper = name.toUpperCase();
+  if (/\bFB\b/.test(upper)) return "FB";
+  if (/\bGG\b/.test(upper)) return "GG";
+  if (/\bTT\b/.test(upper)) return "TT";
+  if (/\bTW\b/.test(upper)) return "TW";
+  return "OTHER";
+}
+
+function parsePastedText(raw: string): RowDraft[] {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  const rows: RowDraft[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const nameLine = lines[i];
+    const idLine = lines[i + 1] ?? "";
+
+    // Try to match name line: optionally starts with #XXXX - or similar prefix
+    const nameMatch = nameLine.match(/^#?\d*\s*[-–]?\s*(.+)$/);
+    const accountName = nameMatch ? nameMatch[1].trim() : nameLine.trim();
+
+    // Try to match platform account ID: "编号：XXXXXXX" or just a long number on next line
+    let platformAccountId = "";
+    let consumed = 1;
+    if (/^编号[：:]/.test(idLine)) {
+      platformAccountId = idLine.replace(/^编号[：:]\s*/, "").trim();
+      consumed = 2;
+    } else if (/^\d{8,}$/.test(idLine)) {
+      platformAccountId = idLine.trim();
+      consumed = 2;
+    }
+
+    if (accountName) {
+      rows.push({
+        id: crypto.randomUUID(),
+        accountName,
+        platformAccountId,
+        platform: detectPlatform(accountName),
+        initialBalance: "0.00",
+        status: "idle",
+      });
+    }
+    i += consumed;
+  }
+  return rows;
+}
+
+function blankRow(): RowDraft {
+  return { id: crypto.randomUUID(), accountName: "", platformAccountId: "", platform: "OTHER", initialBalance: "0.00", status: "idle" };
+}
+
+function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [pasteText, setPasteText] = useState("");
+  const [rows, setRows] = useState<RowDraft[]>([blankRow()]);
+  const [globalPlatform, setGlobalPlatform] = useState<Platform | "auto">("auto");
+  const [globalBalance, setGlobalBalance] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (open) { setForm(BLANK); setFormError(""); }
+    if (open) {
+      setPasteText("");
+      setRows([blankRow()]);
+      setGlobalPlatform("auto");
+      setGlobalBalance("");
+    }
   }, [open]);
 
-  const create = useCreateAccount({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
-        toast({ title: "账户已新增" });
-        onClose();
-      },
-      onError: (err: unknown) => {
-        const msg = (err as { data?: { error?: string } })?.data?.error ?? "新增失败，请重试";
-        setFormError(msg);
-      },
-    },
-  });
-
-  const handleSubmit = () => {
-    setFormError("");
-    if (!form.platformAccountId.trim() || !form.accountName.trim()) {
-      setFormError("平台账户ID和账户名称为必填项"); return;
+  const handleParse = useCallback(() => {
+    if (!pasteText.trim()) return;
+    const parsed = parsePastedText(pasteText);
+    if (parsed.length === 0) {
+      toast({ title: "解析失败", description: "未识别到有效账户数据，请检查格式。", variant: "destructive" });
+      return;
     }
-    const balance = parseFloat(form.initialBalance);
-    if (isNaN(balance) || balance < 0) { setFormError("请输入有效的初始余额（≥ 0）"); return; }
-    create.mutate({ data: { platformAccountId: form.platformAccountId.trim(), accountName: form.accountName.trim(), platform: form.platform, initialBalance: balance.toFixed(2) } });
+    setRows(parsed);
+    setPasteText("");
+    toast({ title: `解析成功`, description: `识别到 ${parsed.length} 个账户，请确认信息后提交。` });
+  }, [pasteText, toast]);
+
+  const updateRow = (id: string, field: keyof RowDraft, value: string) => {
+    setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: value, status: "idle", errorMsg: undefined } : r));
+  };
+
+  const deleteRow = (id: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const addRow = () => setRows((prev) => [...prev, blankRow()]);
+
+  const applyGlobal = () => {
+    setRows((prev) => prev.map((r) => ({
+      ...r,
+      ...(globalPlatform !== "auto" ? { platform: globalPlatform } : {}),
+      ...(globalBalance !== "" ? { initialBalance: globalBalance } : {}),
+    })));
+  };
+
+  const validRows = rows.filter((r) => r.accountName.trim() && r.platformAccountId.trim());
+  const doneCount = rows.filter((r) => r.status === "success").length;
+  const errorCount = rows.filter((r) => r.status === "error").length;
+
+  const handleSubmit = async () => {
+    // Validate
+    const invalids = rows.filter((r) => !r.accountName.trim() || !r.platformAccountId.trim());
+    if (invalids.length > 0) {
+      toast({ title: "有未填写的行", description: "账户名称和广告编号为必填项，请填写完整或删除空行。", variant: "destructive" });
+      return;
+    }
+    if (rows.length === 0) return;
+
+    setSubmitting(true);
+    setRows((prev) => prev.map((r) => ({ ...r, status: "loading", errorMsg: undefined })));
+
+    let successCount = 0;
+    const updatedRows = [...rows];
+
+    for (let i = 0; i < updatedRows.length; i++) {
+      const r = updatedRows[i];
+      const balance = parseFloat(r.initialBalance);
+      try {
+        await createAccount({
+          accountName: r.accountName.trim(),
+          platformAccountId: r.platformAccountId.trim(),
+          platform: r.platform,
+          initialBalance: isNaN(balance) ? "0.00" : balance.toFixed(2),
+        });
+        updatedRows[i] = { ...r, status: "success" };
+        successCount++;
+      } catch (err: unknown) {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "创建失败";
+        updatedRows[i] = { ...r, status: "error", errorMsg: msg };
+      }
+      setRows([...updatedRows]);
+    }
+
+    setSubmitting(false);
+    queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+
+    const failCount = updatedRows.filter((r) => r.status === "error").length;
+    if (failCount === 0) {
+      toast({ title: `全部添加成功`, description: `${successCount} 个账户已创建。` });
+      onClose();
+    } else {
+      toast({
+        title: `部分添加成功`,
+        description: `${successCount} 成功 / ${failCount} 失败，请检查标红的行。`,
+        variant: "destructive",
+      });
+      setRows(updatedRows.filter((r) => r.status !== "success"));
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>新增广告账户</DialogTitle></DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-sm">平台账户ID <span className="text-destructive">*</span></Label>
-            <Input value={form.platformAccountId} onChange={(e) => setForm({ ...form, platformAccountId: e.target.value })} placeholder="如：FB-123456" />
+    <Dialog open={open} onOpenChange={submitting ? undefined : onClose}>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>批量新增广告账户</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* Paste area */}
+          <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <ClipboardPaste className="h-4 w-4 text-muted-foreground" />
+              粘贴文本自动解析
+              <span className="text-xs text-muted-foreground font-normal">（支持「#编号 - 账户名称 / 编号：ID」格式，每对两行）</span>
+            </div>
+            <Textarea
+              placeholder={`粘贴账户数据，例如：\n#1210 - AdTiger-JLBY-016 8754 - PP - RHKA\n编号：1545161920944125\n#5146 - AdTiger-JLBY-018 8752 - PP - RHKA\n编号：1283427706567973`}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              className="text-xs font-mono min-h-[100px] resize-y"
+              disabled={submitting}
+            />
+            <Button size="sm" onClick={handleParse} disabled={!pasteText.trim() || submitting} className="gap-1.5">
+              <ClipboardPaste className="h-4 w-4" />
+              解析并填入表格
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">账户名称 <span className="text-destructive">*</span></Label>
-            <Input value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} placeholder="如：美妆品牌推广账户" />
+
+          {/* Global apply */}
+          {rows.length > 1 && (
+            <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <span className="text-xs text-muted-foreground whitespace-nowrap pt-5">批量设置</span>
+              <div className="space-y-1">
+                <Label className="text-xs">平台</Label>
+                <Select value={globalPlatform} onValueChange={(v) => setGlobalPlatform(v as Platform | "auto")} disabled={submitting}>
+                  <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">保持不变</SelectItem>
+                    {PLATFORMS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">初始余额（USD）</Label>
+                <Input
+                  type="number" min="0" step="0.01" placeholder="留空不修改"
+                  value={globalBalance}
+                  onChange={(e) => setGlobalBalance(e.target.value)}
+                  className="h-8 w-36 text-xs"
+                  disabled={submitting}
+                />
+              </div>
+              <Button size="sm" variant="outline" onClick={applyGlobal} disabled={submitting} className="text-xs">
+                应用到全部行
+              </Button>
+            </div>
+          )}
+
+          {/* Editable table */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40 border-b border-border">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-8">#</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">账户名称 <span className="text-destructive">*</span></th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">广告编号 <span className="text-destructive">*</span></th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-32">平台</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-28">初始余额</th>
+                  <th className="w-16 px-3 py-2 text-xs font-medium text-muted-foreground text-right">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      "border-b border-border last:border-0 transition-colors",
+                      row.status === "success" && "bg-green-500/5",
+                      row.status === "error" && "bg-destructive/5",
+                      row.status === "loading" && "opacity-60",
+                    )}
+                  >
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                    <td className="px-1.5 py-1.5">
+                      <div className="space-y-0.5">
+                        <Input
+                          value={row.accountName}
+                          onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
+                          placeholder="账户名称"
+                          className="h-7 text-xs"
+                          disabled={submitting}
+                        />
+                        {row.status === "error" && row.errorMsg && (
+                          <p className="text-xs text-destructive px-1">{row.errorMsg}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <Input
+                        value={row.platformAccountId}
+                        onChange={(e) => updateRow(row.id, "platformAccountId", e.target.value)}
+                        placeholder="如：1545161920944125"
+                        className="h-7 text-xs font-mono"
+                        disabled={submitting}
+                      />
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <Select value={row.platform} onValueChange={(v) => updateRow(row.id, "platform", v)} disabled={submitting}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PLATFORMS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <Input
+                        type="number" min="0" step="0.01"
+                        value={row.initialBalance}
+                        onChange={(e) => updateRow(row.id, "initialBalance", e.target.value)}
+                        className="h-7 text-xs w-full"
+                        disabled={submitting}
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      {row.status === "loading" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-auto" />}
+                      {row.status === "success" && <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />}
+                      {row.status === "error" && <XCircle className="h-4 w-4 text-destructive ml-auto" />}
+                      {row.status === "idle" && (
+                        <button
+                          type="button"
+                          onClick={() => deleteRow(row.id)}
+                          disabled={submitting}
+                          className="text-muted-foreground hover:text-destructive transition-colors ml-auto block"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">投放平台</Label>
-            <Select value={form.platform} onValueChange={(v) => setForm({ ...form, platform: v as Platform })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PLATFORMS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">初始余额（USD）<span className="text-destructive">*</span></Label>
-            <Input type="number" min="0" step="0.01" value={form.initialBalance} onChange={(e) => setForm({ ...form, initialBalance: e.target.value })} placeholder="0.00" />
-          </div>
-          {formError && <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">{formError}</div>}
+
+          <Button variant="outline" size="sm" onClick={addRow} disabled={submitting} className="gap-1.5 text-xs">
+            <PlusCircle className="h-4 w-4" />
+            手动添加一行
+          </Button>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleSubmit} disabled={create.isPending}>{create.isPending ? "提交中..." : "新增账户"}</Button>
+
+        <DialogFooter className="border-t border-border pt-4 mt-2 flex-shrink-0">
+          <div className="flex items-center gap-2 mr-auto text-xs text-muted-foreground">
+            {submitting ? (
+              <span>正在提交… {doneCount}/{rows.length + doneCount + errorCount}</span>
+            ) : (
+              <span>共 {rows.length} 行 · {validRows.length} 行有效</span>
+            )}
+          </div>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>取消</Button>
+          <Button onClick={handleSubmit} disabled={submitting || rows.length === 0} className="gap-1.5">
+            {submitting
+              ? <><Loader2 className="h-4 w-4 animate-spin" />提交中…</>
+              : <><Plus className="h-4 w-4" />批量提交 {rows.length} 个账户</>}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -225,7 +491,7 @@ export default function ProviderAccountsPage() {
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
-      <CreateAccountDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <BatchCreateAccountDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   );
 }
