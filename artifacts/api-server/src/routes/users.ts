@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ne, inArray } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db, usersTable, accountsTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-auth";
@@ -14,6 +15,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     displayName: user.displayName,
     role: user.role,
     portalSlug: user.portalSlug,
+    magicToken: user.magicToken ?? null,
     isActive: user.isActive,
     createdAt: user.createdAt.toISOString(),
   };
@@ -103,6 +105,15 @@ router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void>
     return;
   }
   res.json(formatUser(user));
+});
+
+router.post("/users/:id/magic-token", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const token = randomUUID().replace(/-/g, "");
+  const [user] = await db.update(usersTable).set({ magicToken: token }).where(eq(usersTable.id, id)).returning();
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json({ magicToken: user.magicToken });
 });
 
 router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void> => {

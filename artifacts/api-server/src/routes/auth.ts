@@ -52,6 +52,30 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   });
 });
 
+router.get("/auth/magic/:token", async (req, res): Promise<void> => {
+  const { token } = req.params;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.magicToken, token));
+  if (!user || !user.isActive) {
+    res.status(401).json({ error: "链接无效或已被停用" });
+    return;
+  }
+  req.session.userId = user.id;
+  req.session.role = user.role;
+  req.session.username = user.username;
+  req.session.save((err) => {
+    if (err) { res.status(500).json({ error: "Session save failed" }); return; }
+    res.json({
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      portalSlug: user.portalSlug,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+    });
+  });
+});
+
 router.post("/auth/logout", (req, res): void => {
   req.session.destroy(() => {
     res.sendStatus(204);

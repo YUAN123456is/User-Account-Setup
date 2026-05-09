@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/LoginPage";
+import MagicLoginPage from "@/pages/MagicLoginPage";
 
 import AdminLayout from "@/pages/admin/AdminLayout";
 import DashboardPage from "@/pages/admin/DashboardPage";
@@ -75,6 +76,13 @@ function PitcherRoute(Layout: React.ComponentType<{ children: React.ReactNode }>
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
+
+  // Magic link route — always accessible regardless of auth state
+  // Must be checked before isLoading so the token is handled immediately
+  // (Wouter's Switch below won't run if we return early here, so we peek at the path)
+  if (window.location.pathname.match(/\/p\/[^/]+/)) {
+    return <Route path="/p/:token" component={MagicLoginPage} />;
+  }
 
   if (isLoading) {
     return (
