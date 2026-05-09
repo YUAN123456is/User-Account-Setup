@@ -4,6 +4,7 @@ import {
   useUpdateAccount,
   useCreateRechargeOrder,
   useListRechargeOrders,
+  useUpdateRechargeOrder,
   getListRechargeOrdersQueryKey,
   getListAccountsQueryKey,
 } from "@workspace/api-client-react";
@@ -23,7 +24,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Search, History, Plus } from "lucide-react";
+import { CreditCard, Search, History, Plus, Pencil } from "lucide-react";
 
 interface Account {
   id: number;
@@ -165,68 +166,145 @@ function RechargeDialog({ account, onClose }: { account: Account; onClose: () =>
   );
 }
 
+function EditAmountDialog({ order, onClose }: { order: RechargeOrder; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState(String(Number(order.amount).toFixed(2)));
+  const [note, setNote] = useState(order.note ?? "");
+
+  const update = useUpdateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        toast({ title: "修改成功", description: "充值金额已更新，等待审核。" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "修改失败，请重试";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleSave = () => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "请输入有效金额", variant: "destructive" });
+      return;
+    }
+    update.mutate({ id: order.id, data: { amount: val.toFixed(2), note: note || null } });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>修改充值金额</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="text-muted-foreground text-xs mb-0.5">充值账户</p>
+            <p className="font-medium">{order.accountName ?? `订单 #${order.id}`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">原金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span></p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">新充值金额（美元）<span className="text-destructive">*</span></Label>
+            <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">备注（选填）</Label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="说明修改原因..." rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSave} disabled={update.isPending}>{update.isPending ? "保存中..." : "确认修改"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
   const { data, isLoading } = useListRechargeOrders({} as Record<string, string>);
+  const [editTarget, setEditTarget] = useState<RechargeOrder | null>(null);
   const orders = useMemo(() => {
     const all = Array.isArray(data) ? (data as RechargeOrder[]) : [];
     return [...all].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [data]);
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>充值记录</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead>账户</TableHead>
-                <TableHead>金额</TableHead>
-                <TableHead>备注</TableHead>
-                <TableHead>申请时间</TableHead>
-                <TableHead>状态</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
-                    <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
-                  ))}
+    <>
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>充值记录</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>账户</TableHead>
+                  <TableHead>金额</TableHead>
+                  <TableHead>备注</TableHead>
+                  <TableHead>申请时间</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="w-16">操作</TableHead>
                 </TableRow>
-              ))}
-              {!isLoading && orders.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
-                    暂无充值申请记录
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && orders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="text-sm font-medium max-w-[160px]">
-                    <TruncatedCell value={o.accountName ?? `账户 #${o.id}`} />
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">${Number(o.amount).toFixed(2)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-w-[140px]">
-                    <TruncatedCell value={o.note || "—"} />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(o.createdAt).toLocaleDateString("zh-CN")}
-                  </TableCell>
-                  <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>关闭</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              </TableHeader>
+              <TableBody>
+                {isLoading && Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                {!isLoading && orders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
+                      暂无充值申请记录
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && orders.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="text-sm font-medium max-w-[160px]">
+                      <TruncatedCell value={o.accountName ?? `账户 #${o.id}`} />
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">${Number(o.amount).toFixed(2)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[140px]">
+                      <TruncatedCell value={o.note || "—"} />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(o.createdAt).toLocaleDateString("zh-CN")}
+                    </TableCell>
+                    <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
+                    <TableCell>
+                      {o.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditTarget(o)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                          修改
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {editTarget && (
+        <EditAmountDialog order={editTarget} onClose={() => setEditTarget(null)} />
+      )}
+    </>
   );
 }
 
