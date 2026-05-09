@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams, Redirect } from "wouter";
-import { useAuth } from "@/contexts/AuthContext";
+import { useParams } from "wouter";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 export default function MagicLoginPage() {
   const { token } = useParams<{ token: string }>();
-  const { setUser, user } = useAuth();
   const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
 
   useEffect(() => {
     if (!token) { setError("链接无效"); return; }
@@ -15,13 +12,13 @@ export default function MagicLoginPage() {
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok) { setError(body.error ?? "链接无效或已过期"); return; }
-        setUser(body);
-        setDone(true);
+        // Full page replace — clears React Query cache and lets /api/auth/me
+        // re-fetch with the fresh session cookie, avoiding blank screen.
+        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+        window.location.replace(`${base}/provider/accounts`);
       })
       .catch(() => setError("网络错误，请稍后重试"));
-  }, [token, setUser]);
-
-  if (done || user) return <Redirect to="/provider/accounts" />;
+  }, [token]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
