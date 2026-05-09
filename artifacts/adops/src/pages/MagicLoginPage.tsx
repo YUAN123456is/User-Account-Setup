@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams } from "wouter";
+import { useParams, Redirect } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 export default function MagicLoginPage() {
   const { token } = useParams<{ token: string }>();
   const [error, setError] = useState("");
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!token) { setError("链接无效"); return; }
@@ -12,13 +17,16 @@ export default function MagicLoginPage() {
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok) { setError(body.error ?? "链接无效或已过期"); return; }
-        // Full page replace — clears React Query cache and lets /api/auth/me
-        // re-fetch with the fresh session cookie, avoiding blank screen.
-        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-        window.location.replace(`${base}/provider/accounts`);
+        // Session cookie is now set. Invalidate the cached /api/auth/me result
+        // so React Query refetches it fresh. AuthContext picks up the user
+        // through its normal data path — no manual state needed.
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       })
       .catch(() => setError("网络错误，请稍后重试"));
-  }, [token]);
+  }, [token, queryClient]);
+
+  // Once AuthContext has the user (from the refetched /api/auth/me), redirect.
+  if (user) return <Redirect to="/provider/accounts" />;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
