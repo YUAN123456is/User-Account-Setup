@@ -434,6 +434,7 @@ export default function UsersPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>显示名称</TableHead>
+              <TableHead>用户名</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>创建时间</TableHead>
@@ -453,7 +454,8 @@ export default function UsersPage() {
               const effectiveToken = localTokens[u.id] ?? u.magicToken;
               return (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={u.displayName} /></TableCell>
+                  <TableCell className="font-medium max-w-[140px]"><TruncatedCell value={u.displayName} /></TableCell>
+                  <TableCell className="text-muted-foreground font-mono text-sm max-w-[140px]"><TruncatedCell value={u.username} /></TableCell>
                   <TableCell><Badge variant="outline">{roleLabel[u.role] ?? u.role}</Badge></TableCell>
                   <TableCell>
                     {u.isActive
