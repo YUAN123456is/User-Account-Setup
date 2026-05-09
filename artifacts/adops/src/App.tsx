@@ -24,6 +24,7 @@ import ProviderRechargeOrdersPage from "@/pages/provider/ProviderRechargeOrdersP
 import PitcherLayout from "@/pages/pitcher/PitcherLayout";
 import PitcherDashboardPage from "@/pages/pitcher/PitcherDashboardPage";
 import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
+import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
 import PitcherHistoryPage from "@/pages/pitcher/PitcherHistoryPage";
@@ -131,6 +132,7 @@ function AppRoutes() {
       {/* Pitcher routes — only accessible to pitcher role */}
       <Route path="/pitcher/dashboard" component={PitcherRoute(PitcherLayout, PitcherDashboardPage)} />
       <Route path="/pitcher/accounts" component={PitcherRoute(PitcherLayout, PitcherAccountsPage)} />
+      <Route path="/pitcher/pool" component={PitcherRoute(PitcherLayout, PitcherPoolPage)} />
       <Route path="/pitcher/report" component={PitcherRoute(PitcherLayout, DailyReportPage)} />
       <Route path="/pitcher/recharge" component={PitcherRoute(PitcherLayout, RechargeRequestPage)} />
       <Route path="/pitcher/history" component={PitcherRoute(PitcherLayout, PitcherHistoryPage)} />

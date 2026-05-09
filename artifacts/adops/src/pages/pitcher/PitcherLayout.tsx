@@ -1,16 +1,28 @@
 import { ReactNode } from "react";
-import { LayoutDashboard, CreditCard, BarChart3, History } from "lucide-react";
+import { LayoutDashboard, CreditCard, BarChart3, History, UserCheck } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useListAccounts } from "@workspace/api-client-react";
 
 export default function PitcherLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const canAssign = user?.canAssignAccounts ?? false;
+
+  const { data } = useListAccounts({});
+  const idleCount = canAssign
+    ? (Array.isArray(data) ? (data as { pitcherId: number | null }[]).filter((a) => a.pitcherId === null).length : 0)
+    : 0;
+
   const items = [
     { label: "工作台", href: "/pitcher/dashboard", icon: LayoutDashboard },
     { label: "我的账户", href: "/pitcher/accounts", icon: CreditCard },
+    ...(canAssign
+      ? [{ label: "账户分配", href: "/pitcher/pool", icon: UserCheck, badge: idleCount > 0 ? idleCount : undefined }]
+      : []),
     { label: "每日上报", href: "/pitcher/report", icon: BarChart3 },
     { label: "上报记录", href: "/pitcher/history", icon: History },
   ];
+
   return (
     <div className="flex min-h-screen">
       <Sidebar title="AdOps" subtitle={user?.displayName ?? "投手"} items={items} />
