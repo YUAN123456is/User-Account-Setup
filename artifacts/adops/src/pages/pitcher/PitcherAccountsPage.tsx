@@ -1,15 +1,26 @@
 import { useState, useMemo } from "react";
-import { useListAccounts } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListAccounts,
+  useCreateRechargeOrder,
+  useListRechargeOrders,
+  getListRechargeOrdersQueryKey,
+} from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AccountStatusBadge, PlatformBadge, RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
-import { CreditCard, Search } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
+import { useToast } from "@/hooks/use-toast";
+import { CreditCard, Search, History, Plus } from "lucide-react";
 
 interface Account {
   id: number;
@@ -23,7 +34,155 @@ interface Account {
   createdAt: string;
 }
 
+interface RechargeOrder {
+  id: number;
+  accountId?: number;
+  accountName?: string;
+  amount: string;
+  status: "pending" | "completed" | "rejected";
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const PAGE_SIZE = 20;
+
+function RechargeDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const create = useCreateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        toast({ title: "充值申请已提交", description: "请等待开户商审核处理。" });
+        onClose();
+      },
+      onError: () => {
+        toast({ title: "提交失败", description: "请稍后重试。", variant: "destructive" });
+      },
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!amount || Number(amount) <= 0) {
+      toast({ title: "请填写有效的充值金额", variant: "destructive" });
+      return;
+    }
+    create.mutate({ data: { accountId: account.id, amount, note: note || undefined } });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>充值申请</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="text-muted-foreground text-xs mb-0.5">目标账户</p>
+            <p className="font-medium truncate">{account.accountName}</p>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">{account.platformAccountId}</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">充值金额（美元）<span className="text-destructive">*</span></Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">备注（选填）</Label>
+            <Textarea
+              placeholder="向开户商说明充值用途..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSubmit} disabled={create.isPending}>
+            {create.isPending ? "提交中..." : "提交申请"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
+  const { data, isLoading } = useListRechargeOrders({} as Record<string, string>);
+  const orders = useMemo(() => {
+    const all = Array.isArray(data) ? (data as RechargeOrder[]) : [];
+    return [...all].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [data]);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>充值记录</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead>账户</TableHead>
+                <TableHead>金额</TableHead>
+                <TableHead>备注</TableHead>
+                <TableHead>申请时间</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 5 }).map((__, j) => (
+                    <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {!isLoading && orders.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
+                    暂无充值申请记录
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && orders.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell className="text-sm font-medium max-w-[160px]">
+                    <TruncatedCell value={o.accountName ?? `账户 #${o.id}`} />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">${Number(o.amount).toFixed(2)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground max-w-[140px]">
+                    <TruncatedCell value={o.note || "—"} />
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(o.createdAt).toLocaleDateString("zh-CN")}
+                  </TableCell>
+                  <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function PitcherAccountsPage() {
   const [search, setSearch] = useState("");
@@ -31,6 +190,8 @@ export default function PitcherAccountsPage() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
+  const [rechargeTarget, setRechargeTarget] = useState<Account | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data, isLoading } = useListAccounts({});
   const allAccounts = Array.isArray(data) ? (data as unknown as Account[]) : [];
@@ -57,9 +218,14 @@ export default function PitcherAccountsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">我的账户</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">分配给您的广告账户列表</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">我的账户</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">分配给您的广告账户列表</p>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowHistory(true)}>
+          <History className="h-4 w-4" /> 充值记录
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
@@ -109,7 +275,7 @@ export default function PitcherAccountsPage() {
               <TableHead>实际余额</TableHead>
               <TableHead>理论余额</TableHead>
               <TableHead>最近上报</TableHead>
-              <TableHead>创建时间</TableHead>
+              <TableHead className="w-20">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -130,13 +296,29 @@ export default function PitcherAccountsPage() {
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="font-mono text-muted-foreground">${Number(a.theoreticalBalance ?? 0).toFixed(2)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1 px-2"
+                    onClick={() => setRechargeTarget(a)}
+                  >
+                    <Plus className="h-3 w-3" /> 充值
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
+
+      {rechargeTarget && (
+        <RechargeDialog account={rechargeTarget} onClose={() => setRechargeTarget(null)} />
+      )}
+      {showHistory && (
+        <RechargeHistoryDialog onClose={() => setShowHistory(false)} />
+      )}
     </div>
   );
 }
