@@ -1,6 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useCreateRechargeOrder, useListRechargeOrders, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
+import {
+  useListAccounts,
+  useCreateRechargeOrder,
+  useListRechargeOrders,
+  useUpdateRechargeOrder,
+  getListRechargeOrdersQueryKey,
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,9 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, History } from "lucide-react";
+import { PlusCircle, History, Pencil } from "lucide-react";
 
 interface Account { id: number; accountName: string; platform: string; }
 interface RechargeOrder {
@@ -23,8 +30,97 @@ interface RechargeOrder {
   updatedAt: string;
 }
 
+function EditAmountDialog({
+  order,
+  onClose,
+}: {
+  order: RechargeOrder;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState(String(Number(order.amount).toFixed(2)));
+  const [note, setNote] = useState(order.note ?? "");
+
+  const update = useUpdateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        toast({ title: "修改成功", description: "充值金额已更新，等待审核。" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "修改失败，请重试";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleSave = () => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "请输入有效金额", variant: "destructive" });
+      return;
+    }
+    update.mutate({
+      id: order.id,
+      data: { amount: val.toFixed(2), note: note || null },
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>修改充值金额</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="text-muted-foreground text-xs mb-0.5">充值账户</p>
+            <p className="font-medium">{order.accountName ?? `订单 #${order.id}`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              原金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span>
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">
+              新充值金额（美元）<span className="text-destructive">*</span>
+            </Label>
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">备注（选填）</Label>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="说明修改原因..."
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSave} disabled={update.isPending}>
+            {update.isPending ? "保存中..." : "确认修改"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RechargeRequestPage() {
   const [form, setForm] = useState({ accountId: "", amount: "", note: "" });
+  const [editTarget, setEditTarget] = useState<RechargeOrder | null>(null);
   const queryClient = useQueryClient();
   const { data: accountsData } = useListAccounts({});
   const { data: ordersData, isLoading: ordersLoading } = useListRechargeOrders({} as Record<string, string>);
@@ -140,19 +236,20 @@ export default function RechargeRequestPage() {
                 <TableHead>申请时间</TableHead>
                 <TableHead>更新时间</TableHead>
                 <TableHead>状态</TableHead>
+                <TableHead className="w-20">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {ordersLoading && Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
                   ))}
                 </TableRow>
               ))}
               {!ordersLoading && sortedOrders.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
+                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
                     暂无充值申请记录
                   </TableCell>
                 </TableRow>
@@ -173,12 +270,29 @@ export default function RechargeRequestPage() {
                     {new Date(o.updatedAt).toLocaleDateString("zh-CN")}
                   </TableCell>
                   <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
+                  <TableCell>
+                    {o.status === "pending" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditTarget(o)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                        修改
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      {editTarget && (
+        <EditAmountDialog order={editTarget} onClose={() => setEditTarget(null)} />
+      )}
     </div>
   );
 }

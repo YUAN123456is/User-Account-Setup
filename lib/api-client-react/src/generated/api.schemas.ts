@@ -220,7 +220,8 @@ export const UpdateRechargeOrderBodyStatus = {
 } as const;
 
 export interface UpdateRechargeOrderBody {
-  status: UpdateRechargeOrderBodyStatus;
+  status?: UpdateRechargeOrderBodyStatus;
+  amount?: string;
   /** @nullable */
   note?: string | null;
 }

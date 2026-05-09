@@ -1042,10 +1042,10 @@ components:
         status:
           type: string
           enum: [completed, rejected]
+        amount:
+          type: string
         note:
           type: ["string", "null"]
-      required:
-        - status
 
     # ─── Dashboard ────────────────────────────────────────────────────────
     DashboardSummary:

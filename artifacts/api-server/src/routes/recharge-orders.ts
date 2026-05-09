@@ -123,7 +123,7 @@ router.get("/recharge-orders/:id", requireAuth, async (req, res): Promise<void> 
   res.json(await formatOrder(order));
 });
 
-router.patch("/recharge-orders/:id", requireRole("provider", "admin"), async (req, res): Promise<void> => {
+router.patch("/recharge-orders/:id", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateRechargeOrderParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -135,12 +135,51 @@ router.patch("/recharge-orders/:id", requireRole("provider", "admin"), async (re
     return;
   }
 
+  const { role, userId } = req.session as { role?: string; userId?: number };
+
   const [order] = await db.select().from(rechargeOrdersTable).where(eq(rechargeOrdersTable.id, params.data.id));
   if (!order) {
     res.status(404).json({ error: "Order not found" });
     return;
   }
-  if (req.session.role === "provider" && order.providerId !== req.session.userId) {
+
+  // Pitcher: can only update amount/note of their own pending orders (no status change)
+  if (role === "pitcher") {
+    if (order.pitcherId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (order.status !== "pending") {
+      res.status(409).json({ error: "该订单已处理，无法修改" });
+      return;
+    }
+    if (parsed.data.status) {
+      res.status(403).json({ error: "投手无法变更订单状态" });
+      return;
+    }
+    if (!parsed.data.amount) {
+      res.status(400).json({ error: "请提供修改后的金额" });
+      return;
+    }
+    const amountVal = parseFloat(parsed.data.amount);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      res.status(400).json({ error: "金额无效" });
+      return;
+    }
+    const [updated] = await db.update(rechargeOrdersTable).set({
+      amount: parsed.data.amount,
+      note: parsed.data.note !== undefined ? parsed.data.note : order.note,
+    }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+    res.json(await formatOrder(updated));
+    return;
+  }
+
+  // Provider / Admin: approve or reject
+  if (role !== "provider" && role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (role === "provider" && order.providerId !== userId) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -148,10 +187,14 @@ router.patch("/recharge-orders/:id", requireRole("provider", "admin"), async (re
     res.status(409).json({ error: "该订单已处理，无法重复操作" });
     return;
   }
+  if (!parsed.data.status) {
+    res.status(400).json({ error: "请提供订单状态" });
+    return;
+  }
 
   const [updated] = await db.update(rechargeOrdersTable).set({
     status: parsed.data.status,
-    note: parsed.data.note ?? order.note,
+    note: parsed.data.note !== undefined ? parsed.data.note : order.note,
   }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
 
   if (parsed.data.status === "completed") {

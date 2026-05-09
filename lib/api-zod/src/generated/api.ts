@@ -386,7 +386,8 @@ export const UpdateRechargeOrderParams = zod.object({
 });
 
 export const UpdateRechargeOrderBody = zod.object({
-  status: zod.enum(["completed", "rejected"]),
+  status: zod.enum(["completed", "rejected"]).optional(),
+  amount: zod.string().optional(),
   note: zod.string().nullish(),
 });
 
