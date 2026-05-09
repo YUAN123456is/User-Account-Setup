@@ -427,11 +427,7 @@ export default function PitcherAccountsPage() {
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
                 <TableCell className="p-0 pl-2">
-                  {canAssign ? (
-                    <StatusSelect account={a} />
-                  ) : (
-                    <AccountStatusBadge status={a.status} />
-                  )}
+                  <StatusSelect account={a} />
                 </TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
                 <TableCell className="font-mono text-muted-foreground">${Number(a.theoreticalBalance ?? 0).toFixed(2)}</TableCell>

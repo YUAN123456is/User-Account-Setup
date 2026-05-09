@@ -151,13 +151,12 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   } else if (role === "pitcher") {
-    const [caller] = await db.select({ canAssignAccounts: usersTable.canAssignAccounts })
-      .from(usersTable).where(eq(usersTable.id, userId!));
-    if (!caller?.canAssignAccounts) {
-      res.status(403).json({ error: "无权限" });
+    // All pitchers can update status of their own accounts
+    if (account.pitcherId !== userId) {
+      res.status(403).json({ error: "只能操作自己名下的账户" });
       return;
     }
-    // Privileged pitchers can only update status
+    // Pitchers cannot touch balance, ban flags, or account name
     if (parsed.data.accountName != null || parsed.data.clearBalance != null || parsed.data.banNotifyProvider != null) {
       res.status(403).json({ error: "无权限" });
       return;
