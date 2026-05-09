@@ -38,6 +38,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       displayName: user.displayName,
       role: user.role,
       portalSlug: user.portalSlug,
+      canAssignAccounts: user.canAssignAccounts,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
     },
@@ -70,6 +71,7 @@ router.get("/auth/magic/:token", async (req, res): Promise<void> => {
       displayName: user.displayName,
       role: user.role,
       portalSlug: user.portalSlug,
+      canAssignAccounts: user.canAssignAccounts,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
     });
@@ -99,6 +101,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     displayName: user.displayName,
     role: user.role,
     portalSlug: user.portalSlug,
+    canAssignAccounts: user.canAssignAccounts,
     isActive: user.isActive,
     createdAt: user.createdAt.toISOString(),
   });
