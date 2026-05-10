@@ -797,6 +797,9 @@ components:
           type: boolean
         isActive:
           type: boolean
+        feeRate:
+          type: ["string", "null"]
+          description: "Fee rate percentage for providers (e.g. '2.50' means 2.50%)"
         createdAt:
           type: string
       required:
@@ -841,6 +844,9 @@ components:
           type: boolean
         portalSlug:
           type: ["string", "null"]
+        feeRate:
+          type: ["string", "null"]
+          description: "Fee rate percentage for providers (e.g. '2.50' means 2.50%). Null to clear."
 
     # ─── Accounts ─────────────────────────────────────────────────────────
     Account:
@@ -997,6 +1003,12 @@ components:
           type: ["string", "null"]
         amount:
           type: string
+        actualAmount:
+          type: ["string", "null"]
+          description: "Actual amount credited after provider fees"
+        feeRate:
+          type: ["string", "null"]
+          description: "Provider fee rate at time of order"
         status:
           type: string
           enum: [pending, completed, rejected]
@@ -1044,6 +1056,9 @@ components:
           enum: [completed, rejected]
         amount:
           type: string
+        actualAmount:
+          type: ["string", "null"]
+          description: "Actual amount credited after fees (provider fills on approval)"
         note:
           type: ["string", "null"]
 

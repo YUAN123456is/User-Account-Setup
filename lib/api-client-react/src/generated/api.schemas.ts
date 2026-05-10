@@ -35,6 +35,11 @@ export interface User {
   portalSlug?: string | null;
   canAssignAccounts: boolean;
   isActive: boolean;
+  /**
+   * Fee rate percentage for providers (e.g. '2.50' means 2.50%)
+   * @nullable
+   */
+  feeRate?: string | null;
   createdAt: string;
 }
 
@@ -66,6 +71,11 @@ export interface UpdateUserBody {
   canAssignAccounts?: boolean;
   /** @nullable */
   portalSlug?: string | null;
+  /**
+   * Fee rate percentage for providers (e.g. '2.50' means 2.50%). Null to clear.
+   * @nullable
+   */
+  feeRate?: string | null;
 }
 
 export type AccountPlatform =
@@ -190,6 +200,16 @@ export interface RechargeOrder {
   /** @nullable */
   platformAccountId?: string | null;
   amount: string;
+  /**
+   * Actual amount credited after provider fees
+   * @nullable
+   */
+  actualAmount?: string | null;
+  /**
+   * Provider fee rate at time of order
+   * @nullable
+   */
+  feeRate?: string | null;
   status: RechargeOrderStatus;
   providerId: number;
   /** @nullable */
@@ -222,6 +242,11 @@ export const UpdateRechargeOrderBodyStatus = {
 export interface UpdateRechargeOrderBody {
   status?: UpdateRechargeOrderBodyStatus;
   amount?: string;
+  /**
+   * Actual amount credited after fees (provider fills on approval)
+   * @nullable
+   */
+  actualAmount?: string | null;
   /** @nullable */
   note?: string | null;
 }

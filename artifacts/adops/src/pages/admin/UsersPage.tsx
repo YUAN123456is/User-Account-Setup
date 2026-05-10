@@ -10,9 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
-import { Plus, Edit, Trash2, Users, Search, Link2, Copy, Check, RefreshCw } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Search, Link2, Copy, Check, RefreshCw, Percent } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
@@ -27,6 +28,7 @@ interface UserRow {
   magicToken: string | null;
   canAssignAccounts: boolean;
   isActive: boolean;
+  feeRate: string | null;
   createdAt: string;
 }
 
@@ -77,6 +79,68 @@ function CopyLinkButton({ token, userId, onGenerated }: { token: string | null; 
     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={doCopy} title="复制专属链接">
       {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
     </Button>
+  );
+}
+
+function FeeRateEditor({ user }: { user: UserRow }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [val, setVal] = useState(user.feeRate ?? "");
+
+  const update = useUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+        toast({ title: "手续费率已更新" });
+        setOpen(false);
+      },
+      onError: () => {
+        toast({ title: "更新失败", variant: "destructive" });
+      },
+    },
+  });
+
+  const handleSave = () => {
+    const num = parseFloat(val);
+    if (val !== "" && (isNaN(num) || num < 0 || num > 100)) {
+      toast({ title: "请输入 0–100 之间的费率", variant: "destructive" });
+      return;
+    }
+    update.mutate({ id: user.id, data: { feeRate: val === "" ? null : num.toFixed(2) } });
+  };
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setVal(user.feeRate ?? ""); }}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
+          <Percent className="h-3 w-3" />
+          {user.feeRate ? `${user.feeRate}%` : "设置"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-3 space-y-2" align="start">
+        <p className="text-xs font-medium">手续费率（%）</p>
+        <Input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          placeholder="如：2.50"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="h-7 text-sm"
+          autoFocus
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        />
+        <p className="text-xs text-muted-foreground">留空表示不收手续费</p>
+        <div className="flex gap-1.5">
+          <Button size="sm" className="h-7 flex-1 text-xs" onClick={handleSave} disabled={update.isPending}>
+            {update.isPending ? "保存..." : "保存"}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOpen(false)}>取消</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -473,6 +537,7 @@ export default function UsersPage() {
               <TableHead>用户名</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
+              <TableHead>手续费率</TableHead>
               <TableHead>分配权限</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="w-28">操作</TableHead>
@@ -480,12 +545,12 @@ export default function UsersPage() {
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={7}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={8}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((u) => {
               const effectiveToken = localTokens[u.id] ?? u.magicToken;
@@ -498,6 +563,11 @@ export default function UsersPage() {
                     {u.isActive
                       ? <Badge className="bg-green-500/15 text-green-600 border-green-500/30">启用</Badge>
                       : <Badge variant="outline" className="text-muted-foreground">停用</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    {u.role === "provider"
+                      ? <FeeRateEditor user={u} />
+                      : <span className="text-xs text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     {u.role === "pitcher"

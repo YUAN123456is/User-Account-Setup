@@ -17,7 +17,7 @@ async function formatOrder(order: typeof rechargeOrdersTable.$inferSelect) {
     ? (await db.select({ accountName: accountsTable.accountName, platformAccountId: accountsTable.platformAccountId }).from(accountsTable).where(eq(accountsTable.id, order.accountId)))[0]
     : null;
   const provider = order.providerId
-    ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, order.providerId)))[0]
+    ? (await db.select({ displayName: usersTable.displayName, feeRate: usersTable.feeRate }).from(usersTable).where(eq(usersTable.id, order.providerId)))[0]
     : null;
   const pitcher = order.pitcherId
     ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, order.pitcherId)))[0]
@@ -29,6 +29,8 @@ async function formatOrder(order: typeof rechargeOrdersTable.$inferSelect) {
     accountName: account?.accountName ?? null,
     platformAccountId: account?.platformAccountId ?? null,
     amount: order.amount,
+    actualAmount: order.actualAmount ?? null,
+    feeRate: provider?.feeRate ?? null,
     status: order.status,
     providerId: order.providerId,
     providerName: provider?.displayName ?? null,
@@ -192,16 +194,35 @@ router.patch("/recharge-orders/:id", requireAuth, async (req, res): Promise<void
     return;
   }
 
+  // Determine actualAmount: use provided value, or compute from feeRate, or fall back to amount
+  let actualAmountVal: string | null = null;
+  if (parsed.data.status === "completed") {
+    if (parsed.data.actualAmount != null) {
+      actualAmountVal = String(parseFloat(parsed.data.actualAmount).toFixed(2));
+    } else {
+      // Auto-compute from provider's feeRate if available
+      const [provider] = await db.select({ feeRate: usersTable.feeRate }).from(usersTable).where(eq(usersTable.id, order.providerId));
+      if (provider?.feeRate) {
+        const rate = parseFloat(provider.feeRate);
+        const base = parseFloat(order.amount);
+        actualAmountVal = (base * (1 - rate / 100)).toFixed(2);
+      }
+    }
+  }
+
   const [updated] = await db.update(rechargeOrdersTable).set({
     status: parsed.data.status,
+    actualAmount: actualAmountVal,
     note: parsed.data.note !== undefined ? parsed.data.note : order.note,
   }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
 
   if (parsed.data.status === "completed") {
     const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, order.accountId));
     if (acct) {
-      const newBal = parseFloat(acct.currentBalance) + parseFloat(order.amount);
-      const newTheoretical = parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + parseFloat(order.amount);
+      // Use actualAmount for balance credit if available, otherwise fall back to amount
+      const creditAmount = actualAmountVal ? parseFloat(actualAmountVal) : parseFloat(order.amount);
+      const newBal = parseFloat(acct.currentBalance) + creditAmount;
+      const newTheoretical = parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + creditAmount;
       await db.update(accountsTable).set({
         currentBalance: newBal.toFixed(2),
         theoreticalBalance: newTheoretical.toFixed(2),

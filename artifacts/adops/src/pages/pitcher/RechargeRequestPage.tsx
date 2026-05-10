@@ -24,6 +24,8 @@ interface RechargeOrder {
   id: number;
   accountName?: string;
   amount: string;
+  actualAmount?: string | null;
+  feeRate?: string | null;
   status: "pending" | "completed" | "rejected";
   note?: string | null;
   createdAt: string;
@@ -128,6 +130,17 @@ export default function RechargeRequestPage() {
   const allOrders = Array.isArray(ordersData) ? (ordersData as RechargeOrder[]) : [];
   const { toast } = useToast();
 
+  const feeRate = useMemo(() => {
+    const o = allOrders.find((o) => o.feeRate != null);
+    return o?.feeRate ? parseFloat(o.feeRate) : null;
+  }, [allOrders]);
+
+  const estimatedActual = useMemo(() => {
+    const val = parseFloat(form.amount);
+    if (isNaN(val) || val <= 0 || feeRate == null) return null;
+    return (val * (1 - feeRate / 100)).toFixed(2);
+  }, [form.amount, feeRate]);
+
   const sortedOrders = useMemo(
     () => [...allOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [allOrders],
@@ -201,6 +214,14 @@ export default function RechargeRequestPage() {
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
               />
+              {feeRate != null && form.amount && Number(form.amount) > 0 && (
+                <div className="flex items-center justify-between text-xs px-1 mt-1">
+                  <span className="text-muted-foreground">手续费率 {feeRate}%</span>
+                  {estimatedActual && (
+                    <span className="text-green-600 font-medium">预估到账 <span className="font-mono">${estimatedActual}</span></span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -231,10 +252,10 @@ export default function RechargeRequestPage() {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead>账户</TableHead>
-                <TableHead>金额</TableHead>
+                <TableHead>申请金额</TableHead>
+                <TableHead>实际到账</TableHead>
                 <TableHead>备注</TableHead>
                 <TableHead>申请时间</TableHead>
-                <TableHead>更新时间</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead className="w-20">操作</TableHead>
               </TableRow>
@@ -260,14 +281,16 @@ export default function RechargeRequestPage() {
                     {o.accountName ?? `账户 #${o.id}`}
                   </TableCell>
                   <TableCell className="font-mono">${Number(o.amount).toFixed(2)}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {o.actualAmount
+                      ? <span className="text-green-600 font-medium">${Number(o.actualAmount).toFixed(2)}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate" title={o.note ?? ""}>
                     {o.note || "—"}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(o.createdAt).toLocaleDateString("zh-CN")}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(o.updatedAt).toLocaleDateString("zh-CN")}
                   </TableCell>
                   <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
                   <TableCell>

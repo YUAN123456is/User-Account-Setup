@@ -31,6 +31,10 @@ export const LoginResponse = zod.object({
     portalSlug: zod.string().nullish(),
     canAssignAccounts: zod.boolean(),
     isActive: zod.boolean(),
+    feeRate: zod
+      .string()
+      .nullish()
+      .describe("Fee rate percentage for providers (e.g. '2.50' means 2.50%)"),
     createdAt: zod.string(),
   }),
 });
@@ -46,6 +50,10 @@ export const GetMeResponse = zod.object({
   portalSlug: zod.string().nullish(),
   canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Fee rate percentage for providers (e.g. '2.50' means 2.50%)"),
   createdAt: zod.string(),
 });
 
@@ -64,6 +72,10 @@ export const ListUsersResponseItem = zod.object({
   portalSlug: zod.string().nullish(),
   canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Fee rate percentage for providers (e.g. '2.50' means 2.50%)"),
   createdAt: zod.string(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
@@ -94,6 +106,10 @@ export const GetUserResponse = zod.object({
   portalSlug: zod.string().nullish(),
   canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Fee rate percentage for providers (e.g. '2.50' means 2.50%)"),
   createdAt: zod.string(),
 });
 
@@ -110,6 +126,12 @@ export const UpdateUserBody = zod.object({
   isActive: zod.boolean().optional(),
   canAssignAccounts: zod.boolean().optional(),
   portalSlug: zod.string().nullish(),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe(
+      "Fee rate percentage for providers (e.g. '2.50' means 2.50%). Null to clear.",
+    ),
 });
 
 export const UpdateUserResponse = zod.object({
@@ -120,6 +142,10 @@ export const UpdateUserResponse = zod.object({
   portalSlug: zod.string().nullish(),
   canAssignAccounts: zod.boolean(),
   isActive: zod.boolean(),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Fee rate percentage for providers (e.g. '2.50' means 2.50%)"),
   createdAt: zod.string(),
 });
 
@@ -333,6 +359,14 @@ export const ListRechargeOrdersResponseItem = zod.object({
   accountName: zod.string().nullish(),
   platformAccountId: zod.string().nullish(),
   amount: zod.string(),
+  actualAmount: zod
+    .string()
+    .nullish()
+    .describe("Actual amount credited after provider fees"),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Provider fee rate at time of order"),
   status: zod.enum(["pending", "completed", "rejected"]),
   providerId: zod.number(),
   providerName: zod.string().nullish(),
@@ -368,6 +402,14 @@ export const GetRechargeOrderResponse = zod.object({
   accountName: zod.string().nullish(),
   platformAccountId: zod.string().nullish(),
   amount: zod.string(),
+  actualAmount: zod
+    .string()
+    .nullish()
+    .describe("Actual amount credited after provider fees"),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Provider fee rate at time of order"),
   status: zod.enum(["pending", "completed", "rejected"]),
   providerId: zod.number(),
   providerName: zod.string().nullish(),
@@ -388,6 +430,10 @@ export const UpdateRechargeOrderParams = zod.object({
 export const UpdateRechargeOrderBody = zod.object({
   status: zod.enum(["completed", "rejected"]).optional(),
   amount: zod.string().optional(),
+  actualAmount: zod
+    .string()
+    .nullish()
+    .describe("Actual amount credited after fees (provider fills on approval)"),
   note: zod.string().nullish(),
 });
 
@@ -397,6 +443,14 @@ export const UpdateRechargeOrderResponse = zod.object({
   accountName: zod.string().nullish(),
   platformAccountId: zod.string().nullish(),
   amount: zod.string(),
+  actualAmount: zod
+    .string()
+    .nullish()
+    .describe("Actual amount credited after provider fees"),
+  feeRate: zod
+    .string()
+    .nullish()
+    .describe("Provider fee rate at time of order"),
   status: zod.enum(["pending", "completed", "rejected"]),
   providerId: zod.number(),
   providerName: zod.string().nullish(),

@@ -18,6 +18,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     magicToken: user.magicToken ?? null,
     canAssignAccounts: user.canAssignAccounts,
     isActive: user.isActive,
+    feeRate: user.feeRate ?? null,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -100,6 +101,9 @@ router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void>
   if (parsed.data.canAssignAccounts != null) updates.canAssignAccounts = parsed.data.canAssignAccounts;
   if (parsed.data.portalSlug != null) updates.portalSlug = parsed.data.portalSlug;
   if (parsed.data.password) updates.passwordHash = await hashPassword(parsed.data.password);
+  if ("feeRate" in parsed.data) {
+    updates.feeRate = parsed.data.feeRate ?? null;
+  }
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.id)).returning();
   if (!user) {

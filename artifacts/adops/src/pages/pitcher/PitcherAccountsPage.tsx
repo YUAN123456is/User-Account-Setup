@@ -44,6 +44,8 @@ interface RechargeOrder {
   accountId?: number;
   accountName?: string;
   amount: string;
+  actualAmount?: string | null;
+  feeRate?: string | null;
   status: "pending" | "completed" | "rejected";
   note?: string | null;
   createdAt: string;
@@ -94,11 +96,25 @@ function StatusSelect({ account }: { account: Account }) {
   );
 }
 
-function RechargeDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+function RechargeDialog({ account, onClose }: { account: Account & { feeRate?: string | null }; onClose: () => void }) {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: ordersData } = useListRechargeOrders({} as Record<string, string>);
+  const feeRate = useMemo(() => {
+    if (account.feeRate) return parseFloat(account.feeRate);
+    const orders = Array.isArray(ordersData) ? (ordersData as RechargeOrder[]) : [];
+    const related = orders.find((o) => o.feeRate && (o.accountId === account.id || true));
+    return related?.feeRate ? parseFloat(related.feeRate) : null;
+  }, [account, ordersData]);
+
+  const estimatedActual = useMemo(() => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0 || feeRate == null) return null;
+    return (val * (1 - feeRate / 100)).toFixed(2);
+  }, [amount, feeRate]);
 
   const create = useCreateRechargeOrder({
     mutation: {
@@ -144,6 +160,14 @@ function RechargeDialog({ account, onClose }: { account: Account; onClose: () =>
               onChange={(e) => setAmount(e.target.value)}
               autoFocus
             />
+            {feeRate != null && amount && Number(amount) > 0 && (
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-muted-foreground">手续费率 {feeRate}%</span>
+                {estimatedActual && (
+                  <span className="text-green-600 font-medium">预估到账 <span className="font-mono">${estimatedActual}</span></span>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm">备注（选填）</Label>

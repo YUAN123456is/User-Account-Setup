@@ -8,6 +8,7 @@ export const rechargeOrdersTable = pgTable("recharge_orders", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id").notNull().references(() => accountsTable.id),
   amount: decimal("amount", { precision: 18, scale: 2 }).notNull(),
+  actualAmount: decimal("actual_amount", { precision: 18, scale: 2 }),
   status: text("status", { enum: ["pending", "completed", "rejected"] }).notNull().default("pending"),
   providerId: integer("provider_id").notNull().references(() => usersTable.id),
   pitcherId: integer("pitcher_id").references(() => usersTable.id),

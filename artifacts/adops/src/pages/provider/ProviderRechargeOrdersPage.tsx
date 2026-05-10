@@ -3,8 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useListRechargeOrders, useUpdateRechargeOrder, getListRechargeOrdersQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
@@ -12,24 +15,110 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Receipt, Search } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
+import { useToast } from "@/hooks/use-toast";
 
 interface RechargeOrder {
   id: number;
   accountId: number;
   accountName?: string;
   amount: string | number;
+  actualAmount?: string | null;
+  feeRate?: string | null;
+  pitcherName?: string | null;
+  note?: string | null;
   status: "pending" | "completed" | "rejected";
   createdAt: string;
 }
 
 const PAGE_SIZE = 20;
 
+function ApproveDialog({ order, onClose }: { order: RechargeOrder; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const estimatedActual = useMemo(() => {
+    if (!order.feeRate) return null;
+    const rate = parseFloat(order.feeRate);
+    const base = parseFloat(String(order.amount));
+    return (base * (1 - rate / 100)).toFixed(2);
+  }, [order]);
+
+  const [actualAmount, setActualAmount] = useState(estimatedActual ?? String(Number(order.amount).toFixed(2)));
+  const [note, setNote] = useState(order.note ?? "");
+
+  const update = useUpdateRechargeOrder({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        toast({ title: "已确认充值", description: "账户余额已更新。" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "操作失败，请重试";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleApprove = () => {
+    const val = parseFloat(actualAmount);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "请输入有效的实际到账金额", variant: "destructive" });
+      return;
+    }
+    update.mutate({ id: order.id, data: { status: "completed", actualAmount: val.toFixed(2), note: note || null } });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>确认充值</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm space-y-0.5">
+            <p className="text-muted-foreground text-xs">充值账户</p>
+            <p className="font-medium">{order.accountName ?? `账户 #${order.accountId}`}</p>
+            <p className="text-xs text-muted-foreground">申请金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span>
+              {order.feeRate && <span className="ml-2 text-amber-600">手续费率 {order.feeRate}%</span>}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">实际到账金额（美元）<span className="text-destructive">*</span></Label>
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={actualAmount}
+              onChange={(e) => setActualAmount(e.target.value)}
+              placeholder="0.00"
+            />
+            {estimatedActual && (
+              <p className="text-xs text-muted-foreground px-1">按手续费率预估：<span className="font-mono text-green-600">${estimatedActual}</span></p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">备注（选填）</Label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="审批备注..." rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleApprove} disabled={update.isPending} className="bg-green-600 hover:bg-green-700">
+            {update.isPending ? "处理中..." : "确认到账"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ProviderRechargeOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
+  const [approveTarget, setApproveTarget] = useState<RechargeOrder | null>(null);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const apiParams: Record<string, string> = {};
   if (dateRange.from) apiParams.dateFrom = dateRange.from;
@@ -40,6 +129,10 @@ export default function ProviderRechargeOrdersPage() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "操作失败";
+        toast({ title: msg, variant: "destructive" });
       },
     },
   });
@@ -59,6 +152,7 @@ export default function ProviderRechargeOrdersPage() {
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
   const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
+  const totalActual = filtered.filter((o) => o.actualAmount).reduce((s, o) => s + Number(o.actualAmount), 0);
   const pendingCount = filtered.filter((o) => o.status === "pending").length;
   const completedCount = filtered.filter((o) => o.status === "completed").length;
   const rejectedCount = filtered.filter((o) => o.status === "rejected").length;
@@ -92,11 +186,11 @@ export default function ProviderRechargeOrdersPage() {
       </div>
 
       <StatsBar items={[
-        { label: "充值总额", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
+        { label: "申请总额", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
+        { label: "实际到账", value: `$${totalActual.toFixed(2)}`, color: "green" },
         { label: "待审核", value: pendingCount, color: pendingCount > 0 ? "amber" : "default" },
         { label: "已完成", value: completedCount, color: "green" },
         { label: "已拒绝", value: rejectedCount, color: rejectedCount > 0 ? "red" : "default" },
-        { label: "总订单数", value: filtered.length },
       ]} />
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -104,7 +198,8 @@ export default function ProviderRechargeOrdersPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>账户</TableHead>
-              <TableHead>充值金额</TableHead>
+              <TableHead>申请金额</TableHead>
+              <TableHead>实际到账</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>提交时间</TableHead>
               <TableHead className="w-28">操作</TableHead>
@@ -112,12 +207,12 @@ export default function ProviderRechargeOrdersPage() {
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={5}><EmptyState icon={Receipt} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6}><EmptyState icon={Receipt} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
@@ -125,12 +220,20 @@ export default function ProviderRechargeOrdersPage() {
                   <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
                 </TableCell>
                 <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  {o.actualAmount
+                    ? <span className="text-green-600 font-medium">${Number(o.actualAmount).toFixed(2)}</span>
+                    : o.status === "completed"
+                      ? <span className="font-mono">${Number(o.amount).toFixed(2)}</span>
+                      : <span className="text-muted-foreground">—</span>
+                  }
+                </TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
                 <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
                   {o.status === "pending" && (
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-500/15" onClick={() => update.mutate({ id: o.id, data: { status: "completed" } })} disabled={update.isPending} title="确认">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-500/15" onClick={() => setApproveTarget(o)} disabled={update.isPending} title="确认">
                         <Check className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-destructive/15" onClick={() => update.mutate({ id: o.id, data: { status: "rejected" } })} disabled={update.isPending} title="拒绝">
@@ -145,6 +248,8 @@ export default function ProviderRechargeOrdersPage() {
         </Table>
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
+
+      {approveTarget && <ApproveDialog order={approveTarget} onClose={() => setApproveTarget(null)} />}
     </div>
   );
 }
