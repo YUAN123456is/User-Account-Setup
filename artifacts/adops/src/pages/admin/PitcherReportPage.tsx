@@ -412,7 +412,7 @@ export default function PitcherReportPage() {
             })}
           </TableBody>
         </Table>
-        <TablePagination page={page} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} />
+        <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
       <AccountHistoryDialog

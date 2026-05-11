@@ -79,7 +79,7 @@ export default function OpsReportPage() {
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      if (sortKey === "spendAmount" || sortKey === "fanCount" || sortKey === "gmv" || sortKey === "orderCount") {
+      if (sortKey === "spendAmount" || sortKey === "fanCount" || sortKey === "gmv" || sortKey === "orderCount" || sortKey === "roas") {
         const va = Number((a as unknown as Record<string, unknown>)[sortKey] ?? 0);
         const vb = Number((b as unknown as Record<string, unknown>)[sortKey] ?? 0);
         return sortDir === "asc" ? va - vb : vb - va;
@@ -174,21 +174,25 @@ export default function OpsReportPage() {
         const showLive = hasLive;
         const showEcom = hasEcom;
         const colCount = 3 + (showBizCol ? 1 : 0) + 1 + (showLive ? 3 : 0) + (showEcom ? 4 : 0);
-        const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
-          <TableHead
-            className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
-            onClick={() => handleSort(col)}
-          >
-            <span className="inline-flex items-center gap-1">
-              {label}
-              {sortKey === col
-                ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
-            </span>
-          </TableHead>
-        );
+        const SortHead = ({ col, label, className, right }: { col: string; label: string; className?: string; right?: boolean }) => {
+          const icon = sortKey === col
+            ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+            : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
+          return (
+            <TableHead
+              className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+              onClick={() => handleSort(col)}
+            >
+              <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
+                {right && icon}
+                {label}
+                {!right && icon}
+              </span>
+            </TableHead>
+          );
+        };
         return (
-          <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table className="min-w-max">
               <TableHeader>
                 <TableRow className="bg-muted/40">
@@ -196,13 +200,13 @@ export default function OpsReportPage() {
                   <SortHead col="accountName" label="账户" className="w-[120px]" />
                   <SortHead col="pitcherName" label="投手" className="w-[80px]" />
                   {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
-                  <SortHead col="spendAmount" label="消耗" className="w-[80px] text-right" />
+                  <SortHead col="spendAmount" label="消耗" className="w-[80px] text-right" right />
                   {showLive && <TableHead className="w-[68px]">团队</TableHead>}
-                  {showLive && <SortHead col="fanCount" label="进粉" className="w-[54px] text-right" />}
+                  {showLive && <SortHead col="fanCount" label="进粉" className="w-[54px] text-right" right />}
                   {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
-                  {showEcom && <SortHead col="gmv" label="GMV" className="w-[86px] text-right" />}
-                  {showEcom && <SortHead col="roas" label="ROAS" className="w-[58px] text-right" />}
-                  {showEcom && <SortHead col="orderCount" label="订单" className="w-[50px] text-right" />}
+                  {showEcom && <SortHead col="gmv" label="GMV" className="w-[86px] text-right" right />}
+                  {showEcom && <SortHead col="roas" label="ROAS" className="w-[58px] text-right" right />}
+                  {showEcom && <SortHead col="orderCount" label="订单" className="w-[50px] text-right" right />}
                   {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
                 </TableRow>
               </TableHeader>

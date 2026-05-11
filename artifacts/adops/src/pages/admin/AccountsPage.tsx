@@ -342,23 +342,27 @@ export default function AccountsPage() {
         { label: "余额合计", value: `$${totalBalance.toFixed(2)}`, color: "green" },
       ]} />
 
-      <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+      <div className="rounded-lg border border-border overflow-hidden">
         <Table className="min-w-max">
           <TableHeader>
             {(() => {
-              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
-                <TableHead
-                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
-                  onClick={() => handleSort(col)}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {label}
-                    {sortKey === col
-                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
-                  </span>
-                </TableHead>
-              );
+              const SortHead = ({ col, label, className, right }: { col: string; label: string; className?: string; right?: boolean }) => {
+                const icon = sortKey === col
+                  ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                  : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
+                return (
+                  <TableHead
+                    className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                    onClick={() => handleSort(col)}
+                  >
+                    <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
+                      {right && icon}
+                      {label}
+                      {!right && icon}
+                    </span>
+                  </TableHead>
+                );
+              };
               return (
                 <TableRow className="bg-muted/40">
                   <SortHead col="accountName" label="账户名称" />
@@ -367,7 +371,7 @@ export default function AccountsPage() {
                   <SortHead col="providerName" label="开户商" />
                   <SortHead col="pitcherName" label="投手" />
                   <TableHead>状态</TableHead>
-                  <SortHead col="currentBalance" label="余额" className="text-right" />
+                  <SortHead col="currentBalance" label="余额" className="text-right" right />
                   <SortHead col="lastReportedAt" label="最近上报" />
                   <SortHead col="createdAt" label="创建时间" />
                   <TableHead className="w-20">操作</TableHead>

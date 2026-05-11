@@ -580,36 +580,40 @@ export default function DailyReportPage() {
           const showEcom = hasEcom;
           const colCount = 4 + (showBizCol ? 1 : 0) + (showLive ? 3 : 0) + (showEcom ? 4 : 0) + 1;
           return (
-            <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+            <div className="rounded-lg border border-border overflow-hidden">
               <Table className="min-w-max">
                 <TableHeader>
                   {(() => {
-                    const SH = ({ col, label, cls }: { col: string; label: string; cls?: string }) => (
-                      <TableHead
-                        className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${cls ?? ""}`}
-                        onClick={() => handleSort(col)}
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          {label}
-                          {sortKey === col
-                            ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                            : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
-                        </span>
-                      </TableHead>
-                    );
+                    const SH = ({ col, label, cls, right }: { col: string; label: string; cls?: string; right?: boolean }) => {
+                      const icon = sortKey === col
+                        ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                        : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
+                      return (
+                        <TableHead
+                          className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${cls ?? ""}`}
+                          onClick={() => handleSort(col)}
+                        >
+                          <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
+                            {right && icon}
+                            {label}
+                            {!right && icon}
+                          </span>
+                        </TableHead>
+                      );
+                    };
                     return (
                       <TableRow className="bg-muted/40">
                         <SH col="date" label="日期" cls="w-[86px]" />
                         <SH col="accountName" label="账户" cls="w-[120px]" />
-                        <SH col="spendAmount" label="消耗" cls="w-[80px] text-right" />
-                        <SH col="realBalance" label="余额" cls="w-[86px] text-right" />
+                        <SH col="spendAmount" label="消耗" cls="w-[80px] text-right" right />
+                        <SH col="realBalance" label="余额" cls="w-[86px] text-right" right />
                         {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
                         {showLive && <TableHead className="w-[68px]">团队</TableHead>}
-                        {showLive && <SH col="fanCount" label="进粉" cls="w-[54px] text-right" />}
+                        {showLive && <SH col="fanCount" label="进粉" cls="w-[54px] text-right" right />}
                         {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
-                        {showEcom && <SH col="gmv" label="GMV" cls="w-[86px] text-right" />}
-                        {showEcom && <SH col="roas" label="ROAS" cls="w-[58px] text-right" />}
-                        {showEcom && <SH col="orderCount" label="订单" cls="w-[50px] text-right" />}
+                        {showEcom && <SH col="gmv" label="GMV" cls="w-[86px] text-right" right />}
+                        {showEcom && <SH col="roas" label="ROAS" cls="w-[58px] text-right" right />}
+                        {showEcom && <SH col="orderCount" label="订单" cls="w-[50px] text-right" right />}
                         {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
                         <TableHead className="w-8 sticky right-0 bg-muted/40"></TableHead>
                       </TableRow>
