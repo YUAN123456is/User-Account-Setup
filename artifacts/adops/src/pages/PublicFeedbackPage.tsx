@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, ImageIcon, CheckCircle, Loader2, ClipboardList, ChevronDown, ChevronRight, Calendar, Hash, DollarSign, Image } from "lucide-react";
+import { Upload, X, ImageIcon, CheckCircle, Loader2, ClipboardList, ChevronDown, ChevronRight, Calendar } from "lucide-react";
 
 interface TeamInfo { teamId: number; teamName: string; }
 
@@ -38,54 +38,56 @@ async function uploadToGCS(uploadURL: string, file: File): Promise<void> {
 function formatDate(d: string) {
   if (!d) return "-";
   const [y, m, dd] = d.split("-");
-  return `${m}月${dd}日`;
+  return `${y}年${m}月${dd}日`;
 }
 
 function SubmissionRow({ sub, onOpen }: { sub: Submission; onOpen: (url: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-white/10 last:border-b-0">
+    <div className="border-b border-gray-100 last:border-b-0">
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="text-white/40">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</span>
-        <span className="flex items-center gap-1.5 text-sm font-medium text-white/90 w-24 shrink-0">
-          <Calendar className="h-3.5 w-3.5 text-white/40" />
+        <span className="text-gray-400">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </span>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800 w-28 shrink-0">
+          <Calendar className="h-3.5 w-3.5 text-gray-400" />
           {formatDate(sub.date)}
         </span>
-        <span className="flex items-center gap-1 text-sm text-white/70">
-          <Hash className="h-3 w-3 text-white/40" />{sub.leadCount} 线索
+        <span className="text-sm text-gray-600">
+          线索 <span className="font-semibold text-gray-800">{sub.leadCount}</span>
         </span>
         {sub.orderAmount && (
-          <span className="flex items-center gap-1 text-sm text-emerald-400/80 ml-2">
-            <DollarSign className="h-3 w-3" />¥{parseFloat(sub.orderAmount).toLocaleString("zh-CN")}
+          <span className="text-sm text-emerald-600 ml-1">
+            ¥<span className="font-semibold">{parseFloat(sub.orderAmount).toLocaleString("zh-CN")}</span>
           </span>
         )}
         {sub.images.length > 0 && (
-          <span className="ml-auto flex items-center gap-1 text-xs text-white/40">
-            <Image className="h-3 w-3" />{sub.images.length}
+          <span className="ml-auto flex items-center gap-1 text-xs text-gray-400">
+            <ImageIcon className="h-3 w-3" />{sub.images.length} 张
           </span>
         )}
-        <span className="text-xs text-white/30 ml-2 shrink-0">
+        <span className="text-xs text-gray-400 ml-2 shrink-0">
           {new Date(sub.submittedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
         </span>
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-3">
+        <div className="px-5 pb-4 space-y-3 bg-gray-50/60">
           {sub.description && (
-            <p className="text-sm text-white/60 pl-7">{sub.description}</p>
+            <p className="text-sm text-gray-600 pl-7 pt-1">{sub.description}</p>
           )}
           {sub.images.length > 0 && (
             <div className="flex flex-wrap gap-2 pl-7">
               {sub.images.map((p, i) => (
                 <img key={i} src={getImageUrl(p)} alt="" onClick={() => onOpen(getImageUrl(p))}
-                  className="h-20 w-auto rounded-md object-cover border border-white/10 cursor-pointer hover:opacity-80 transition-opacity" />
+                  className="h-20 w-auto rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity shadow-sm" />
               ))}
             </div>
           )}
           {!sub.description && !sub.images.length && (
-            <p className="text-xs text-white/30 pl-7">无备注和图片</p>
+            <p className="text-xs text-gray-400 pl-7 pt-1">无备注和图片</p>
           )}
         </div>
       )}
@@ -128,7 +130,7 @@ export default function PublicFeedbackPage() {
   useEffect(() => {
     fetch(`/api/public/team-feedback/${token}`)
       .then((r) => r.ok ? r.json() : r.json().then((e: { error: string }) => Promise.reject(e.error)))
-      .then((info: TeamInfo) => { setTeamInfo(info); })
+      .then((info: TeamInfo) => setTeamInfo(info))
       .catch((e: unknown) => setLoadError(typeof e === "string" ? e : "链接无效或已过期"));
   }, [token]);
 
@@ -196,13 +198,13 @@ export default function PublicFeedbackPage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center mx-auto">
-            <X className="h-5 w-5 text-red-400" />
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+            <X className="h-5 w-5 text-red-500" />
           </div>
-          <h2 className="text-white font-semibold">链接无效</h2>
-          <p className="text-sm text-slate-400">{loadError}</p>
+          <h2 className="text-gray-800 font-semibold">链接无效</h2>
+          <p className="text-sm text-gray-500">{loadError}</p>
         </div>
       </div>
     );
@@ -210,76 +212,76 @@ export default function PublicFeedbackPage() {
 
   if (!teamInfo) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <Loader2 className="h-7 w-7 text-blue-400 animate-spin" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-7 w-7 text-blue-500 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b border-white/10 bg-white/5 backdrop-blur-sm sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center">
-              <ClipboardList className="h-4 w-4 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <ClipboardList className="h-4.5 w-4.5 text-white" />
             </div>
-            <span className="text-white font-semibold text-sm">{teamInfo.teamName}</span>
+            <span className="text-gray-900 font-semibold">{teamInfo.teamName}</span>
           </div>
-          <span className="text-xs text-slate-400 bg-slate-700/60 px-2.5 py-1 rounded-full">团队反馈</span>
+          <span className="text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full font-medium">团队反馈</span>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Submit form */}
         {submitted ? (
-          <div className="bg-white/8 border border-white/12 rounded-2xl p-6 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto">
-              <CheckCircle className="h-6 w-6 text-emerald-400" />
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center space-y-3 shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+              <CheckCircle className="h-7 w-7 text-emerald-500" />
             </div>
-            <p className="text-white font-medium">提交成功！</p>
-            <p className="text-sm text-slate-400">数据已记录，感谢填报。</p>
-            <Button variant="outline" size="sm" className="border-white/20 text-white/80 hover:bg-white/10 mt-1"
+            <p className="text-gray-900 font-semibold text-lg">提交成功！</p>
+            <p className="text-sm text-gray-500">数据已记录，感谢填报。</p>
+            <Button variant="outline" size="sm" className="mt-2 border-gray-300 text-gray-700 hover:bg-gray-50"
               onClick={() => setSubmitted(false)}>
               继续填报
             </Button>
           </div>
         ) : (
-          <div className="bg-white/8 border border-white/12 rounded-2xl p-5 space-y-4">
-            <h2 className="text-white font-semibold text-base">填写当日数据</h2>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+            <h2 className="text-gray-900 font-semibold text-base">填写当日数据</h2>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-400 font-medium">日期 <span className="text-red-400">*</span></Label>
+                <Label className="text-sm text-gray-700 font-medium">日期 <span className="text-red-500">*</span></Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                  className="bg-white/8 border-white/15 text-white h-9 text-sm focus-visible:ring-blue-500/40" />
+                  className="border-gray-300 text-gray-900 h-10 text-sm focus-visible:ring-blue-500 bg-white" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-400 font-medium">线索数量 <span className="text-red-400">*</span></Label>
+                <Label className="text-sm text-gray-700 font-medium">线索数量 <span className="text-red-500">*</span></Label>
                 <Input type="number" min="0" value={leadCount} onChange={(e) => setLeadCount(e.target.value)}
                   placeholder="0"
-                  className="bg-white/8 border-white/15 text-white h-9 text-sm focus-visible:ring-blue-500/40 placeholder:text-slate-600" />
+                  className="border-gray-300 text-gray-900 h-10 text-sm focus-visible:ring-blue-500 bg-white placeholder:text-gray-400" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-400 font-medium">成单金额（可选）</Label>
+              <Label className="text-sm text-gray-700 font-medium">成单金额<span className="text-gray-400 font-normal ml-1">（可选）</span></Label>
               <Input type="text" value={orderAmount} onChange={(e) => setOrderAmount(e.target.value)}
                 placeholder="0.00"
-                className="bg-white/8 border-white/15 text-white h-9 text-sm focus-visible:ring-blue-500/40 placeholder:text-slate-600" />
+                className="border-gray-300 text-gray-900 h-10 text-sm focus-visible:ring-blue-500 bg-white placeholder:text-gray-400" />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-400 font-medium">备注说明</Label>
+              <Label className="text-sm text-gray-700 font-medium">备注说明</Label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="其他说明，如特殊情况、运营备注等..." rows={3}
-                className="bg-white/8 border-white/15 text-white text-sm resize-none focus-visible:ring-blue-500/40 placeholder:text-slate-600" />
+                className="border-gray-300 text-gray-900 text-sm resize-none focus-visible:ring-blue-500 bg-white placeholder:text-gray-400" />
             </div>
 
             {/* Image drop zone */}
             <div className="space-y-2">
-              <Label className="text-xs text-slate-400 font-medium">图片截图（最多10张）</Label>
+              <Label className="text-sm text-gray-700 font-medium">图片截图<span className="text-gray-400 font-normal ml-1">（最多10张）</span></Label>
               <div
                 ref={dropRef}
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -287,19 +289,19 @@ export default function PublicFeedbackPage() {
                 onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files) handleFiles(e.dataTransfer.files); }}
                 onClick={pickFiles}
                 className={[
-                  "rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition-all",
-                  dragging ? "border-blue-400 bg-blue-500/10" : "border-white/15 hover:border-white/30 hover:bg-white/5",
+                  "rounded-xl border-2 border-dashed p-5 text-center cursor-pointer transition-all",
+                  dragging ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-gray-400 hover:bg-gray-50",
                 ].join(" ")}
               >
                 {uploading ? (
-                  <div className="flex items-center justify-center gap-2 text-blue-400">
+                  <div className="flex items-center justify-center gap-2 text-blue-600">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">上传中...</span>
+                    <span className="text-sm font-medium">上传中...</span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-1.5 text-slate-500">
+                  <div className="flex flex-col items-center gap-1.5 text-gray-400">
                     <Upload className="h-5 w-5" />
-                    <p className="text-xs">拖拽、粘贴或点击上传图片</p>
+                    <p className="text-sm">拖拽、粘贴或点击上传图片</p>
                   </div>
                 )}
               </div>
@@ -307,7 +309,7 @@ export default function PublicFeedbackPage() {
               {images.length > 0 && (
                 <div className="grid grid-cols-5 gap-2">
                   {images.map((img, idx) => (
-                    <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-white/12">
+                    <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                       <img src={img.previewUrl} alt={img.name} className="w-full h-full object-cover cursor-pointer"
                         onClick={(e) => { e.stopPropagation(); setLightbox(img.previewUrl); }} />
                       <button onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
@@ -318,7 +320,7 @@ export default function PublicFeedbackPage() {
                   ))}
                   {images.length < 10 && (
                     <div onClick={pickFiles}
-                      className="aspect-square rounded-lg border-2 border-dashed border-white/12 flex items-center justify-center text-slate-600 cursor-pointer hover:border-white/25 transition-colors">
+                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors">
                       <ImageIcon className="h-4 w-4" />
                     </div>
                   )}
@@ -326,24 +328,26 @@ export default function PublicFeedbackPage() {
               )}
             </div>
 
-            <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white border-0 h-10" onClick={handleSubmit} disabled={submitting || uploading}>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 h-10 text-sm font-medium"
+              onClick={handleSubmit} disabled={submitting || uploading}>
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />提交中...</> : "提交反馈"}
             </Button>
           </div>
         )}
 
         {/* History table */}
-        <div className="bg-white/8 border border-white/12 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white/90">历史提交记录</h3>
-            {loadingHistory && <Loader2 className="h-3.5 w-3.5 text-slate-500 animate-spin" />}
-            {!loadingHistory && <span className="text-xs text-slate-500">{submissions.length} 条</span>}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">历史提交记录</h3>
+            <span className="text-xs text-gray-400 flex items-center gap-1.5">
+              {loadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `共 ${submissions.length} 条`}
+            </span>
           </div>
 
           {submissions.length === 0 && !loadingHistory ? (
-            <div className="py-10 text-center text-slate-500 text-sm">暂无提交记录</div>
+            <div className="py-12 text-center text-gray-400 text-sm">暂无提交记录</div>
           ) : (
-            <div className="divide-y divide-white/8">
+            <div>
               {submissions.map((sub) => (
                 <SubmissionRow key={sub.id} sub={sub} onOpen={setLightbox} />
               ))}
@@ -353,10 +357,10 @@ export default function PublicFeedbackPage() {
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="" className="max-w-full max-h-full rounded-xl object-contain shadow-2xl" />
-          <button className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors" onClick={() => setLightbox(null)}>
-            <X className="h-4 w-4" />
+          <button className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors" onClick={() => setLightbox(null)}>
+            <X className="h-5 w-5" />
           </button>
         </div>
       )}
