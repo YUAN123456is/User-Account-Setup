@@ -204,6 +204,7 @@ export default function DailyReportPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const [histFilter, setHistFilter] = useState("all");
+  const [histBizFilter, setHistBizFilter] = useState("all");
   const [quickDate, setQuickDate] = useState("yesterday");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -247,8 +248,10 @@ export default function DailyReportPage() {
   const { data: statsData, isLoading: statsLoading } = useListDailyStats(apiParams);
   const allStats = useMemo(() => {
     const raw = Array.isArray(statsData) ? (statsData as DailyStat[]) : [];
-    return [...raw].sort((a, b) => b.date.localeCompare(a.date));
-  }, [statsData]);
+    let rows = [...raw].sort((a, b) => b.date.localeCompare(a.date));
+    if (histBizFilter !== "all") rows = rows.filter((s) => s.businessType === histBizFilter);
+    return rows;
+  }, [statsData, histBizFilter]);
   const pagedStats = usePagination(allStats, PAGE_SIZE, histPage);
   const totalSpend = allStats.reduce((s, r) => s + Number(r.spendAmount), 0);
 
@@ -504,6 +507,20 @@ export default function DailyReportPage() {
             </SelectContent>
           </Select>
 
+          <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
+            {(["all", "liveChat", "ecommerce"] as const).map((v, i, arr) => (
+              <button key={v}
+                onClick={() => { setHistBizFilter(v); setHistPage(1); }}
+                className={[
+                  "px-3 h-full text-xs font-medium transition-colors",
+                  i < arr.length - 1 ? "border-r border-border" : "",
+                  histBizFilter === v ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",
+                ].join(" ")}>
+                {v === "all" ? "全部" : v === "liveChat" ? "聊单" : "独立站"}
+              </button>
+            ))}
+          </div>
+
           <div className="h-4 w-px bg-border mx-0.5" />
 
           <QuickDate label="昨天" value="yesterday" active={quickDate === "yesterday"} onClick={handleQuickDate} />
@@ -527,58 +544,101 @@ export default function DailyReportPage() {
         </div>
 
         {/* 表格 */}
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead className="w-[90px]">日期</TableHead>
-                <TableHead className="w-[160px]">账户</TableHead>
-                <TableHead className="w-[90px] text-right">消耗</TableHead>
-                <TableHead className="w-[100px] text-right">余额</TableHead>
-                <TableHead className="w-[68px]">业务</TableHead>
-                <TableHead>运营数据</TableHead>
-                <TableHead className="w-8"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {statsLoading && Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
-                  <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-16" /></TableCell>
-                ))}</TableRow>
-              ))}
-              {!statsLoading && pagedStats.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7}>
-                    <EmptyState icon={BarChart3} title="暂无上报记录" description="该时间段内还没有任何上报数据。" />
-                  </TableCell>
-                </TableRow>
-              )}
-              {!statsLoading && pagedStats.map((s) => (
-                <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
-                  <TableCell className="font-mono text-sm text-muted-foreground">{s.date}</TableCell>
-                  <TableCell className="w-[160px] max-w-[160px]">
-                    <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold text-orange-500">
-                    ${Number(s.spendAmount).toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-primary">
-                    ${Number(s.realBalance).toFixed(2)}
-                    {s.hasAlert && <span className="ml-1 text-red-500 text-xs">!</span>}
-                  </TableCell>
-                  <TableCell><BizBadge biz={s.businessType} team={s.teamName} /></TableCell>
-                  <TableCell><BizMetrics s={s} /></TableCell>
-                  <TableCell>
-                    <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary transition-colors p-1">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <TablePagination page={histPage} pageSize={PAGE_SIZE} total={allStats.length} onPageChange={setHistPage} />
-        </div>
+        {(() => {
+          const colCount = histBizFilter === "ecommerce" ? 9 : histBizFilter === "liveChat" ? 8 : 7;
+          return (
+            <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+              <Table className="min-w-full">
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-[86px] whitespace-nowrap">日期</TableHead>
+                    <TableHead className="w-[150px]">账户</TableHead>
+                    <TableHead className="w-[90px] text-right">消耗</TableHead>
+                    <TableHead className="w-[96px] text-right">余额</TableHead>
+                    {histBizFilter === "all" && <TableHead className="w-[60px]">业务</TableHead>}
+                    {histBizFilter === "all" && <TableHead className="min-w-[200px]">运营数据</TableHead>}
+                    {histBizFilter === "liveChat" && <TableHead className="w-[80px]">团队</TableHead>}
+                    {histBizFilter === "liveChat" && <TableHead className="w-[72px] text-right">进粉</TableHead>}
+                    {histBizFilter === "liveChat" && <TableHead className="w-[90px] text-right">粉成本</TableHead>}
+                    {histBizFilter === "ecommerce" && <TableHead className="w-[100px] text-right">GMV</TableHead>}
+                    {histBizFilter === "ecommerce" && <TableHead className="w-[68px] text-right">ROAS</TableHead>}
+                    {histBizFilter === "ecommerce" && <TableHead className="w-[60px] text-right">订单</TableHead>}
+                    {histBizFilter === "ecommerce" && <TableHead className="w-[90px] text-right">客单</TableHead>}
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statsLoading && Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: colCount }).map((__, j) => (
+                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-full" /></TableCell>
+                    ))}</TableRow>
+                  ))}
+                  {!statsLoading && pagedStats.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={colCount}>
+                        <EmptyState icon={BarChart3} title="暂无上报记录" description="该时间段内还没有任何上报数据。" />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!statsLoading && pagedStats.map((s) => (
+                    <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
+                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{s.date}</TableCell>
+                      <TableCell className="max-w-[150px]">
+                        <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-orange-500 whitespace-nowrap">
+                        ${Number(s.spendAmount).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-primary whitespace-nowrap">
+                        ${Number(s.realBalance).toFixed(2)}
+                        {s.hasAlert && <span className="ml-1 text-red-500 text-xs">!</span>}
+                      </TableCell>
+                      {histBizFilter === "all" && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
+                      {histBizFilter === "all" && <TableCell><BizMetrics s={s} /></TableCell>}
+                      {histBizFilter === "liveChat" && (
+                        <TableCell className="text-xs text-muted-foreground max-w-[80px]">
+                          <TruncatedCell value={s.teamName ?? "—"} />
+                        </TableCell>
+                      )}
+                      {histBizFilter === "liveChat" && (
+                        <TableCell className="text-right font-mono text-sm">{s.fanCount ?? "—"}</TableCell>
+                      )}
+                      {histBizFilter === "liveChat" && (
+                        <TableCell className="text-right font-mono text-sm text-green-600 whitespace-nowrap">
+                          {s.fanCost ? `$${Number(s.fanCost).toFixed(4)}` : "—"}
+                        </TableCell>
+                      )}
+                      {histBizFilter === "ecommerce" && (
+                        <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                          {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
+                        </TableCell>
+                      )}
+                      {histBizFilter === "ecommerce" && (
+                        <TableCell className="text-right font-mono text-sm">
+                          {s.roas ? Number(s.roas).toFixed(2) : "—"}
+                        </TableCell>
+                      )}
+                      {histBizFilter === "ecommerce" && (
+                        <TableCell className="text-right font-mono text-sm">{s.orderCount ?? "—"}</TableCell>
+                      )}
+                      {histBizFilter === "ecommerce" && (
+                        <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                          {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary transition-colors p-1">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination page={histPage} pageSize={PAGE_SIZE} total={allStats.length} onPageChange={setHistPage} />
+            </div>
+          );
+        })()}
       </div>
 
       {editTarget && (

@@ -122,56 +122,97 @@ export default function OpsReportPage() {
         ] : []),
       ]} />
 
-      <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead>日期</TableHead>
-              <TableHead>账户</TableHead>
-              <TableHead>投手</TableHead>
-              <TableHead>业务</TableHead>
-              <TableHead>团队</TableHead>
-              <TableHead>消耗</TableHead>
-              <TableHead>运营数据</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && Array.from({ length: 6 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
-                <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-16" /></TableCell>
-              ))}</TableRow>
-            ))}
-            {!isLoading && !hasOps && (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState icon={TrendingUp} title="暂无运营数据" description="投手填报含业务类型的消耗数据后将在此展示。" />
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && hasOps && paged.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <EmptyState icon={TrendingUp} title="暂无符合条件的数据" description="调整筛选条件后重试。" />
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && paged.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell className="font-mono text-xs">{s.date}</TableCell>
-                <TableCell className="max-w-[140px] text-sm font-medium">
-                  <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{s.pitcherName ?? "—"}</TableCell>
-                <TableCell><BizBadge biz={s.businessType} /></TableCell>
-                <TableCell className="text-sm text-muted-foreground">{s.teamName ?? "—"}</TableCell>
-                <TableCell className="font-mono text-sm font-semibold">${Number(s.spendAmount).toFixed(2)}</TableCell>
-                <TableCell><BizMetrics s={s} /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
-      </div>
+      {(() => {
+        const colCount = bizFilter === "ecommerce" ? 8 : 7;
+        return (
+          <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+            <Table className="min-w-full">
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="w-[86px] whitespace-nowrap">日期</TableHead>
+                  <TableHead className="w-[140px]">账户</TableHead>
+                  <TableHead className="w-[90px]">投手</TableHead>
+                  {bizFilter === "all" && <TableHead className="w-[60px]">业务</TableHead>}
+                  {(bizFilter === "all" || bizFilter === "liveChat") && <TableHead className="w-[80px]">团队</TableHead>}
+                  <TableHead className="w-[90px] text-right">消耗</TableHead>
+                  {bizFilter === "all" && <TableHead className="min-w-[220px]">运营数据</TableHead>}
+                  {bizFilter === "liveChat" && <TableHead className="w-[72px] text-right">进粉</TableHead>}
+                  {bizFilter === "liveChat" && <TableHead className="w-[90px] text-right">粉成本</TableHead>}
+                  {bizFilter === "ecommerce" && <TableHead className="w-[100px] text-right">GMV</TableHead>}
+                  {bizFilter === "ecommerce" && <TableHead className="w-[68px] text-right">ROAS</TableHead>}
+                  {bizFilter === "ecommerce" && <TableHead className="w-[60px] text-right">订单</TableHead>}
+                  {bizFilter === "ecommerce" && <TableHead className="w-[90px] text-right">客单</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={i}>{Array.from({ length: colCount }).map((__, j) => (
+                    <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-full" /></TableCell>
+                  ))}</TableRow>
+                ))}
+                {!isLoading && !hasOps && (
+                  <TableRow>
+                    <TableCell colSpan={colCount}>
+                      <EmptyState icon={TrendingUp} title="暂无运营数据" description="投手填报含业务类型的消耗数据后将在此展示。" />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && hasOps && paged.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={colCount}>
+                      <EmptyState icon={TrendingUp} title="暂无符合条件的数据" description="调整筛选条件后重试。" />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && paged.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">{s.date}</TableCell>
+                    <TableCell className="w-[140px] max-w-[140px]">
+                      <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[90px]">
+                      <TruncatedCell value={s.pitcherName ?? "—"} />
+                    </TableCell>
+                    {bizFilter === "all" && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
+                    {(bizFilter === "all" || bizFilter === "liveChat") && (
+                      <TableCell className="text-xs text-muted-foreground max-w-[80px]">
+                        <TruncatedCell value={s.teamName ?? "—"} />
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right font-mono font-semibold whitespace-nowrap">${Number(s.spendAmount).toFixed(2)}</TableCell>
+                    {bizFilter === "all" && <TableCell><BizMetrics s={s} /></TableCell>}
+                    {bizFilter === "liveChat" && (
+                      <TableCell className="text-right font-mono text-sm">{s.fanCount ?? "—"}</TableCell>
+                    )}
+                    {bizFilter === "liveChat" && (
+                      <TableCell className="text-right font-mono text-sm text-green-600 whitespace-nowrap">
+                        {s.fanCost ? `$${Number(s.fanCost).toFixed(4)}` : "—"}
+                      </TableCell>
+                    )}
+                    {bizFilter === "ecommerce" && (
+                      <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                        {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
+                      </TableCell>
+                    )}
+                    {bizFilter === "ecommerce" && (
+                      <TableCell className="text-right font-mono text-sm">{s.roas ? Number(s.roas).toFixed(2) : "—"}</TableCell>
+                    )}
+                    {bizFilter === "ecommerce" && (
+                      <TableCell className="text-right font-mono text-sm">{s.orderCount ?? "—"}</TableCell>
+                    )}
+                    {bizFilter === "ecommerce" && (
+                      <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                        {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
+          </div>
+        );
+      })()}
     </div>
   );
 }
