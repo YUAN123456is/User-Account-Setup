@@ -342,17 +342,17 @@ export default function DailyReportPage() {
       {/* ── 填报区 ── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* 共享日期 */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
-          <span className="text-sm font-medium text-foreground shrink-0">上报日期</span>
+        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-muted/30">
+          <span className="text-xs font-medium text-foreground shrink-0">上报日期</span>
           <Input
             type="date"
-            className="h-8 w-40 text-sm"
+            className="h-7 w-36 text-xs"
             value={sharedDate}
             max={today}
             onChange={(e) => setSharedDate(e.target.value)}
           />
-          <span className="text-xs text-muted-foreground">所有行共用同一日期，可单独修改</span>
-          <Button variant="ghost" size="sm" className="ml-auto gap-1.5 h-8 text-xs" onClick={addRow}>
+          <span className="text-xs text-muted-foreground hidden sm:block">各行共用，可单独改</span>
+          <Button variant="ghost" size="sm" className="ml-auto gap-1.5 h-7 text-xs" onClick={addRow}>
             <Plus className="h-3.5 w-3.5" /> 添加一行
           </Button>
         </div>
@@ -374,7 +374,7 @@ export default function DailyReportPage() {
             const hasOps = row.businessType === "liveChat" || row.businessType === "ecommerce";
 
             return (
-              <div key={row.key} className={["px-4 py-3 space-y-2.5 transition-colors", alreadyReported ? "bg-amber-50/50 dark:bg-amber-900/10" : ""].join(" ")}>
+              <div key={row.key} className={["px-3 py-2 space-y-1.5 transition-colors", alreadyReported ? "bg-amber-50/50 dark:bg-amber-900/10" : ""].join(" ")}>
                 {/* 主行 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">{idx + 1}</span>
@@ -407,8 +407,8 @@ export default function DailyReportPage() {
 
                   {/* 业务类型迷你按钮 */}
                   <div className="flex gap-1 shrink-0">
-                    {[["", "不填"], ["liveChat", "聊单"], ["ecommerce", "独立站"]].map(([v, label]) => (
-                      <button key={v} onClick={() => updateRow(row.key, "businessType", v)}
+                    {[["liveChat", "聊单"], ["ecommerce", "独立站"]].map(([v, label]) => (
+                      <button key={v} onClick={() => updateRow(row.key, "businessType", row.businessType === v ? "" : v)}
                         className={["text-xs px-2 py-1 rounded border transition-colors", row.businessType === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}>
                         {label}
                       </button>
@@ -433,10 +433,10 @@ export default function DailyReportPage() {
 
                 {/* 提示行 */}
                 {(alreadyReported || previewBal !== null) && (
-                  <div className="flex items-center gap-3 pl-7 text-xs">
+                  <div className="flex items-center gap-3 pl-6 text-xs">
                     {alreadyReported && (
                       <span className="flex items-center gap-1 text-amber-600">
-                        <AlertCircle className="h-3 w-3" /> 该账户在 {sharedDate} 已有上报记录
+                        <AlertCircle className="h-3 w-3" /> {sharedDate} 已有上报
                       </span>
                     )}
                     {previewBal !== null && !alreadyReported && (
@@ -447,7 +447,7 @@ export default function DailyReportPage() {
 
                 {/* 运营字段（展开） */}
                 {hasOps && row.expanded && (
-                  <div className="pl-7 grid grid-cols-2 gap-3 pt-1 pb-0.5">
+                  <div className="pl-6 grid grid-cols-2 gap-2.5 pt-0.5">
                     {row.businessType === "liveChat" && (
                       <>
                         <div className="space-y-1">
@@ -489,12 +489,15 @@ export default function DailyReportPage() {
         </div>
 
         {/* 提交 */}
-        <div className="px-4 py-3 border-t border-border bg-muted/20">
-          <Button className="w-full gap-2" onClick={handleSubmitAll} disabled={submitting}>
+        <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {rows.length > 1 ? `共 ${rows.length} 行` : ""}
+          </span>
+          <Button size="sm" className="gap-1.5 px-5" onClick={handleSubmitAll} disabled={submitting}>
             {submitted ? (
-              <><CheckCircle className="h-4 w-4" /> 已全部提交</>
+              <><CheckCircle className="h-3.5 w-3.5" /> 已全部提交</>
             ) : submitting ? "提交中..." : (
-              <><CheckCircle className="h-4 w-4" /> 提交 {rows.length} 条上报</>
+              <><CheckCircle className="h-3.5 w-3.5" /> 提交{rows.length > 1 ? ` ${rows.length} 条` : ""}上报</>
             )}
           </Button>
         </div>
