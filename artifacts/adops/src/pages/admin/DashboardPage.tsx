@@ -1,12 +1,9 @@
-import { useState } from "react";
-import { useGetDashboardSummary, useGetSpendByProvider, useGetSpendByPitcher, useGetDailyTrend } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetDailyTrend } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  Area, AreaChart,
+  Area, AreaChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
-import { CreditCard, TrendingUp, AlertTriangle, Clock, CheckCircle, Ban, Wallet, DollarSign, Users } from "lucide-react";
+import { CreditCard, TrendingUp, AlertTriangle, Clock, Wallet, DollarSign } from "lucide-react";
 
 function KpiCard({
   title,
@@ -45,27 +42,8 @@ const tooltipStyle = {
 };
 
 export default function DashboardPage() {
-  const [chartDateRange, setChartDateRange] = useState<DateRange>({ from: "", to: "" });
-
   const { data: summary, isLoading } = useGetDashboardSummary();
   const { data: trendData } = useGetDailyTrend({ days: 30 });
-
-  const chartParams: Record<string, string> = {};
-  if (chartDateRange.from) chartParams.dateFrom = chartDateRange.from;
-  if (chartDateRange.to) chartParams.dateTo = chartDateRange.to;
-
-  const { data: providerSpend } = useGetSpendByProvider(chartParams);
-  const { data: pitcherSpend } = useGetSpendByPitcher(chartParams);
-
-  const hasDateFilter = chartDateRange.from || chartDateRange.to;
-
-  const providerChartData = Array.isArray(providerSpend)
-    ? providerSpend.map((p) => { const r = p as unknown as Record<string, unknown>; return { name: r.providerName as string ?? "", spend: Number(hasDateFilter ? p.totalSpend : r.yesterdaySpend ?? 0) }; })
-    : [];
-
-  const pitcherChartData = Array.isArray(pitcherSpend)
-    ? pitcherSpend.map((p) => { const r = p as unknown as Record<string, unknown>; return { name: r.pitcherName as string ?? "", spend: Number(hasDateFilter ? p.totalSpend : r.yesterdaySpend ?? 0) }; })
-    : [];
 
   const trendChartData = Array.isArray(trendData)
     ? trendData.map((d) => ({ date: d.date.slice(5), spend: Number(d.totalSpend) }))
@@ -74,8 +52,8 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 9 }).map((_, i) => (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}><CardContent className="pt-6"><div className="h-16 bg-muted animate-pulse rounded" /></CardContent></Card>
           ))}
         </div>
@@ -84,8 +62,6 @@ export default function DashboardPage() {
   }
 
   const s = summary as Record<string, number | string> | undefined;
-  const totalProviders = Number(s?.totalProviders ?? 0);
-  const totalPitchers = Number(s?.totalPitchers ?? 0);
 
   return (
     <div className="space-y-6">
@@ -94,18 +70,8 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-0.5">系统整体运营概况</p>
       </div>
 
-      {/* KPI Grid — 9 cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <KpiCard title="账户总数" value={s?.totalAccounts ?? 0} icon={CreditCard} />
-        <KpiCard title="运行中" value={s?.activeAccounts ?? 0} icon={CheckCircle} className="text-green-500" />
-        <KpiCard title="已封禁" value={s?.bannedAccounts ?? 0} icon={Ban} className={(Number(s?.bannedAccounts) ?? 0) > 0 ? "text-red-500" : ""} />
-        <KpiCard
-          title="低余额预警"
-          value={s?.alertCount ?? 0}
-          icon={AlertTriangle}
-          className={(Number(s?.alertCount) ?? 0) > 0 ? "text-red-500" : ""}
-          sub="余额 < $100"
-        />
         <KpiCard
           title="昨日总消耗"
           value={`$${Number(s?.todayTotalSpend ?? 0).toFixed(2)}`}
@@ -119,6 +85,13 @@ export default function DashboardPage() {
           className="text-green-500"
         />
         <KpiCard
+          title="低余额预警"
+          value={s?.alertCount ?? 0}
+          icon={AlertTriangle}
+          className={(Number(s?.alertCount) ?? 0) > 0 ? "text-red-500" : ""}
+          sub="余额 < $100"
+        />
+        <KpiCard
           title="昨日充值到账"
           value={`$${Number(s?.todayRecharge ?? 0).toFixed(2)}`}
           icon={Wallet}
@@ -130,15 +103,8 @@ export default function DashboardPage() {
           icon={Clock}
           className={(Number(s?.pendingRechargeOrders) ?? 0) > 0 ? "text-amber-500" : ""}
         />
-        <KpiCard
-          title="用户总览"
-          value={`${totalProviders + totalPitchers} 人`}
-          icon={Users}
-          sub={`开户商 ${totalProviders} · 投手 ${totalPitchers}`}
-        />
       </div>
 
-      {/* 30-Day Trend */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold">近 30 天消耗趋势</CardTitle>
@@ -165,57 +131,6 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Bar Charts */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">消耗细分统计</h2>
-          <QuickDateFilter onChange={setChartDateRange} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "开户商期间消耗" : "开户商昨日消耗"}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {providerChartData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={providerChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`$${v.toFixed(2)}`, "消耗"]} />
-                    <Bar dataKey="spend" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "投手期间消耗" : "投手昨日消耗"}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {pitcherChartData.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={pitcherChartData} margin={{ top: 4, right: 4, left: -16, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`$${v.toFixed(2)}`, "消耗"]} />
-                    <Bar dataKey="spend" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }

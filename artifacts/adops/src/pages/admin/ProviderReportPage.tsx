@@ -139,10 +139,6 @@ export default function ProviderReportPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">开户商报表</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">按开户商统计消耗数据，点击行展开账户明细</p>
-      </div>
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="ml-auto">

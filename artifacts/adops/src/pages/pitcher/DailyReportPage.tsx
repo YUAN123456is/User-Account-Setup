@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListAccounts, useCreateDailyStat, useUpdateDailyStat,
@@ -14,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { BizBadge } from "@/components/shared/BizDisplay";
+import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
+import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
@@ -234,6 +235,28 @@ export default function DailyReportPage() {
   const dayStats = useMemo(() => Array.isArray(yStatsData) ? (yStatsData as DailyStat[]) : [], [yStatsData]);
   const reportedIds = useMemo(() => new Set(dayStats.map((s) => s.accountId)), [dayStats]);
 
+  const [histDateRange, setHistDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [histAccountFilter, setHistAccountFilter] = useState("all");
+  const [histStatusFilter, setHistStatusFilter] = useState("all");
+  const [histPage, setHistPage] = useState(1);
+
+  const histApiParams: Record<string, string> = {};
+  if (histDateRange.from) histApiParams.dateFrom = histDateRange.from;
+  if (histDateRange.to) histApiParams.dateTo = histDateRange.to;
+  if (histAccountFilter !== "all") histApiParams.accountId = histAccountFilter;
+
+  const { data: histData, isLoading: histLoading } = useListDailyStats(histApiParams);
+  const allHistStats = useMemo(() => Array.isArray(histData) ? (histData as DailyStat[]) : [], [histData]);
+  const histFiltered = useMemo(() => {
+    let filtered = allHistStats;
+    if (histStatusFilter === "pending") filtered = filtered.filter((s) => s.status === "pending");
+    else if (histStatusFilter === "approved") filtered = filtered.filter((s) => (!s.status || s.status === "approved") && !s.fbSynced);
+    else if (histStatusFilter === "rejected") filtered = filtered.filter((s) => s.status === "rejected");
+    else if (histStatusFilter === "fb") filtered = filtered.filter((s) => s.fbSynced);
+    return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  }, [allHistStats, histStatusFilter]);
+  const histPaged = usePagination(histFiltered, 20, histPage);
+
   const createMutation = useCreateDailyStat({});
 
   const updateRow = (key: string, field: keyof ReportRow, value: string | boolean) => {
@@ -449,41 +472,57 @@ export default function DailyReportPage() {
         </div>
       </div>
 
-      {/* ── 当日已报记录 ── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            {sharedDate} 已报记录
-            {dayStats.length > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{dayStats.length} 条</span>}
-          </h2>
-          <Link href="/pitcher/history">
-            <span className="text-xs text-primary hover:underline cursor-pointer">查看全部历史 →</span>
-          </Link>
+      {/* ── 上报记录 ── */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2 justify-between">
+          <h2 className="text-sm font-semibold">上报记录</h2>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={histAccountFilter} onValueChange={(v) => { setHistAccountFilter(v); setHistPage(1); }}>
+              <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="全部账户" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部账户</SelectItem>
+                {accounts.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.accountName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={histStatusFilter} onValueChange={(v) => { setHistStatusFilter(v); setHistPage(1); }}>
+              <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="pending">待审核</SelectItem>
+                <SelectItem value="approved">已通过</SelectItem>
+                <SelectItem value="rejected">已驳回</SelectItem>
+                <SelectItem value="fb">FB同步</SelectItem>
+              </SelectContent>
+            </Select>
+            <QuickDateFilter onChange={(r) => { setHistDateRange(r); setHistPage(1); }} />
+          </div>
         </div>
 
-        {dayLoading ? (
-          <div className="h-16 bg-muted animate-pulse rounded-lg" />
-        ) : dayStats.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
+        {histLoading ? (
+          <div className="h-24 bg-muted animate-pulse rounded-lg" />
+        ) : histFiltered.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
             <BarChart3 className="h-5 w-5 text-muted-foreground/40 mx-auto mb-1.5" />
-            <p className="text-sm text-muted-foreground">当日暂无上报，提交后在此显示</p>
+            <p className="text-sm text-muted-foreground">暂无上报记录</p>
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40">
+                  <TableHead className="w-24">日期</TableHead>
                   <TableHead>账户</TableHead>
                   <TableHead className="w-20 text-right">消耗</TableHead>
                   <TableHead className="w-24 text-right">余额</TableHead>
                   <TableHead className="w-20">业务</TableHead>
-                  <TableHead className="w-20">审核状态</TableHead>
+                  <TableHead className="w-20">状态</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dayStats.map((s) => (
+                {histPaged.map((s) => (
                   <TableRow key={s.id} className={s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{s.date}</TableCell>
                     <TableCell className="font-medium text-sm">
                       <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
                     </TableCell>
@@ -525,6 +564,7 @@ export default function DailyReportPage() {
                 ))}
               </TableBody>
             </Table>
+            <TablePagination page={histPage} pageSize={20} total={histFiltered.length} onPageChange={setHistPage} />
           </div>
         )}
       </div>

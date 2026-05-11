@@ -168,10 +168,7 @@ export default function TeamsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">团队管理</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">管理聊单和独立站的投放团队</p>
-        </div>
+        <div />
         <Button size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" /> 新建团队
         </Button>

@@ -104,10 +104,6 @@ export default function OpsReportPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">运营报表</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">聊单和独立站投放数据汇总</p>
-      </div>
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">

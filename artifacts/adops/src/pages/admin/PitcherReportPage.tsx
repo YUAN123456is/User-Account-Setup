@@ -301,10 +301,6 @@ export default function PitcherReportPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">投手报表</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">按投手统计消耗数据，点击行展开账户明细</p>
-      </div>
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">

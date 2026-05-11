@@ -10,13 +10,9 @@ import PublicFeedbackPage from "@/pages/PublicFeedbackPage";
 
 import AdminLayout from "@/pages/admin/AdminLayout";
 import DashboardPage from "@/pages/admin/DashboardPage";
-import UsersPage from "@/pages/admin/UsersPage";
-import TeamsPage from "@/pages/admin/TeamsPage";
+import PeoplePage from "@/pages/admin/PeoplePage";
 import AccountsPage from "@/pages/admin/AccountsPage";
-import ProviderReportPage from "@/pages/admin/ProviderReportPage";
-import PitcherReportPage from "@/pages/admin/PitcherReportPage";
-import OpsReportPage from "@/pages/admin/OpsReportPage";
-import CrossReportPage from "@/pages/admin/CrossReportPage";
+import ReportsPage from "@/pages/admin/ReportsPage";
 import FinancePage from "@/pages/admin/FinancePage";
 import AlertsPage from "@/pages/admin/AlertsPage";
 import AdminTeamFeedbackPage from "@/pages/admin/AdminTeamFeedbackPage";
@@ -31,7 +27,6 @@ import PitcherDashboardPage from "@/pages/pitcher/PitcherDashboardPage";
 import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
 import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
-import PitcherHistoryPage from "@/pages/pitcher/PitcherHistoryPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
 import TeamFeedbackPage from "@/pages/pitcher/TeamFeedbackPage";
 import PitcherMetaTokensPage from "@/pages/pitcher/PitcherMetaTokensPage";
@@ -89,13 +84,9 @@ function makePitcherRoute(Page: React.ComponentType) {
 }
 
 const AdminDashboardRoute = makeAdminRoute(DashboardPage);
-const AdminUsersRoute = makeAdminRoute(UsersPage);
+const AdminPeopleRoute = makeAdminRoute(PeoplePage);
 const AdminAccountsRoute = makeAdminRoute(AccountsPage);
-const AdminTeamsRoute = makeAdminRoute(TeamsPage);
-const AdminProviderReportRoute = makeAdminRoute(ProviderReportPage);
-const AdminPitcherReportRoute = makeAdminRoute(PitcherReportPage);
-const AdminOpsReportRoute = makeAdminRoute(OpsReportPage);
-const AdminCrossReportRoute = makeAdminRoute(CrossReportPage);
+const AdminReportsRoute = makeAdminRoute(ReportsPage);
 const AdminFinanceRoute = makeAdminRoute(FinancePage);
 const AdminAlertsRoute = makeAdminRoute(AlertsPage);
 const AdminTeamFeedbackRoute = makeAdminRoute(AdminTeamFeedbackPage);
@@ -148,17 +139,22 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/admin/dashboard" component={AdminDashboardRoute} />
-      <Route path="/admin/users" component={AdminUsersRoute} />
+      <Route path="/admin/people" component={AdminPeopleRoute} />
       <Route path="/admin/accounts" component={AdminAccountsRoute} />
-      <Route path="/admin/teams" component={AdminTeamsRoute} />
-      <Route path="/admin/reports/provider" component={AdminProviderReportRoute} />
-      <Route path="/admin/reports/pitcher" component={AdminPitcherReportRoute} />
-      <Route path="/admin/reports/ops" component={AdminOpsReportRoute} />
-      <Route path="/admin/reports/cross" component={AdminCrossReportRoute} />
+      <Route path="/admin/reports" component={AdminReportsRoute} />
       <Route path="/admin/finance" component={AdminFinanceRoute} />
       <Route path="/admin/alerts" component={AdminAlertsRoute} />
       <Route path="/admin/team-feedback" component={AdminTeamFeedbackRoute} />
       <Route path="/admin/pending-approvals" component={AdminPendingApprovalsRoute} />
+      <Route path="/admin/reports/:tab">
+        <Redirect to="/admin/reports" />
+      </Route>
+      <Route path="/admin/users">
+        <Redirect to="/admin/people" />
+      </Route>
+      <Route path="/admin/teams">
+        <Redirect to="/admin/people" />
+      </Route>
       <Route path="/admin">
         <Redirect to="/admin/dashboard" />
       </Route>
@@ -173,6 +169,9 @@ function AppRoutes() {
       <Route path="/pitcher/accounts" component={PitcherAccountsRoute} />
       <Route path="/pitcher/pool" component={PitcherPoolRoute} />
       <Route path="/pitcher/report" component={PitcherReportRoute} />
+      <Route path="/pitcher/history">
+        <Redirect to="/pitcher/report" />
+      </Route>
       <Route path="/pitcher/recharge" component={PitcherRechargeRoute} />
       <Route path="/pitcher/team-feedback" component={PitcherTeamFeedbackRoute} />
       <Route path="/pitcher/meta-tokens" component={PitcherMetaTokensRoute} />

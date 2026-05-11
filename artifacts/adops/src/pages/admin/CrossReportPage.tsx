@@ -51,10 +51,6 @@ export default function CrossReportPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">交叉报表</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">投手 × 开户商消耗矩阵</p>
-      </div>
 
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={pitcherFilter} onValueChange={(v) => { setPitcherFilter(v); setPage(1); }}>
