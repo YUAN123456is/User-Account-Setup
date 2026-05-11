@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
-import { BarChart3, Search } from "lucide-react";
+import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
+import { GitMerge, Search } from "lucide-react";
 
 interface CrossRow {
   pitcherId: number;
@@ -81,11 +81,9 @@ export default function CrossReportPage() {
             {providers.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">统计时间范围</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div className="ml-auto">
+          <QuickDateFilter onChange={(r) => { setDateRange(r); setPage(1); }} />
+        </div>
       </div>
 
       <StatsBar items={[
@@ -113,7 +111,7 @@ export default function CrossReportPage() {
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={4}><EmptyState icon={BarChart3} title="暂无数据" description="上报每日数据后将在此显示交叉报表。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={4}><EmptyState icon={GitMerge} title="暂无数据" description="上报每日数据后将在此显示交叉报表。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((r, i) => (
               <TableRow key={i}>

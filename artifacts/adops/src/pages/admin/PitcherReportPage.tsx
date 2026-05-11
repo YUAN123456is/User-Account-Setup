@@ -3,7 +3,7 @@ import { useGetSpendByPitcher, useGetPitcherAccounts, useListDailyStats } from "
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
+import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";

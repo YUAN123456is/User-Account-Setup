@@ -2,11 +2,12 @@ import { useState, useMemo } from "react";
 import { useListDailyStats, useListTeams } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
+import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { TrendingUp } from "lucide-react";
 
 interface DailyStat {
@@ -47,6 +48,7 @@ export default function OpsReportPage() {
 
   const allStats = useMemo(() => Array.isArray(statsData) ? (statsData as DailyStat[]) : [], [statsData]);
   const teams = useMemo(() => Array.isArray(teamsData) ? (teamsData as Team[]) : [], [teamsData]);
+  const liveChatTeams = teams.filter((t) => t.businessType === "liveChat");
 
   const hasOps = allStats.some((s) => s.businessType != null);
 
@@ -66,7 +68,8 @@ export default function OpsReportPage() {
   const avgFanCost = totalFans > 0 ? liveChatRows.reduce((s, r) => s + Number(r.spendAmount), 0) / totalFans : 0;
   const totalGmv = ecomRows.reduce((s, r) => s + Number(r.gmv ?? 0), 0);
   const totalOrders = ecomRows.reduce((s, r) => s + (r.orderCount ?? 0), 0);
-  const overallRoas = totalSpend > 0 && totalGmv > 0 ? totalGmv / ecomRows.reduce((s, r) => s + Number(r.spendAmount), 0) : 0;
+  const ecomSpend = ecomRows.reduce((s, r) => s + Number(r.spendAmount), 0);
+  const overallRoas = ecomSpend > 0 && totalGmv > 0 ? totalGmv / ecomSpend : 0;
 
   return (
     <div className="space-y-4">
@@ -75,43 +78,47 @@ export default function OpsReportPage() {
         <p className="text-sm text-muted-foreground mt-0.5">聊单和独立站投放数据汇总</p>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
-          {[{ value: "all", label: "全部业务" }, { value: "liveChat", label: "聊单" }, { value: "ecommerce", label: "独立站" }].map((opt) => (
-            <button key={opt.value} onClick={() => { setBizFilter(opt.value); setPage(1); }}
-              className={["px-3 h-full text-xs font-medium transition-colors border-r border-border last:border-r-0",
-                bizFilter === opt.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"].join(" ")}>
+          {[{ value: "all", label: "全部业务" }, { value: "liveChat", label: "聊单" }, { value: "ecommerce", label: "独立站" }].map((opt, i, arr) => (
+            <button key={opt.value} onClick={() => { setBizFilter(opt.value); setTeamFilter("all"); setPage(1); }}
+              className={[
+                "px-3 h-full text-xs font-medium transition-colors",
+                i < arr.length - 1 ? "border-r border-border" : "",
+                bizFilter === opt.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}>
               {opt.label}
             </button>
           ))}
         </div>
 
-        {(bizFilter === "all" || bizFilter === "liveChat") && teams.filter((t) => t.businessType === "liveChat").length > 0 && (
-          <select value={teamFilter} onChange={(e) => { setTeamFilter(e.target.value); setPage(1); }}
-            className="h-8 text-xs border border-border rounded-md px-2 bg-background text-foreground">
-            <option value="all">全部团队</option>
-            {teams.filter((t) => t.businessType === "liveChat").map((t) => (
-              <option key={t.id} value={String(t.id)}>{t.name}</option>
-            ))}
-          </select>
+        {(bizFilter === "all" || bizFilter === "liveChat") && liveChatTeams.length > 0 && (
+          <Select value={teamFilter} onValueChange={(v) => { setTeamFilter(v); setPage(1); }}>
+            <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="全部团队" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部团队</SelectItem>
+              {liveChatTeams.map((t) => (
+                <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
-      </div>
 
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">统计时间范围</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div className="ml-auto">
+          <QuickDateFilter onChange={(r) => { setDateRange(r); setPage(1); }} />
+        </div>
       </div>
 
       <StatsBar items={[
         { label: "记录条数", value: filtered.length },
         { label: "总消耗", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
         ...(liveChatRows.length > 0 ? [
-          { label: "聊单总进粉", value: totalFans, color: "purple" as const },
-          { label: "平均粉丝成本", value: totalFans > 0 ? `$${avgFanCost.toFixed(4)}` : "—", color: "amber" as const },
+          { label: "聊单进粉", value: totalFans, color: "purple" as const },
+          { label: "平均粉成本", value: totalFans > 0 ? `$${avgFanCost.toFixed(4)}` : "—", color: "amber" as const },
         ] : []),
         ...(ecomRows.length > 0 ? [
           { label: "独立站 GMV", value: `$${totalGmv.toFixed(2)}`, color: "green" as const },
-          { label: "总订单数", value: totalOrders },
+          { label: "总订单", value: totalOrders },
           { label: "ROAS", value: overallRoas > 0 ? overallRoas.toFixed(2) : "—", color: "green" as const },
         ] : []),
       ]} />
