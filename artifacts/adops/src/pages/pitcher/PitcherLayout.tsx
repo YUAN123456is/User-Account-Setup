@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { LayoutDashboard, CreditCard, BarChart3, UserCheck, MessageSquare, Facebook, History, Wallet } from "lucide-react";
+import { LayoutDashboard, CreditCard, BarChart3, UserCheck, MessageSquare, Facebook, Wallet } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useListAccounts } from "@workspace/api-client-react";
@@ -20,7 +20,6 @@ export default function PitcherLayout({ children }: { children: ReactNode }) {
       ? [{ label: "账户分配", href: "/pitcher/pool", icon: UserCheck, badge: idleCount > 0 ? idleCount : undefined }]
       : []),
     { label: "每日上报", href: "/pitcher/report", icon: BarChart3 },
-    { label: "上报记录", href: "/pitcher/history", icon: History },
     { label: "申请充值", href: "/pitcher/recharge", icon: Wallet },
     { label: "团队反馈", href: "/pitcher/team-feedback", icon: MessageSquare },
     { label: "FB 账号配置", href: "/pitcher/meta-tokens", icon: Facebook },

@@ -31,6 +31,7 @@ import PitcherDashboardPage from "@/pages/pitcher/PitcherDashboardPage";
 import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
 import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
+import PitcherHistoryPage from "@/pages/pitcher/PitcherHistoryPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
 import TeamFeedbackPage from "@/pages/pitcher/TeamFeedbackPage";
 import PitcherMetaTokensPage from "@/pages/pitcher/PitcherMetaTokensPage";
