@@ -85,42 +85,61 @@ function AccountHistoryDialog({
           ) : rows.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-10">该账户暂无消耗记录</div>
           ) : (
-            <>
-              <div className="flex items-center gap-4 mb-3 px-1 text-xs text-muted-foreground">
-                <span>共 <span className="font-semibold text-foreground">{rows.length}</span> 条记录</span>
-                <span>累计消耗 <span className="font-semibold text-primary">${totalSpend.toFixed(2)}</span></span>
-              </div>
-              <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">日期</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">当日消耗</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">余额快照</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">业务</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">运营数据</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, idx) => (
-                    <tr key={r.id} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
-                      <td className="px-4 py-2.5 font-mono text-sm">{r.date}</td>
-                      <td className="px-4 py-2.5 font-mono text-right font-semibold text-orange-500">
-                        ${Number(r.spendAmount).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-right text-primary">
-                        ${Number(r.realBalance).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <BizBadge biz={(r as unknown as Record<string, unknown>).businessType as string | null} />
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <BizMetrics s={r as unknown as Parameters<typeof BizMetrics>[0]["s"]} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+            (() => {
+              type R = typeof rows[number] & { businessType?: string | null; teamName?: string | null; fanCount?: number | null; fanCost?: string | null; gmv?: string | null; roas?: string | null; orderCount?: number | null; avgOrderValue?: string | null; };
+              const rs = rows as R[];
+              const hasLive = rs.some((r) => r.businessType === "liveChat");
+              const hasEcom = rs.some((r) => r.businessType === "ecommerce");
+              const showBizCol = hasLive && hasEcom;
+              return (
+                <>
+                  <div className="flex items-center gap-4 mb-3 px-1 text-xs text-muted-foreground">
+                    <span>共 <span className="font-semibold text-foreground">{rows.length}</span> 条记录</span>
+                    <span>累计消耗 <span className="font-semibold text-primary">${totalSpend.toFixed(2)}</span></span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-max min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border">
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">日期</th>
+                          <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">当日消耗</th>
+                          <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">余额快照</th>
+                          {showBizCol && <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">业务</th>}
+                          {hasLive && <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">团队</th>}
+                          {hasLive && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">进粉</th>}
+                          {hasLive && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">粉成本</th>}
+                          {hasEcom && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">GMV</th>}
+                          {hasEcom && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">ROAS</th>}
+                          {hasEcom && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">订单</th>}
+                          {hasEcom && <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">客单</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rs.map((r, idx) => (
+                          <tr key={r.id} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
+                            <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.date}</td>
+                            <td className="px-3 py-2 font-mono text-right font-semibold text-orange-500 whitespace-nowrap">
+                              ${Number(r.spendAmount).toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-right text-primary whitespace-nowrap">
+                              ${Number(r.realBalance).toFixed(2)}
+                            </td>
+                            {showBizCol && <td className="px-3 py-2"><BizBadge biz={r.businessType ?? null} /></td>}
+                            {hasLive && <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{r.teamName ?? "—"}</td>}
+                            {hasLive && <td className="px-3 py-2 font-mono text-right text-xs">{r.fanCount ?? "—"}</td>}
+                            {hasLive && <td className="px-3 py-2 font-mono text-right text-xs whitespace-nowrap">{r.fanCost ? `$${Number(r.fanCost).toFixed(2)}` : "—"}</td>}
+                            {hasEcom && <td className="px-3 py-2 font-mono text-right text-xs whitespace-nowrap">{r.gmv ? `$${Number(r.gmv).toFixed(2)}` : "—"}</td>}
+                            {hasEcom && <td className="px-3 py-2 font-mono text-right text-xs">{r.roas ? Number(r.roas).toFixed(2) : "—"}</td>}
+                            {hasEcom && <td className="px-3 py-2 font-mono text-right text-xs">{r.orderCount ?? "—"}</td>}
+                            {hasEcom && <td className="px-3 py-2 font-mono text-right text-xs whitespace-nowrap">{r.avgOrderValue ? `$${Number(r.avgOrderValue).toFixed(2)}` : "—"}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()
           )}
         </div>
       </DialogContent>

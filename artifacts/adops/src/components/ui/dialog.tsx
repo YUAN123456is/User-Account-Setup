@@ -27,8 +27,16 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-function hasOpenRadixPopper(): boolean {
-  return !!document.querySelector("[data-radix-popper-content-wrapper]");
+function isInsidePopper(e: Event): boolean {
+  const original = (e as CustomEvent).detail?.originalEvent as PointerEvent | FocusEvent | undefined;
+  const target = (original?.target ?? (e as PointerEvent).target) as Element | null;
+  return !!(
+    target?.closest?.("[data-radix-popper-content-wrapper]") ||
+    target?.closest?.("[data-radix-select-viewport]") ||
+    target?.closest?.("[role='option']") ||
+    target?.closest?.("[role='listbox']") ||
+    document.querySelector("[data-radix-popper-content-wrapper]")
+  );
 }
 
 const DialogContent = React.forwardRef<
@@ -44,11 +52,11 @@ const DialogContent = React.forwardRef<
         className
       )}
       onPointerDownOutside={(e) => {
-        if (hasOpenRadixPopper()) { e.preventDefault(); return; }
+        if (isInsidePopper(e)) { e.preventDefault(); return; }
         onPointerDownOutside?.(e);
       }}
       onInteractOutside={(e) => {
-        if (hasOpenRadixPopper()) { e.preventDefault(); return; }
+        if (isInsidePopper(e)) { e.preventDefault(); return; }
         onInteractOutside?.(e);
       }}
       {...props}
