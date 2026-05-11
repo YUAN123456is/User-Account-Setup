@@ -537,20 +537,19 @@ export default function UsersPage() {
               <TableHead>用户名</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>手续费率</TableHead>
-              <TableHead>分配权限</TableHead>
+              <TableHead>配置</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="w-28">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={8}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7}><EmptyState icon={Users} title="暂无用户" description="点击右上角新建开户商或投手账号。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((u) => {
               const effectiveToken = localTokens[u.id] ?? u.magicToken;
@@ -565,14 +564,8 @@ export default function UsersPage() {
                       : <Badge variant="outline" className="text-muted-foreground">停用</Badge>}
                   </TableCell>
                   <TableCell>
-                    {u.role === "provider"
-                      ? <FeeRateEditor user={u} />
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    {u.role === "pitcher"
-                      ? <AssignPermToggle user={u} />
-                      : <span className="text-xs text-muted-foreground">—</span>}
+                    {u.role === "provider" && <FeeRateEditor user={u} />}
+                    {u.role === "pitcher" && <AssignPermToggle user={u} />}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                   <TableCell>
