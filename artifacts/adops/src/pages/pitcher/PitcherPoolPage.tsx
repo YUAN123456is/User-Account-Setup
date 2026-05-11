@@ -169,8 +169,8 @@ export default function PitcherPoolPage() {
               <TableHead>账户名称</TableHead>
               <TableHead>平台账户ID</TableHead>
               <TableHead>平台</TableHead>
-              <TableHead>余额</TableHead>
-              <TableHead>创建时间</TableHead>
+              <TableHead className="text-right">余额</TableHead>
+              <TableHead className="w-24">创建时间</TableHead>
               <TableHead className="w-24">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -202,8 +202,8 @@ export default function PitcherPoolPage() {
                   <TruncatedCell value={a.platformAccountId} />
                 </TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(a.currentBalance).toFixed(2)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                   {new Date(a.createdAt).toLocaleDateString("zh-CN")}
                 </TableCell>
                 <TableCell>

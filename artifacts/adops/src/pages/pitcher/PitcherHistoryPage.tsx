@@ -106,10 +106,10 @@ export default function PitcherHistoryPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
-              <TableHead>日期</TableHead>
+              <TableHead className="w-24">日期</TableHead>
               <TableHead>账户</TableHead>
-              <TableHead>消耗金额</TableHead>
-              <TableHead>实际余额</TableHead>
+              <TableHead className="text-right">消耗金额</TableHead>
+              <TableHead className="text-right">实际余额</TableHead>
               <TableHead>状态</TableHead>
             </TableRow>
           </TableHeader>
@@ -124,12 +124,12 @@ export default function PitcherHistoryPage() {
             )}
             {!isLoading && paged.map((s) => (
               <TableRow key={s.id}>
-                <TableCell className="font-mono text-sm">{s.date}</TableCell>
+                <TableCell className="font-mono text-sm whitespace-nowrap">{s.date}</TableCell>
                 <TableCell className="font-medium max-w-[180px]">
                   <TruncatedCell value={s.accountName ?? `账户 #${s.accountId}`} />
                 </TableCell>
-                <TableCell className="font-mono">${Number(s.spendAmount).toFixed(2)}</TableCell>
-                <TableCell className="font-mono">${Number(s.realBalance).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(s.spendAmount).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(s.realBalance).toFixed(2)}</TableCell>
                 <TableCell>
                   {s.hasAlert
                     ? <Badge variant="destructive" className="text-xs">预警</Badge>

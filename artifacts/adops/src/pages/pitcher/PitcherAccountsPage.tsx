@@ -267,9 +267,9 @@ function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead>账户</TableHead>
-                  <TableHead>金额</TableHead>
+                  <TableHead className="text-right">金额</TableHead>
                   <TableHead>备注</TableHead>
-                  <TableHead>申请时间</TableHead>
+                  <TableHead className="w-24">申请时间</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="w-16">操作</TableHead>
                 </TableRow>
@@ -294,7 +294,7 @@ function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
                     <TableCell className="text-sm font-medium max-w-[160px]">
                       <TruncatedCell value={o.accountName ?? `账户 #${o.id}`} />
                     </TableCell>
-                    <TableCell className="font-mono text-sm">${Number(o.amount).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-sm text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[140px]">
                       <TruncatedCell value={o.note || "—"} />
                     </TableCell>
@@ -489,9 +489,9 @@ export default function PitcherAccountsPage() {
               <TableHead>平台账户ID</TableHead>
               <TableHead>平台</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>实际余额</TableHead>
-              <TableHead>理论余额</TableHead>
-              <TableHead>最近上报</TableHead>
+              <TableHead className="text-right">实际余额</TableHead>
+              <TableHead className="text-right">理论余额</TableHead>
+              <TableHead className="w-24">最近上报</TableHead>
               <TableHead className="w-20">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -525,9 +525,9 @@ export default function PitcherAccountsPage() {
                 <TableCell className="p-0 pl-2" onClick={(e) => e.stopPropagation()}>
                   <StatusSelect account={a} />
                 </TableCell>
-                <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
-                <TableCell className="font-mono text-muted-foreground">${Number(a.theoreticalBalance ?? 0).toFixed(2)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(a.currentBalance).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-right whitespace-nowrap text-muted-foreground">${Number(a.theoreticalBalance ?? 0).toFixed(2)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                   {a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>

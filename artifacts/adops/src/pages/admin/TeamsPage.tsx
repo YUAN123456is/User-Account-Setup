@@ -156,7 +156,7 @@ export default function TeamsPage() {
                     ? <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">启用</Badge>
                     : <Badge variant="outline" className="text-xs text-muted-foreground">停用</Badge>}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                   {new Date(t.createdAt).toLocaleDateString("zh-CN")}
                 </TableCell>
                 <TableCell>

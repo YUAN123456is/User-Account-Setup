@@ -252,10 +252,10 @@ export default function RechargeRequestPage() {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead>账户</TableHead>
-                <TableHead>申请金额</TableHead>
-                <TableHead>实际到账</TableHead>
+                <TableHead className="text-right">申请金额</TableHead>
+                <TableHead className="text-right">实际到账</TableHead>
                 <TableHead>备注</TableHead>
-                <TableHead>申请时间</TableHead>
+                <TableHead className="w-24">申请时间</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead className="w-20">操作</TableHead>
               </TableRow>
@@ -280,8 +280,8 @@ export default function RechargeRequestPage() {
                   <TableCell className="font-medium text-sm max-w-[160px] truncate" title={o.accountName}>
                     {o.accountName ?? `账户 #${o.id}`}
                   </TableCell>
-                  <TableCell className="font-mono">${Number(o.amount).toFixed(2)}</TableCell>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
+                  <TableCell className="font-mono text-sm text-right whitespace-nowrap">
                     {o.actualAmount
                       ? <span className="text-green-600 font-medium">${Number(o.actualAmount).toFixed(2)}</span>
                       : <span className="text-muted-foreground">—</span>}

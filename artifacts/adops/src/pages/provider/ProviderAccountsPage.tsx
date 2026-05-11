@@ -529,9 +529,9 @@ export default function ProviderAccountsPage() {
               <TableHead>平台账户ID</TableHead>
               <TableHead>平台</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>余额</TableHead>
-              <TableHead>最近上报</TableHead>
-              <TableHead>创建时间</TableHead>
+              <TableHead className="text-right">余额</TableHead>
+              <TableHead className="w-24">最近上报</TableHead>
+              <TableHead className="w-24">创建时间</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -556,9 +556,9 @@ export default function ProviderAccountsPage() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(a.currentBalance).toFixed(2)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
               </TableRow>
             ))}
           </TableBody>

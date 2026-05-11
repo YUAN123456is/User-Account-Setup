@@ -578,7 +578,7 @@ export default function UsersPage() {
                     {u.role === "provider" && <FeeRateEditor user={u} />}
                     {u.role === "pitcher" && <AssignPermToggle user={u} />}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(u.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-0.5">
                       {u.role === "provider" && (

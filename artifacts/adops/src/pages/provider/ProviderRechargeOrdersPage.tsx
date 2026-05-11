@@ -227,10 +227,10 @@ export default function ProviderRechargeOrdersPage() {
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>账户</TableHead>
-              <TableHead>申请金额</TableHead>
-              <TableHead>实际到账</TableHead>
+              <TableHead className="text-right">申请金额</TableHead>
+              <TableHead className="text-right">实际到账</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>提交时间</TableHead>
+              <TableHead className="w-24">提交时间</TableHead>
               <TableHead className="w-28">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -248,8 +248,8 @@ export default function ProviderRechargeOrdersPage() {
                 <TableCell className="font-medium max-w-[180px]">
                   <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
                 </TableCell>
-                <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
-                <TableCell className="font-mono text-sm">
+                <TableCell className="font-mono font-semibold text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-sm text-right whitespace-nowrap">
                   {o.actualAmount
                     ? <span className="text-green-600 font-medium">${Number(o.actualAmount).toFixed(2)}</span>
                     : o.status === "completed"
@@ -258,7 +258,7 @@ export default function ProviderRechargeOrdersPage() {
                   }
                 </TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
-                <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
                   {o.status === "pending" && (
                     <div className="flex gap-1">
