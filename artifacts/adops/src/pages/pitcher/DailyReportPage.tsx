@@ -256,6 +256,9 @@ export default function DailyReportPage() {
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
   }, [allHistStats, histStatusFilter]);
   const histPaged = usePagination(histFiltered, 20, histPage);
+  const hasLive = histFiltered.some((s) => s.businessType === "liveChat");
+  const hasEcom = histFiltered.some((s) => s.businessType === "ecommerce");
+  const hasBiz = histFiltered.some((s) => s.businessType != null);
 
   const createMutation = useCreateDailyStat({});
 
@@ -507,64 +510,111 @@ export default function DailyReportPage() {
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="w-24">日期</TableHead>
-                  <TableHead>账户</TableHead>
-                  <TableHead className="w-20 text-right">消耗</TableHead>
-                  <TableHead className="w-24 text-right">余额</TableHead>
-                  <TableHead className="w-20">业务</TableHead>
-                  <TableHead className="w-20">状态</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {histPaged.map((s) => (
-                  <TableRow key={s.id} className={s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{s.date}</TableCell>
-                    <TableCell className="font-medium text-sm">
-                      <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-orange-500 whitespace-nowrap">
-                      ${Number(s.spendAmount).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs whitespace-nowrap">
-                      ${Number(s.realBalance).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      {s.businessType ? <BizBadge biz={s.businessType} /> : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {s.fbSynced ? (
-                        <span className="flex items-center gap-1 text-xs text-blue-400 whitespace-nowrap"><Facebook className="h-3 w-3" />FB同步</span>
-                      ) : s.status === "pending" ? (
-                        <span className="flex items-center gap-1 text-xs text-amber-400 whitespace-nowrap"><Clock className="h-3 w-3" />待审核</span>
-                      ) : s.status === "rejected" ? (
-                        <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap" title={s.reviewNote ?? ""}><XCircle className="h-3 w-3" />已驳回</span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-xs text-emerald-500 whitespace-nowrap"><CheckCircle className="h-3 w-3" />已通过</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="pr-3">
-                      {!s.fbSynced && (
-                        s.status === "rejected" ? (
-                          <button onClick={() => setEditTarget(s)}
-                            className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
-                            <Pencil className="h-3 w-3" />修改
-                          </button>
-                        ) : (
-                          <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <TablePagination page={histPage} pageSize={20} total={histFiltered.length} onPageChange={setHistPage} />
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40">
+                        <TableHead className="min-w-[88px] whitespace-nowrap">日期</TableHead>
+                        <TableHead className="min-w-[160px]">账户</TableHead>
+                        <TableHead className="min-w-[80px] text-right whitespace-nowrap">消耗</TableHead>
+                        <TableHead className="min-w-[88px] text-right whitespace-nowrap">余额</TableHead>
+                        {hasBiz && <TableHead className="min-w-[64px]">业务</TableHead>}
+                        {hasLive && <TableHead className="min-w-[72px] whitespace-nowrap">团队</TableHead>}
+                        {hasLive && <TableHead className="min-w-[56px] text-right whitespace-nowrap">进粉</TableHead>}
+                        {hasLive && <TableHead className="min-w-[76px] text-right whitespace-nowrap">粉成本</TableHead>}
+                        {hasEcom && <TableHead className="min-w-[86px] text-right whitespace-nowrap">GMV</TableHead>}
+                        {hasEcom && <TableHead className="min-w-[60px] text-right whitespace-nowrap">ROAS</TableHead>}
+                        {hasEcom && <TableHead className="min-w-[52px] text-right whitespace-nowrap">订单</TableHead>}
+                        {hasEcom && <TableHead className="min-w-[76px] text-right whitespace-nowrap">客单</TableHead>}
+                        <TableHead className="min-w-[56px] whitespace-nowrap">状态</TableHead>
+                        <TableHead className="w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {histPaged.map((s, idx) => (
+                        <TableRow key={s.id} className={[
+                          s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : idx % 2 === 1 ? "bg-muted/20" : "",
+                        ].join(" ")}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 px-3">{s.date}</TableCell>
+                          <TableCell className="font-medium text-sm py-3 px-3">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {s.fbSynced && <Facebook className="h-3 w-3 text-blue-400 shrink-0" />}
+                              <TruncatedCell value={s.accountName ?? `#${s.accountId}`} maxWidth="max-w-[180px]" />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-orange-500 whitespace-nowrap py-3 px-3">
+                            ${Number(s.spendAmount).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
+                            ${Number(s.realBalance).toFixed(2)}
+                          </TableCell>
+                          {hasBiz && (
+                            <TableCell className="py-3 px-3">
+                              {s.businessType ? <BizBadge biz={s.businessType} /> : <span className="text-xs text-muted-foreground">—</span>}
+                            </TableCell>
+                          )}
+                          {hasLive && (
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 px-3">
+                              {s.teamName ?? "—"}
+                            </TableCell>
+                          )}
+                          {hasLive && (
+                            <TableCell className="text-right font-mono text-xs py-3 px-3">{s.fanCount ?? "—"}</TableCell>
+                          )}
+                          {hasLive && (
+                            <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
+                              {s.fanCost ? `$${Number(s.fanCost).toFixed(2)}` : "—"}
+                            </TableCell>
+                          )}
+                          {hasEcom && (
+                            <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
+                              {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
+                            </TableCell>
+                          )}
+                          {hasEcom && (
+                            <TableCell className="text-right font-mono text-xs py-3 px-3">
+                              {s.roas ? Number(s.roas).toFixed(2) : "—"}
+                            </TableCell>
+                          )}
+                          {hasEcom && (
+                            <TableCell className="text-right font-mono text-xs py-3 px-3">{s.orderCount ?? "—"}</TableCell>
+                          )}
+                          {hasEcom && (
+                            <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
+                              {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
+                            </TableCell>
+                          )}
+                          <TableCell className="py-3 px-3">
+                            {s.fbSynced ? (
+                              <span className="flex items-center gap-1 text-xs text-blue-400 whitespace-nowrap"><Facebook className="h-3 w-3" />FB</span>
+                            ) : s.status === "pending" ? (
+                              <span className="flex items-center gap-1 text-xs text-amber-400 whitespace-nowrap"><Clock className="h-3 w-3" />待审</span>
+                            ) : s.status === "rejected" ? (
+                              <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap" title={s.reviewNote ?? ""}><XCircle className="h-3 w-3" />驳回</span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-xs text-emerald-500 whitespace-nowrap"><CheckCircle className="h-3 w-3" />通过</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="pr-2 py-3">
+                            {!s.fbSynced && (
+                              s.status === "rejected" ? (
+                                <button onClick={() => setEditTarget(s)}
+                                  className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
+                                  <Pencil className="h-3 w-3" />修改
+                                </button>
+                              ) : (
+                                <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <TablePagination page={histPage} pageSize={20} total={histFiltered.length} onPageChange={setHistPage} />
           </div>
         )}
       </div>
