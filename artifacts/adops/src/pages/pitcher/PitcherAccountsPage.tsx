@@ -20,7 +20,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AccountStatusBadge, PlatformBadge, RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
@@ -412,7 +411,6 @@ export default function PitcherAccountsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [rechargeTarget, setRechargeTarget] = useState<Account | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -430,10 +428,8 @@ export default function PitcherAccountsPage() {
     }
     if (statusFilter !== "all") rows = rows.filter((a) => a.status === statusFilter);
     if (platformFilter !== "all") rows = rows.filter((a) => a.platform === platformFilter);
-    if (dateRange.from) rows = rows.filter((a) => a.createdAt >= dateRange.from);
-    if (dateRange.to) rows = rows.filter((a) => a.createdAt <= dateRange.to + "T23:59:59");
     return rows;
-  }, [myAccounts, search, statusFilter, platformFilter, dateRange]);
+  }, [myAccounts, search, statusFilter, platformFilter]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
   const activeCount = filtered.filter((a) => a.status === "active").length;
@@ -477,11 +473,6 @@ export default function PitcherAccountsPage() {
             {["FB", "GG", "TT", "TW", "OTHER"].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
       <StatsBar items={[

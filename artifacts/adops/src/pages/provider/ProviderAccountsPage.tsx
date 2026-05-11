@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
@@ -413,7 +412,7 @@ export default function ProviderAccountsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useListAccounts({});
@@ -488,11 +487,30 @@ export default function ProviderAccountsPage() {
             {PLATFORMS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">创建</span>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <span className="text-xs text-muted-foreground">至</span>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => { setDateRange((r) => ({ ...r, to: e.target.value })); setPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {(dateRange.from || dateRange.to) && (
+            <button
+              onClick={() => { setDateRange({ from: "", to: "" }); setPage(1); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              清除
+            </button>
+          )}
+        </div>
       </div>
 
       <StatsBar items={[

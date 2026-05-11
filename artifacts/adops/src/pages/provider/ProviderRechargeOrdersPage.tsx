@@ -5,12 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { Check, X, Receipt, Search } from "lucide-react";
@@ -114,7 +112,7 @@ function ApproveDialog({ order, onClose }: { order: RechargeOrder; onClose: () =
 export default function ProviderRechargeOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [approveTarget, setApproveTarget] = useState<RechargeOrder | null>(null);
   const queryClient = useQueryClient();
@@ -169,20 +167,51 @@ export default function ProviderRechargeOrdersPage() {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8 h-8 w-52 text-sm" placeholder="搜索账户名称..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="pending">待审核</SelectItem>
-            <SelectItem value="completed">已完成</SelectItem>
-            <SelectItem value="rejected">已拒绝</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">提交时间</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
+          {[
+            { value: "all", label: "全部" },
+            { value: "pending", label: "待审核" },
+            { value: "completed", label: "已完成" },
+            { value: "rejected", label: "已拒绝" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setStatusFilter(opt.value); setPage(1); }}
+              className={[
+                "px-3 h-full text-xs font-medium transition-colors border-r border-border last:border-r-0",
+                statusFilter === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">提交时间</span>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <span className="text-xs text-muted-foreground">—</span>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => { setDateRange((r) => ({ ...r, to: e.target.value })); setPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {(dateRange.from || dateRange.to) && (
+            <button
+              onClick={() => { setDateRange({ from: "", to: "" }); setPage(1); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              清除
+            </button>
+          )}
+        </div>
       </div>
 
       <StatsBar items={[

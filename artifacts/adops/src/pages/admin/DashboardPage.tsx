@@ -3,10 +3,10 @@ import { useGetDashboardSummary, useGetSpendByProvider, useGetSpendByPitcher, us
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, Area, AreaChart,
+  Area, AreaChart,
 } from "recharts";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
-import { CreditCard, TrendingUp, AlertTriangle, Clock, CheckCircle, Ban, Wallet, DollarSign } from "lucide-react";
+import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
+import { CreditCard, TrendingUp, AlertTriangle, Clock, CheckCircle, Ban, Wallet, DollarSign, Users } from "lucide-react";
 
 function KpiCard({
   title,
@@ -84,6 +84,8 @@ export default function DashboardPage() {
   }
 
   const s = summary as Record<string, number | string> | undefined;
+  const totalProviders = Number(s?.totalProviders ?? 0);
+  const totalPitchers = Number(s?.totalPitchers ?? 0);
 
   return (
     <div className="space-y-6">
@@ -92,12 +94,18 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-0.5">系统整体运营概况</p>
       </div>
 
-      {/* KPI Grid */}
+      {/* KPI Grid — 9 cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard title="账户总数" value={s?.totalAccounts ?? 0} icon={CreditCard} />
         <KpiCard title="运行中" value={s?.activeAccounts ?? 0} icon={CheckCircle} className="text-green-500" />
-        <KpiCard title="空闲" value={s?.idleAccounts ?? 0} icon={Clock} className="text-amber-500" />
         <KpiCard title="已封禁" value={s?.bannedAccounts ?? 0} icon={Ban} className={(Number(s?.bannedAccounts) ?? 0) > 0 ? "text-red-500" : ""} />
+        <KpiCard
+          title="低余额预警"
+          value={s?.alertCount ?? 0}
+          icon={AlertTriangle}
+          className={(Number(s?.alertCount) ?? 0) > 0 ? "text-red-500" : ""}
+          sub="余额 < $100"
+        />
         <KpiCard
           title="昨日总消耗"
           value={`$${Number(s?.todayTotalSpend ?? 0).toFixed(2)}`}
@@ -123,15 +131,11 @@ export default function DashboardPage() {
           className={(Number(s?.pendingRechargeOrders) ?? 0) > 0 ? "text-amber-500" : ""}
         />
         <KpiCard
-          title="低余额预警"
-          value={s?.alertCount ?? 0}
-          icon={AlertTriangle}
-          className={(Number(s?.alertCount) ?? 0) > 0 ? "text-red-500" : ""}
-          sub="余额 < $100"
+          title="用户总览"
+          value={`${totalProviders + totalPitchers} 人`}
+          icon={Users}
+          sub={`开户商 ${totalProviders} · 投手 ${totalPitchers}`}
         />
-        <KpiCard title="开户商数" value={s?.totalProviders ?? 0} icon={CreditCard} />
-        <KpiCard title="投手数" value={s?.totalPitchers ?? 0} icon={CreditCard} />
-        <KpiCard title="用户总数" value={(Number(s?.totalProviders ?? 0)) + (Number(s?.totalPitchers ?? 0))} icon={CreditCard} />
       </div>
 
       {/* 30-Day Trend */}
@@ -166,10 +170,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold">消耗细分统计</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">时间范围</span>
-            <DateRangePicker value={chartDateRange} onChange={setChartDateRange} />
-          </div>
+          <QuickDateFilter onChange={setChartDateRange} />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>

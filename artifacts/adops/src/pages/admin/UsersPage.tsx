@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
-import { Plus, Edit, Trash2, Users, Search, Link2, Copy, Check, RefreshCw, Percent } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Search, Link2, Copy, Check, RefreshCw, Percent, ChevronDown } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
@@ -462,7 +462,6 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [localTokens, setLocalTokens] = useState<Record<number, string>>({});
 
@@ -477,10 +476,8 @@ export default function UsersPage() {
     }
     if (statusFilter === "active") rows = rows.filter((u) => u.isActive);
     if (statusFilter === "inactive") rows = rows.filter((u) => !u.isActive);
-    if (dateRange.from) rows = rows.filter((u) => u.createdAt >= dateRange.from);
-    if (dateRange.to) rows = rows.filter((u) => u.createdAt <= dateRange.to + "T23:59:59");
     return rows;
-  }, [allUsers, search, statusFilter, dateRange]);
+  }, [allUsers, search, statusFilter]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
@@ -491,14 +488,21 @@ export default function UsersPage() {
           <h1 className="text-xl font-bold">用户管理</h1>
           <p className="text-sm text-muted-foreground mt-0.5">管理开户商和投手账号</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setShowCreateProvider(true)} size="sm" variant="outline" className="gap-1.5">
-            <Link2 className="h-4 w-4" /> 新建开户商
-          </Button>
-          <Button onClick={() => setShowCreatePitcher(true)} size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" /> 新建投手
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" /> 新建用户 <ChevronDown className="h-3.5 w-3.5 ml-0.5 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setShowCreateProvider(true)}>
+              <Link2 className="h-4 w-4 mr-2" /> 新建开户商
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowCreatePitcher(true)}>
+              <Plus className="h-4 w-4 mr-2" /> 新建投手
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
@@ -534,11 +538,6 @@ export default function UsersPage() {
             <SelectItem value="inactive">停用</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">

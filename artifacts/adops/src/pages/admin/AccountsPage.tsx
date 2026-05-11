@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePicker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, UserPlus, Search, Trash2 } from "lucide-react";
+import { CreditCard, UserPlus, Search, Trash2, SlidersHorizontal } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Label } from "@/components/ui/label";
 
@@ -136,7 +136,7 @@ export default function AccountsPage() {
   const [platformFilter, setPlatformFilter] = useState("all");
   const [providerFilter, setProviderFilter] = useState("all");
   const [pitcherFilter, setPitcherFilter] = useState("all");
-  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [assignAccount, setAssignAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
@@ -204,41 +204,110 @@ export default function AccountsPage() {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8 h-8 w-56 text-sm" placeholder="搜索账户名称或ID..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="idle">空闲</SelectItem>
-            <SelectItem value="active">运行中</SelectItem>
-            <SelectItem value="banned">已封禁</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={platformFilter} onValueChange={(v) => { setPlatformFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部平台</SelectItem>
-            {["FB", "GG", "TT", "TW", "OTHER"].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部开户商</SelectItem>
-            {providers.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={pitcherFilter} onValueChange={(v) => { setPitcherFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部投手</SelectItem>
-            {pitchers.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">创建时间</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
+          {[
+            { value: "all", label: "全部" },
+            { value: "idle", label: "空闲" },
+            { value: "active", label: "运行中" },
+            { value: "banned", label: "封禁" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setStatusFilter(opt.value); setPage(1); }}
+              className={[
+                "px-3 h-full text-xs font-medium transition-colors border-r border-border last:border-r-0",
+                statusFilter === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {(() => {
+          const activeFilterCount = [
+            platformFilter !== "all",
+            providerFilter !== "all",
+            pitcherFilter !== "all",
+            !!(dateRange.from || dateRange.to),
+          ].filter(Boolean).length;
+          return (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  筛选
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 rounded-full bg-primary text-primary-foreground text-[10px] w-4 h-4 flex items-center justify-center font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-4 space-y-3" align="start">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">平台</p>
+                  <Select value={platformFilter} onValueChange={(v) => { setPlatformFilter(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部平台</SelectItem>
+                      {["FB", "GG", "TT", "TW", "OTHER"].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">开户商</p>
+                  <Select value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部开户商</SelectItem>
+                      {providers.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">投手</p>
+                  <Select value={pitcherFilter} onValueChange={(v) => { setPitcherFilter(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部投手</SelectItem>
+                      {pitchers.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">创建时间</p>
+                  <div className="flex gap-1.5 items-center">
+                    <input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPage(1); }}
+                      className="flex-1 h-7 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <span className="text-xs text-muted-foreground">至</span>
+                    <input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(e) => { setDateRange((r) => ({ ...r, to: e.target.value })); setPage(1); }}
+                      className="flex-1 h-7 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+                {activeFilterCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full text-xs text-muted-foreground"
+                    onClick={() => { setPlatformFilter("all"); setProviderFilter("all"); setPitcherFilter("all"); setDateRange({ from: "", to: "" }); setPage(1); }}
+                  >
+                    清除全部筛选
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          );
+        })()}
       </div>
 
       <StatsBar items={[
