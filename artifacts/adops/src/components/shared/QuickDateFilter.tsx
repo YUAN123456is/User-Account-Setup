@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 
 type Preset = "yesterday" | "week" | "month" | "lastmonth" | "all" | "custom";
@@ -45,11 +45,14 @@ export function QuickDateFilter({
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
+
   useEffect(() => {
     if (preset !== "custom") {
-      onChange(presetToRange(preset));
+      onChangeRef.current(presetToRange(preset));
     } else {
-      onChange({ from: customFrom, to: customTo });
+      onChangeRef.current({ from: customFrom, to: customTo });
     }
   }, [preset, customFrom, customTo]);
 

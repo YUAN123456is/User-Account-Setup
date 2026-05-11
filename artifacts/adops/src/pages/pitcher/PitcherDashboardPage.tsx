@@ -33,10 +33,10 @@ interface RechargeOrder {
 }
 
 export default function PitcherDashboardPage() {
-  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
 
   const { data: accountsData, isLoading: acctLoading } = useListAccounts({});
-  const { data: todayStatsData } = useListDailyStats({ dateFrom: today, dateTo: today } as Record<string, string>);
+  const { data: todayStatsData } = useListDailyStats({ dateFrom: yesterday, dateTo: yesterday } as Record<string, string>);
   const { data: recentStatsData } = useListDailyStats({} as Record<string, string>);
   const { data: ordersData } = useListRechargeOrders({} as Record<string, string>);
 
@@ -155,7 +155,7 @@ export default function PitcherDashboardPage() {
         <Link href="/pitcher/report">
           <Button size="sm" className="gap-1.5">
             <BarChart3 className="h-4 w-4" />
-            提交今日消耗
+            每日上报
           </Button>
         </Link>
         <Link href="/pitcher/recharge">
