@@ -90,11 +90,16 @@ function AssignDialog({ account, onClose }: { account: Account; onClose: () => v
   const [pitcherId, setPitcherId] = useState<string>(account.pitcherId?.toString() ?? "");
   const queryClient = useQueryClient();
   const { data: usersData } = useListUsers({ role: "pitcher" });
+  const { toast } = useToast();
   const assign = useAssignAccount({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        toast({ title: pitcherId && pitcherId !== "none" ? "投手已分配" : "已取消分配" });
         onClose();
+      },
+      onError: () => {
+        toast({ title: "分配失败，请重试", variant: "destructive" });
       },
     },
   });

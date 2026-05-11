@@ -11,7 +11,7 @@ import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
-import { Check, X, Receipt, Search } from "lucide-react";
+import { Check, X, Receipt, Search, AlertTriangle, Loader2 } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { useToast } from "@/hooks/use-toast";
 
@@ -109,24 +109,17 @@ function ApproveDialog({ order, onClose }: { order: RechargeOrder; onClose: () =
   );
 }
 
-export default function ProviderRechargeOrdersPage() {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [page, setPage] = useState(1);
-  const [approveTarget, setApproveTarget] = useState<RechargeOrder | null>(null);
-  const queryClient = useQueryClient();
+function RejectDialog({ order, onClose }: { order: RechargeOrder; onClose: () => void }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState("");
 
-  const apiParams: Record<string, string> = {};
-  if (dateRange.from) apiParams.dateFrom = dateRange.from;
-  if (dateRange.to) apiParams.dateTo = dateRange.to;
-
-  const { data, isLoading } = useListRechargeOrders(apiParams);
   const update = useUpdateRechargeOrder({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        toast({ title: "已拒绝充值申请" });
+        onClose();
       },
       onError: (err: unknown) => {
         const msg = (err as { data?: { error?: string } })?.data?.error ?? "操作失败";
@@ -134,6 +127,63 @@ export default function ProviderRechargeOrdersPage() {
       },
     },
   });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !update.isPending && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />拒绝充值申请
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="font-medium">{order.accountName ?? `账户 #${order.accountId}`}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              申请金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span>
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">拒绝原因（选填）</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="说明拒绝原因..."
+              rows={2}
+              disabled={update.isPending}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={update.isPending}>取消</Button>
+          <Button
+            variant="destructive"
+            onClick={() => update.mutate({ id: order.id, data: { status: "rejected", note: note || null } })}
+            disabled={update.isPending}
+            className="gap-1.5"
+          >
+            {update.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />处理中...</> : "确认拒绝"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function ProviderRechargeOrdersPage() {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const [approveTarget, setApproveTarget] = useState<RechargeOrder | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<RechargeOrder | null>(null);
+
+  const apiParams: Record<string, string> = {};
+  if (dateRange.from) apiParams.dateFrom = dateRange.from;
+  if (dateRange.to) apiParams.dateTo = dateRange.to;
+
+  const { data, isLoading } = useListRechargeOrders(apiParams);
 
   const allOrders = Array.isArray(data) ? (data as RechargeOrder[]) : [];
 
@@ -262,10 +312,10 @@ export default function ProviderRechargeOrdersPage() {
                 <TableCell>
                   {o.status === "pending" && (
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-500/15" onClick={() => setApproveTarget(o)} disabled={update.isPending} title="确认">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-500/15" onClick={() => setApproveTarget(o)} title="确认">
                         <Check className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-destructive/15" onClick={() => update.mutate({ id: o.id, data: { status: "rejected" } })} disabled={update.isPending} title="拒绝">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-destructive/15" onClick={() => setRejectTarget(o)} title="拒绝">
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -279,6 +329,7 @@ export default function ProviderRechargeOrdersPage() {
       </div>
 
       {approveTarget && <ApproveDialog order={approveTarget} onClose={() => setApproveTarget(null)} />}
+      {rejectTarget && <RejectDialog order={rejectTarget} onClose={() => setRejectTarget(null)} />}
     </div>
   );
 }

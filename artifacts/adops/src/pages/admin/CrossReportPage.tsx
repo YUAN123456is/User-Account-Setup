@@ -1,13 +1,12 @@
 import { useState, useMemo } from "react";
 import { useGetCrossReport, useListUsers } from "@workspace/api-client-react";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
-import { GitMerge, Search } from "lucide-react";
+import { GitMerge } from "lucide-react";
 
 interface CrossRow {
   pitcherId: number;
@@ -26,7 +25,6 @@ export default function CrossReportPage() {
   const [pitcherFilter, setPitcherFilter] = useState("all");
   const [providerFilter, setProviderFilter] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   const params: Record<string, string> = {};
@@ -42,11 +40,7 @@ export default function CrossReportPage() {
   const pitchers = users.filter((u) => u.role === "pitcher");
   const providers = users.filter((u) => u.role === "provider");
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return allRows;
-    const q = search.toLowerCase();
-    return allRows.filter((r) => r.pitcherName.toLowerCase().includes(q) || r.providerName.toLowerCase().includes(q));
-  }, [allRows, search]);
+  const filtered = useMemo(() => allRows, [allRows]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
@@ -63,10 +57,6 @@ export default function CrossReportPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8 h-8 w-48 text-sm" placeholder="搜索投手或开户商..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-        </div>
         <Select value={pitcherFilter} onValueChange={(v) => { setPitcherFilter(v); setPage(1); }}>
           <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="全部投手" /></SelectTrigger>
           <SelectContent>
