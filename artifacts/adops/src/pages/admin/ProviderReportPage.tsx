@@ -144,9 +144,10 @@ export default function ProviderReportPage() {
         <p className="text-sm text-muted-foreground mt-0.5">按开户商统计消耗数据，点击行展开账户明细</p>
       </div>
 
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">统计时间范围</p>
-        <DateRangePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="ml-auto">
+          <QuickDateFilter onChange={(r) => { setDateRange(r); setPage(1); }} />
+        </div>
       </div>
 
       <StatsBar items={[
