@@ -100,8 +100,8 @@ export default function CrossReportPage() {
             <TableRow className="bg-muted/40">
               <TableHead>投手</TableHead>
               <TableHead>开户商</TableHead>
-              <TableHead>消耗金额</TableHead>
-              <TableHead>账户数</TableHead>
+              <TableHead className="text-right">消耗金额</TableHead>
+              <TableHead className="text-right w-16">账户数</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -117,8 +117,8 @@ export default function CrossReportPage() {
               <TableRow key={i}>
                 <TableCell className="font-medium">{r.pitcherName}</TableCell>
                 <TableCell>{r.providerName}</TableCell>
-                <TableCell className="font-mono">${Number(r.totalSpend).toFixed(2)}</TableCell>
-                <TableCell>{r.accountCount}</TableCell>
+                <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.totalSpend).toFixed(2)}</TableCell>
+                <TableCell className="text-right">{r.accountCount}</TableCell>
               </TableRow>
             ))}
           </TableBody>

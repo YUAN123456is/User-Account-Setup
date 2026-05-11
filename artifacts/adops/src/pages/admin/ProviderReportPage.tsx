@@ -78,9 +78,9 @@ function AccountDetailPanel({
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台账户ID</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">状态</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">当前余额</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">昨日消耗</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{hasFilter ? "期间消耗" : "累计消耗"}</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">当前余额</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">昨日消耗</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">{hasFilter ? "期间消耗" : "累计消耗"}</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">绑定投手</th>
                 </tr>
               </thead>
@@ -91,9 +91,9 @@ function AccountDetailPanel({
                     <td className="px-4 py-2 font-mono text-xs text-muted-foreground max-w-[140px]"><TruncatedCell value={acc.platformAccountId} /></td>
                     <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
                     <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
-                    <td className="px-4 py-2 font-mono font-semibold text-primary">${Number(acc.currentBalance).toFixed(2)}</td>
-                    <td className="px-4 py-2 font-mono">${Number(acc.yesterdaySpend).toFixed(2)}</td>
-                    <td className="px-4 py-2 font-mono">${Number(acc.totalSpend).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono font-semibold text-primary text-right whitespace-nowrap">${Number(acc.currentBalance).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono text-right whitespace-nowrap">${Number(acc.yesterdaySpend).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono text-right whitespace-nowrap">${Number(acc.totalSpend).toFixed(2)}</td>
                     <td className="px-4 py-2 text-muted-foreground">{acc.pitcherName ?? "—"}</td>
                   </tr>
                 ))}
@@ -167,12 +167,12 @@ export default function ProviderReportPage() {
             <TableRow className="bg-muted/40">
               <TableHead className="w-8" />
               <TableHead>开户商名称</TableHead>
-              <TableHead>昨日消耗</TableHead>
-              <TableHead>{hasFilter ? "期间消耗" : "累计消耗"}</TableHead>
-              <TableHead>余额合计</TableHead>
-              <TableHead>昨日充值</TableHead>
-              <TableHead>{hasFilter ? "期间充值" : "累计充值"}</TableHead>
-              <TableHead>账户数</TableHead>
+              <TableHead className="text-right">昨日消耗</TableHead>
+              <TableHead className="text-right">{hasFilter ? "期间消耗" : "累计消耗"}</TableHead>
+              <TableHead className="text-right">余额合计</TableHead>
+              <TableHead className="text-right">昨日充值</TableHead>
+              <TableHead className="text-right">{hasFilter ? "期间充值" : "累计充值"}</TableHead>
+              <TableHead className="text-right w-16">账户数</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -200,12 +200,12 @@ export default function ProviderReportPage() {
                       {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell className="font-semibold">{r.providerName}</TableCell>
-                    <TableCell className="font-mono">${Number(r.yesterdaySpend).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono">${Number(r.totalSpend).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono font-semibold text-primary">${Number(r.totalBalance).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono text-amber-600">${Number(r.yesterdayRecharge).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono">${Number(r.totalRecharge).toFixed(2)}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.yesterdaySpend).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.totalSpend).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono font-semibold text-primary text-right whitespace-nowrap">${Number(r.totalBalance).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-amber-600 text-right whitespace-nowrap">${Number(r.yesterdayRecharge).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.totalRecharge).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
                       <span className="inline-flex items-center justify-center bg-muted text-muted-foreground text-xs rounded-full px-2 py-0.5 min-w-[24px]">
                         {r.accountCount}
                       </span>

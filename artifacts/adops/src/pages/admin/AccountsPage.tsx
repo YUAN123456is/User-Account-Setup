@@ -370,8 +370,8 @@ export default function AccountsPage() {
                   <TableHead>平台</TableHead>
                   <SortHead col="providerName" label="开户商" />
                   <SortHead col="pitcherName" label="投手" />
-                  <TableHead>状态</TableHead>
-                  <SortHead col="currentBalance" label="余额" className="text-right" right />
+                  <TableHead className="w-[120px]">状态</TableHead>
+                  <SortHead col="currentBalance" label="余额" className="w-[100px] text-right" right />
                   <SortHead col="lastReportedAt" label="最近上报" />
                   <SortHead col="createdAt" label="创建时间" />
                   <TableHead className="w-20">操作</TableHead>
@@ -401,12 +401,12 @@ export default function AccountsPage() {
                 <TableCell className="text-sm max-w-[100px]">
                   {a.pitcherName ? <TruncatedCell value={a.pitcherName} /> : <span className="text-amber-500 text-xs">未分配</span>}
                 </TableCell>
-                <TableCell className="p-0 pl-2">
+                <TableCell>
                   <StatusSelect account={a} />
                 </TableCell>
-                <TableCell className="font-mono text-sm">${Number(a.currentBalance).toFixed(2)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                <TableCell className="font-mono text-sm text-right whitespace-nowrap">${Number(a.currentBalance).toFixed(2)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(a.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAssignAccount(a)}>

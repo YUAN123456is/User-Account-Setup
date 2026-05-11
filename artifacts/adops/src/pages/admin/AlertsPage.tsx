@@ -188,10 +188,10 @@ export default function AlertsPage() {
                 <TableHead>账户名称</TableHead>
                 <TableHead>平台账户ID</TableHead>
                 <TableHead>平台</TableHead>
-                <TableHead>当前余额</TableHead>
+                <TableHead className="text-right">当前余额</TableHead>
                 <TableHead>绑定投手</TableHead>
                 <TableHead>开户商</TableHead>
-                <TableHead>最近上报</TableHead>
+                <TableHead className="w-24">最近上报</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -210,8 +210,8 @@ export default function AlertsPage() {
                     <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={r.accountName} /></TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={r.platformAccountId} /></TableCell>
                     <TableCell><PlatformBadge platform={r.platform} /></TableCell>
-                    <TableCell>
-                      <div className={cn("flex items-center gap-1.5 font-mono font-bold", isCritical ? "text-destructive" : "text-amber-600")}>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className={cn("inline-flex items-center gap-1.5 font-mono font-bold", isCritical ? "text-destructive" : "text-amber-600")}>
                         <AlertTriangle className="h-3.5 w-3.5" />
                         ${Number(r.currentBalance).toFixed(2)}
                       </div>
@@ -222,7 +222,7 @@ export default function AlertsPage() {
                     <TableCell className="text-sm text-muted-foreground max-w-[100px]">
                       {r.providerName ? <TruncatedCell value={r.providerName} /> : "—"}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {r.lastReportedAt ? new Date(r.lastReportedAt).toLocaleDateString("zh-CN") : "从未"}
                     </TableCell>
                   </TableRow>
@@ -237,11 +237,11 @@ export default function AlertsPage() {
                 <TableHead>账户名称</TableHead>
                 <TableHead>平台账户ID</TableHead>
                 <TableHead>平台</TableHead>
-                <TableHead>当前余额</TableHead>
+                <TableHead className="text-right">当前余额</TableHead>
                 <TableHead>绑定投手</TableHead>
                 <TableHead>开户商</TableHead>
-                <TableHead>最近上报</TableHead>
-                <TableHead>未上报天数</TableHead>
+                <TableHead className="w-24">最近上报</TableHead>
+                <TableHead className="w-24">未上报天数</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -260,14 +260,14 @@ export default function AlertsPage() {
                     <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={r.accountName} /></TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={r.platformAccountId} /></TableCell>
                     <TableCell><PlatformBadge platform={r.platform} /></TableCell>
-                    <TableCell className="font-mono">${Number(r.currentBalance).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.currentBalance).toFixed(2)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[100px]">
                       {r.pitcherName ? <TruncatedCell value={r.pitcherName} /> : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[100px]">
                       {r.providerName ? <TruncatedCell value={r.providerName} /> : "—"}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {r.lastReportedAt ? new Date(r.lastReportedAt).toLocaleDateString("zh-CN") : "从未上报"}
                     </TableCell>
                     <TableCell>

@@ -149,11 +149,11 @@ export default function FinancePage() {
               return (
                 <TableRow className="bg-muted/40">
                   <SortHead col="accountName" label="账户" />
-                  <SortHead col="amount" label="充值金额" />
+                  <SortHead col="amount" label="充值金额" className="text-right" />
                   <SortHead col="providerName" label="开户商" />
                   <SortHead col="pitcherName" label="投手" />
-                  <SortHead col="status" label="状态" />
-                  <SortHead col="createdAt" label="提交时间" />
+                  <SortHead col="status" label="状态" className="w-24" />
+                  <SortHead col="createdAt" label="提交时间" className="w-24" />
                   <TableHead className="w-28">操作</TableHead>
                 </TableRow>
               );
@@ -173,7 +173,7 @@ export default function FinancePage() {
                 <TableCell className="font-medium max-w-[160px]">
                   <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
                 </TableCell>
-                <TableCell className="font-mono font-semibold">${Number(o.amount).toFixed(2)}</TableCell>
+                <TableCell className="font-mono font-semibold text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
                 <TableCell className="text-muted-foreground text-sm max-w-[100px]">
                   {o.providerName ? <TruncatedCell value={o.providerName} /> : "—"}
                 </TableCell>
@@ -181,7 +181,7 @@ export default function FinancePage() {
                   {o.pitcherName ? <TruncatedCell value={o.pitcherName} /> : "—"}
                 </TableCell>
                 <TableCell><RechargeStatusBadge status={o.status} /></TableCell>
-                <TableCell className="text-muted-foreground text-sm">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(o.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                 <TableCell>
                   {o.status === "pending" && (
                     <div className="flex gap-1">
