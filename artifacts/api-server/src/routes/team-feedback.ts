@@ -70,6 +70,21 @@ router.post("/public/team-feedback/:token", async (req, res): Promise<void> => {
   res.status(201).json(formatFeedback(row, team.name));
 });
 
+router.get("/public/team-feedback/:token/submissions", async (req, res): Promise<void> => {
+  const token = String(req.params.token);
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.publicToken, token));
+  if (!team) { res.status(404).json({ error: "链接无效或已过期" }); return; }
+
+  const rows = await db
+    .select({ feedback: teamFeedbackTable })
+    .from(teamFeedbackTable)
+    .where(eq(teamFeedbackTable.teamId, team.id))
+    .orderBy(desc(teamFeedbackTable.submittedAt))
+    .limit(50);
+
+  res.json(rows.map((r) => formatFeedback(r.feedback, team.name)));
+});
+
 router.get("/team-feedback", requireRole("admin"), async (req, res): Promise<void> => {
   const query = req.query as Record<string, unknown>;
   const teamId = query.teamId ? parseInt(String(query.teamId), 10) : null;
