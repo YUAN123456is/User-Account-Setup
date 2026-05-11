@@ -177,10 +177,11 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   }
 
   let newRealBalance = existing.realBalance;
+  let spendDelta = 0;
   if (parsed.data.spendAmount != null) {
     const oldSpend = parseFloat(existing.spendAmount);
     const newSpend = parseFloat(parsed.data.spendAmount);
-    const spendDelta = newSpend - oldSpend;
+    spendDelta = newSpend - oldSpend;
     newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
     updates.spendAmount = parsed.data.spendAmount;
     updates.realBalance = newRealBalance;
@@ -191,6 +192,19 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     .set(updates)
     .where(eq(dailyStatsTable.id, params.data.id))
     .returning();
+
+  // Propagate spend delta to account balance so live balance stays accurate
+  if (spendDelta !== 0) {
+    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+    if (acct) {
+      const newCurrentBal = (parseFloat(acct.currentBalance) - spendDelta).toFixed(2);
+      const newTheoreticalBal = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - spendDelta).toFixed(2);
+      await db.update(accountsTable).set({
+        currentBalance: newCurrentBal,
+        theoreticalBalance: newTheoreticalBal,
+      }).where(eq(accountsTable.id, existing.accountId));
+    }
+  }
 
   res.json(await formatStat(stat));
 });

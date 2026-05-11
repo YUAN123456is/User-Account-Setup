@@ -18,6 +18,7 @@ interface RechargeOrder {
   accountId: number;
   accountName?: string;
   amount: string | number;
+  actualAmount?: string | null;
   providerName?: string;
   pitcherName?: string;
   status: "pending" | "completed" | "rejected";
@@ -81,7 +82,7 @@ export default function FinancePage() {
 
   const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
   const pendingCount = filtered.filter((o) => o.status === "pending").length;
-  const completedAmount = filtered.filter((o) => o.status === "completed").reduce((s, o) => s + Number(o.amount), 0);
+  const completedAmount = filtered.filter((o) => o.status === "completed").reduce((s, o) => s + Number(o.actualAmount ?? o.amount), 0);
   const rejectedCount = filtered.filter((o) => o.status === "rejected").length;
 
   return (
@@ -123,7 +124,7 @@ export default function FinancePage() {
 
       <StatsBar items={[
         { label: "充值总额（当前筛选）", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
-        { label: "已完成金额", value: `$${completedAmount.toFixed(2)}`, color: "green" },
+        { label: "实际到账（已完成）", value: `$${completedAmount.toFixed(2)}`, color: "green" },
         { label: "待审核笔数", value: pendingCount, color: pendingCount > 0 ? "amber" : "default" },
         { label: "已拒绝笔数", value: rejectedCount, color: rejectedCount > 0 ? "red" : "default" },
         { label: "总订单数", value: filtered.length },
@@ -153,7 +154,8 @@ export default function FinancePage() {
               return (
                 <TableRow className="bg-muted/40">
                   <SortHead col="accountName" label="账户" />
-                  <SortHead col="amount" label="充值金额" className="text-right" right />
+                  <SortHead col="amount" label="申请金额" className="text-right" right />
+                  <TableHead className="text-right whitespace-nowrap">实际到账</TableHead>
                   <SortHead col="providerName" label="开户商" />
                   <SortHead col="pitcherName" label="投手" />
                   <SortHead col="status" label="状态" className="w-24" />
@@ -165,12 +167,12 @@ export default function FinancePage() {
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
-              <TableRow><TableCell colSpan={7}><EmptyState icon={Wallet} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={8}><EmptyState icon={Wallet} title="暂无充值订单" description="调整筛选条件或等待投手提交充值申请。" /></TableCell></TableRow>
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
@@ -178,6 +180,14 @@ export default function FinancePage() {
                   <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
                 </TableCell>
                 <TableCell className="font-mono font-semibold text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
+                <TableCell className="font-mono text-sm text-right whitespace-nowrap">
+                  {o.actualAmount
+                    ? <span className="text-green-600 font-medium">${Number(o.actualAmount).toFixed(2)}</span>
+                    : o.status === "completed"
+                      ? <span className="font-mono">${Number(o.amount).toFixed(2)}</span>
+                      : <span className="text-muted-foreground">—</span>
+                  }
+                </TableCell>
                 <TableCell className="text-muted-foreground text-sm max-w-[100px]">
                   {o.providerName ? <TruncatedCell value={o.providerName} /> : "—"}
                 </TableCell>
