@@ -151,14 +151,18 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   } else if (role === "pitcher") {
-    // All pitchers can update status of their own accounts
+    // All pitchers can update status of their own accounts (but not set "banned")
     if (account.pitcherId !== userId) {
       res.status(403).json({ error: "只能操作自己名下的账户" });
       return;
     }
-    // Pitchers cannot touch balance, ban flags, or account name
+    // Pitchers cannot touch balance, ban flags, account name, or set banned status
     if (parsed.data.accountName != null || parsed.data.clearBalance != null || parsed.data.banNotifyProvider != null) {
       res.status(403).json({ error: "无权限" });
+      return;
+    }
+    if (parsed.data.status === "banned") {
+      res.status(403).json({ error: "只有管理员可将账户标记为封禁" });
       return;
     }
   } else if (role !== "admin") {

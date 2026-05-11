@@ -316,6 +316,8 @@ export default function DailyReportPage() {
     }
     setSubmitting(true);
     let failed = 0;
+    let succeeded = 0;
+    let duplicates = 0;
     for (const r of rows) {
       try {
         await new Promise<void>((resolve, reject) => {
@@ -330,9 +332,11 @@ export default function DailyReportPage() {
             orderCount: (r.businessType === "ecommerce" && r.orderCount) ? parseInt(r.orderCount) : null,
           }}, { onSuccess: () => resolve(), onError: (e) => reject(e) });
         });
+        succeeded++;
       } catch (e: unknown) {
         const msg = (e as { data?: { error?: string } })?.data?.error ?? "";
         if (msg.includes("已上报")) {
+          duplicates++;
           toast({ title: "重复上报", description: msg, variant: "destructive" });
         } else {
           failed++;
@@ -342,12 +346,13 @@ export default function DailyReportPage() {
     queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
     queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
     setSubmitting(false);
-    if (failed === 0) {
+    if (failed === 0 && succeeded > 0) {
       setSubmitted(true);
       setRows([newRow()]);
-      toast({ title: "提交成功", description: `${rows.length} 条上报数据已保存。` });
+      const dupNote = duplicates > 0 ? `（${duplicates} 条重复跳过）` : "";
+      toast({ title: "提交成功", description: `${succeeded} 条上报数据已保存。${dupNote}` });
       setTimeout(() => setSubmitted(false), 3000);
-    } else {
+    } else if (failed > 0) {
       toast({ title: `${failed} 条提交失败`, variant: "destructive" });
     }
   };

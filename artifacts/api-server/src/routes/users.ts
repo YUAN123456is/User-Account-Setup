@@ -146,7 +146,7 @@ router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void
     await db.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.providerId, params.data.id));
   } else if (user.role === "pitcher") {
     await db.delete(dailyStatsTable).where(eq(dailyStatsTable.pitcherId, params.data.id));
-    await db.update(accountsTable).set({ pitcherId: null }).where(eq(accountsTable.pitcherId, params.data.id));
+    await db.update(accountsTable).set({ pitcherId: null, status: "idle" }).where(eq(accountsTable.pitcherId, params.data.id));
     await db.update(rechargeOrdersTable).set({ pitcherId: null }).where(eq(rechargeOrdersTable.pitcherId, params.data.id));
   }
 
