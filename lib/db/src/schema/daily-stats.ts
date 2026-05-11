@@ -18,6 +18,7 @@ export const dailyStatsTable = pgTable("daily_stats", {
   fanCount: integer("fan_count"),
   gmv: decimal("gmv", { precision: 18, scale: 2 }),
   orderCount: integer("order_count"),
+  fbSynced: boolean("fb_synced").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
