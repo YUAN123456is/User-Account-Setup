@@ -74,22 +74,45 @@ function newRow(): ReportRow {
   return { key: Math.random().toString(36).slice(2), accountId: "", spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "", expanded: false };
 }
 
-function BizPill({ biz, team, fanCost, roas, avgOrder }: { biz?: string | null; team?: string | null; fanCost?: string | null; roas?: string | null; avgOrder?: string | null }) {
+function BizBadge({ biz, team }: { biz?: string | null; team?: string | null }) {
   if (!biz) return <span className="text-muted-foreground text-xs">—</span>;
   if (biz === "liveChat") {
     return (
       <div className="flex flex-col gap-0.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded">聊单{team ? ` · ${team}` : ""}</span>
-        {fanCost && <span className="text-xs text-muted-foreground">粉成本 <span className="font-mono">${fanCost}</span></span>}
+        <span className="inline-flex items-center text-xs font-medium text-sky-600 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded w-fit">聊单</span>
+        {team && <span className="text-xs text-muted-foreground truncate max-w-[80px]">{team}</span>}
       </div>
     );
   }
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded">独立站</span>
-      {roas && <span className="text-xs text-muted-foreground">ROAS <span className="font-mono">{roas}</span>{avgOrder ? ` · 客单 $${avgOrder}` : ""}</span>}
-    </div>
-  );
+  return <span className="inline-flex items-center text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded w-fit">独立站</span>;
+}
+
+function BizMetrics({ s }: { s: DailyStat }) {
+  if (s.businessType === "liveChat") {
+    return (
+      <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5 text-xs items-center">
+        <span className="text-muted-foreground">进粉</span>
+        <span className="font-mono">{s.fanCount ?? "—"}</span>
+        <span className="text-muted-foreground">粉成本</span>
+        <span className="font-mono">{s.fanCost ? `$${s.fanCost}` : "—"}</span>
+      </div>
+    );
+  }
+  if (s.businessType === "ecommerce") {
+    return (
+      <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5 text-xs items-center">
+        <span className="text-muted-foreground">GMV</span>
+        <span className="font-mono">{s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}</span>
+        <span className="text-muted-foreground">ROAS</span>
+        <span className="font-mono">{s.roas ?? "—"}</span>
+        <span className="text-muted-foreground">订单</span>
+        <span className="font-mono">{s.orderCount ?? "—"}</span>
+        <span className="text-muted-foreground">客单</span>
+        <span className="font-mono">{s.avgOrderValue ? `$${s.avgOrderValue}` : "—"}</span>
+      </div>
+    );
+  }
+  return <span className="text-muted-foreground text-xs">—</span>;
 }
 
 function QuickDate({ label, value, active, onClick }: { label: string; value: string; active: boolean; onClick: (v: string) => void }) {
@@ -552,19 +575,20 @@ export default function DailyReportPage() {
                 <TableHead>账户</TableHead>
                 <TableHead className="text-right">消耗</TableHead>
                 <TableHead className="text-right">余额</TableHead>
-                <TableHead>业务 / 运营</TableHead>
+                <TableHead className="w-20">业务</TableHead>
+                <TableHead>运营数据</TableHead>
                 <TableHead className="w-8"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {statsLoading && Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
+                <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
                   <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-16" /></TableCell>
                 ))}</TableRow>
               ))}
               {!statsLoading && pagedStats.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <EmptyState icon={BarChart3} title="暂无上报记录" description="该时间段内还没有任何上报数据。" />
                   </TableCell>
                 </TableRow>
@@ -582,15 +606,8 @@ export default function DailyReportPage() {
                     ${Number(s.realBalance).toFixed(2)}
                     {s.hasAlert && <span className="ml-1 text-red-500 text-xs">!</span>}
                   </TableCell>
-                  <TableCell>
-                    <BizPill
-                      biz={s.businessType}
-                      team={s.teamName}
-                      fanCost={s.fanCost}
-                      roas={s.roas}
-                      avgOrder={s.avgOrderValue}
-                    />
-                  </TableCell>
+                  <TableCell><BizBadge biz={s.businessType} team={s.teamName} /></TableCell>
+                  <TableCell><BizMetrics s={s} /></TableCell>
                   <TableCell>
                     <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary transition-colors p-1">
                       <Pencil className="h-3.5 w-3.5" />
