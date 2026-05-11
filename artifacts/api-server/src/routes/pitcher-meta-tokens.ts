@@ -26,7 +26,7 @@ function normalizeId(id: string) {
 
 // GET /api/pitcher/meta-tokens
 router.get("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
+  const pitcherId = req.session.userId!;
   const rows = await db
     .select({
       id: metaTokensTable.id,
@@ -44,7 +44,7 @@ router.get("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> 
 
 // POST /api/pitcher/meta-tokens
 router.post("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
+  const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const label = typeof body.label === "string" ? body.label.trim() : "";
   const accessToken = typeof body.accessToken === "string" ? body.accessToken.trim() : "";
@@ -56,8 +56,8 @@ router.post("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void>
 
 // PUT /api/pitcher/meta-tokens/:id
 router.put("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
-  const id = parseInt(req.params.id, 10);
+  const pitcherId = req.session.userId!;
+  const id = parseInt(String(req.params.id), 10);
   const body = req.body as Record<string, unknown>;
   const updates: Partial<typeof metaTokensTable.$inferInsert> = {};
   if (typeof body.label === "string") updates.label = body.label.trim();
@@ -73,8 +73,8 @@ router.put("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<vo
 
 // DELETE /api/pitcher/meta-tokens/:id
 router.delete("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
-  const id = parseInt(req.params.id, 10);
+  const pitcherId = req.session.userId!;
+  const id = parseInt(String(req.params.id), 10);
   await db.delete(metaTokensTable).where(and(eq(metaTokensTable.id, id), eq(metaTokensTable.pitcherId, pitcherId)));
   res.status(204).end();
 });
@@ -82,7 +82,7 @@ router.delete("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise
 // GET /api/pitcher/meta-tokens/fb-accounts
 // Fetches FB accounts from Meta API + returns current matching status
 router.get("/pitcher/meta-tokens/fb-accounts", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
+  const pitcherId = req.session.userId!;
 
   const tokens = await db
     .select()
@@ -131,7 +131,7 @@ router.get("/pitcher/meta-tokens/fb-accounts", requireAuth, async (req, res): Pr
 // POST /api/pitcher/meta-tokens/match
 // Links a FB account to a system account (saves fbAccountId as platformAccountId)
 router.post("/pitcher/meta-tokens/match", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
+  const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const systemAccountId = typeof body.systemAccountId === "number" ? body.systemAccountId : null;
   const fbAccountId = typeof body.fbAccountId === "string" ? body.fbAccountId.replace(/^act_/, "") : null;
@@ -157,7 +157,7 @@ router.post("/pitcher/meta-tokens/match", requireAuth, async (req, res): Promise
 
 // POST /api/pitcher/meta-tokens/unmatch
 router.post("/pitcher/meta-tokens/unmatch", requireAuth, async (req, res): Promise<void> => {
-  const pitcherId = req.session.user!.id;
+  const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const systemAccountId = typeof body.systemAccountId === "number" ? body.systemAccountId : null;
   if (!systemAccountId) { res.status(400).json({ error: "systemAccountId 必填" }); return; }

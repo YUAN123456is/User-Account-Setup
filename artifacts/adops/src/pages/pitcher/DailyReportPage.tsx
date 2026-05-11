@@ -21,7 +21,7 @@ import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart3, Plus, X, CheckCircle, Pencil, ChevronDown, ChevronUp, AlertCircle, ChevronsUpDown } from "lucide-react";
+import { BarChart3, Plus, X, CheckCircle, Pencil, ChevronDown, ChevronUp, AlertCircle, ChevronsUpDown, Clock, XCircle, Facebook } from "lucide-react";
 
 interface Account {
   id: number;
@@ -54,6 +54,9 @@ interface DailyStat {
   orderCount?: number | null;
   roas?: string | null;
   avgOrderValue?: string | null;
+  fbSynced?: boolean;
+  status?: string | null;
+  reviewNote?: string | null;
 }
 
 interface ReportRow {
@@ -639,8 +642,24 @@ export default function DailyReportPage() {
                     </TableRow>
                   )}
                   {!statsLoading && pagedStats.map((s) => (
-                    <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
-                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">{s.date}</TableCell>
+                    <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
+                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{s.date}</span>
+                          {(!s.status || s.status === "approved") && !s.fbSynced && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-emerald-500"><CheckCircle className="h-2.5 w-2.5" />已通过</span>
+                          )}
+                          {s.fbSynced && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-blue-400"><Facebook className="h-2.5 w-2.5" />FB同步</span>
+                          )}
+                          {s.status === "pending" && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-amber-400"><Clock className="h-2.5 w-2.5" />待审核</span>
+                          )}
+                          {s.status === "rejected" && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-red-400" title={s.reviewNote ?? ""}><XCircle className="h-2.5 w-2.5" />已驳回</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="max-w-[120px]">
                         <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
                       </TableCell>
@@ -684,9 +703,21 @@ export default function DailyReportPage() {
                         </TableCell>
                       )}
                       <TableCell>
-                        <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary transition-colors p-1">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <button
+                            onClick={() => setEditTarget(s)}
+                            className="text-muted-foreground hover:text-primary transition-colors p-1"
+                            title={s.fbSynced ? "FB同步数据，无法手动编辑" : s.status === "pending" ? "待审核中，编辑后将重置为待审核" : "编辑"}
+                            disabled={!!s.fbSynced}
+                          >
+                            <Pencil className={`h-3.5 w-3.5 ${s.fbSynced ? "opacity-25 cursor-not-allowed" : ""}`} />
+                          </button>
+                          {s.status === "rejected" && s.reviewNote && (
+                            <span className="text-[9px] text-red-400 max-w-[56px] text-center leading-tight" title={s.reviewNote}>
+                              {s.reviewNote.slice(0, 12)}{s.reviewNote.length > 12 ? "…" : ""}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

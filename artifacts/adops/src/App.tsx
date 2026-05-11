@@ -20,6 +20,8 @@ import CrossReportPage from "@/pages/admin/CrossReportPage";
 import FinancePage from "@/pages/admin/FinancePage";
 import AlertsPage from "@/pages/admin/AlertsPage";
 import AdminTeamFeedbackPage from "@/pages/admin/AdminTeamFeedbackPage";
+import PendingApprovalsPage from "@/pages/admin/PendingApprovalsPage";
+import FbSpendPage from "@/pages/admin/FbSpendPage";
 
 import ProviderLayout from "@/pages/provider/ProviderLayout";
 import ProviderAccountsPage from "@/pages/provider/ProviderAccountsPage";
@@ -97,6 +99,8 @@ const AdminCrossReportRoute = makeAdminRoute(CrossReportPage);
 const AdminFinanceRoute = makeAdminRoute(FinancePage);
 const AdminAlertsRoute = makeAdminRoute(AlertsPage);
 const AdminTeamFeedbackRoute = makeAdminRoute(AdminTeamFeedbackPage);
+const AdminPendingApprovalsRoute = makeAdminRoute(PendingApprovalsPage);
+const AdminFbSpendRoute = makeAdminRoute(FbSpendPage);
 
 const ProviderAccountsRoute = makeProviderRoute(ProviderAccountsPage);
 const ProviderRechargeOrdersRoute = makeProviderRoute(ProviderRechargeOrdersPage);
@@ -155,6 +159,8 @@ function AppRoutes() {
       <Route path="/admin/finance" component={AdminFinanceRoute} />
       <Route path="/admin/alerts" component={AdminAlertsRoute} />
       <Route path="/admin/team-feedback" component={AdminTeamFeedbackRoute} />
+      <Route path="/admin/pending-approvals" component={AdminPendingApprovalsRoute} />
+      <Route path="/admin/fb-spend" component={AdminFbSpendRoute} />
       <Route path="/admin">
         <Redirect to="/admin/dashboard" />
       </Route>

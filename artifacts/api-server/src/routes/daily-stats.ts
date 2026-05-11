@@ -51,6 +51,9 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     orderCount: stat.orderCount ?? null,
     roas,
     avgOrderValue,
+    fbSynced: stat.fbSynced,
+    status: stat.status,
+    reviewNote: stat.reviewNote ?? null,
     createdAt: stat.createdAt.toISOString(),
   };
 }
@@ -70,10 +73,7 @@ router.get("/daily-stats", requireAuth, async (req, res): Promise<void> => {
   } else if (role === "provider") {
     const providerAccounts = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.providerId, userId!));
     const ids = providerAccounts.map((a) => a.id);
-    if (ids.length === 0) {
-      res.json([]);
-      return;
-    }
+    if (ids.length === 0) { res.json([]); return; }
     conditions.push(inArray(dailyStatsTable.accountId, ids));
   }
 
@@ -88,6 +88,57 @@ router.get("/daily-stats", requireAuth, async (req, res): Promise<void> => {
 
   const formatted = await Promise.all(stats.map(formatStat));
   res.json(formatted);
+});
+
+// GET /api/daily-stats/pending — admin views pending manual submissions
+router.get("/daily-stats/pending", requireRole("admin"), async (req, res): Promise<void> => {
+  const stats = await db
+    .select()
+    .from(dailyStatsTable)
+    .where(eq(dailyStatsTable.status, "pending"))
+    .orderBy(dailyStatsTable.createdAt);
+  const formatted = await Promise.all(stats.map(formatStat));
+  res.json(formatted);
+});
+
+// POST /api/daily-stats/:id/approve — admin approves
+router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const body = req.body as { note?: string };
+  const [stat] = await db
+    .update(dailyStatsTable)
+    .set({ status: "approved", reviewNote: body.note ?? null })
+    .where(eq(dailyStatsTable.id, id))
+    .returning();
+  if (!stat) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(await formatStat(stat));
+});
+
+// POST /api/daily-stats/:id/reject — admin rejects
+router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const body = req.body as { note?: string };
+  const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const [stat] = await db
+    .update(dailyStatsTable)
+    .set({ status: "rejected", reviewNote: body.note ?? null })
+    .where(eq(dailyStatsTable.id, id))
+    .returning();
+
+  // Reverse the balance deduction since the record is rejected
+  const spendAmount = parseFloat(existing.spendAmount);
+  if (spendAmount > 0) {
+    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+    if (acct) {
+      const restored = (parseFloat(acct.currentBalance) + spendAmount).toFixed(2);
+      const restoredT = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spendAmount).toFixed(2);
+      await db.update(accountsTable).set({ currentBalance: restored, theoreticalBalance: restoredT }).where(eq(accountsTable.id, existing.accountId));
+    }
+  }
+
+  res.json(await formatStat(stat));
 });
 
 router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<void> => {
@@ -129,6 +180,8 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     fanCount: parsed.data.fanCount ?? null,
     gmv: parsed.data.gmv ?? null,
     orderCount: parsed.data.orderCount ?? null,
+    status: "pending",
+    fbSynced: false,
   }).returning();
 
   await db.update(accountsTable).set({
@@ -142,26 +195,13 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
 
 router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promise<void> => {
   const params = UpdateDailyStatParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateDailyStatBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "Stat not found" });
-    return;
-  }
-
-  if (existing.pitcherId !== req.session.userId!) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  if (!existing) { res.status(404).json({ error: "Stat not found" }); return; }
+  if (existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
 
@@ -172,8 +212,7 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
 
   if (parsed.data.spendAmount == null && Object.keys(updates).length === 0) {
-    res.json(await formatStat(existing));
-    return;
+    res.json(await formatStat(existing)); return;
   }
 
   let newRealBalance = existing.realBalance;
@@ -188,21 +227,20 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     updates.hasAlert = parseFloat(newRealBalance) < 100;
   }
 
-  const [stat] = await db.update(dailyStatsTable)
-    .set(updates)
-    .where(eq(dailyStatsTable.id, params.data.id))
-    .returning();
+  // Editing resets status to pending (unless fb_synced)
+  if (!existing.fbSynced) {
+    updates.status = "pending";
+    updates.reviewNote = null;
+  }
 
-  // Propagate spend delta to account balance so live balance stays accurate
+  const [stat] = await db.update(dailyStatsTable).set(updates).where(eq(dailyStatsTable.id, params.data.id)).returning();
+
   if (spendDelta !== 0) {
     const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
     if (acct) {
       const newCurrentBal = (parseFloat(acct.currentBalance) - spendDelta).toFixed(2);
       const newTheoreticalBal = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - spendDelta).toFixed(2);
-      await db.update(accountsTable).set({
-        currentBalance: newCurrentBal,
-        theoreticalBalance: newTheoreticalBal,
-      }).where(eq(accountsTable.id, existing.accountId));
+      await db.update(accountsTable).set({ currentBalance: newCurrentBal, theoreticalBalance: newTheoreticalBal }).where(eq(accountsTable.id, existing.accountId));
     }
   }
 

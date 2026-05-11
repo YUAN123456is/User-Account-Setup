@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
-import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 
 const router: IRouter = Router();
@@ -65,7 +65,7 @@ router.post("/meta-tokens", requireRole("admin"), async (req, res): Promise<void
 
 // PUT /api/meta-tokens/:id — update
 router.put("/meta-tokens/:id", requireRole("admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const body = req.body as Record<string, unknown>;
   const updates: Partial<typeof metaTokensTable.$inferInsert> = {};
   if (typeof body.label === "string") updates.label = body.label.trim();
@@ -79,7 +79,7 @@ router.put("/meta-tokens/:id", requireRole("admin"), async (req, res): Promise<v
 
 // DELETE /api/meta-tokens/:id
 router.delete("/meta-tokens/:id", requireRole("admin"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   await db.delete(metaTokensTable).where(eq(metaTokensTable.id, id));
   res.status(204).end();
 });
@@ -147,6 +147,66 @@ router.post("/meta-tokens/sync", requireRole("admin"), async (req, res): Promise
               syncedAt: new Date(),
             },
           });
+
+        // Write-back to daily_stats for matched accounts (auto-approved, fb_synced=true)
+        if (matchedAccount) {
+          const spendNum = parseFloat(spend || "0");
+          // Check existing daily_stats for this account+date
+          const [existing] = await db
+            .select()
+            .from(dailyStatsTable)
+            .where(
+              and(
+                eq(dailyStatsTable.accountId, matchedAccount.id),
+                eq(dailyStatsTable.date, syncDate)
+              )
+            );
+
+          if (!existing) {
+            // No record — create one auto-approved
+            const currentBal = parseFloat(matchedAccount.currentBalance);
+            const newBalance = (currentBal - spendNum).toFixed(2);
+            const insertValues = {
+              accountId: matchedAccount.id,
+              date: syncDate,
+              spendAmount: spendNum.toFixed(2),
+              realBalance: newBalance,
+              hasAlert: parseFloat(newBalance) < 100,
+              fbSynced: true,
+              status: "approved" as const,
+              ...(matchedAccount.pitcherId != null ? { pitcherId: matchedAccount.pitcherId } : {}),
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await db.insert(dailyStatsTable).values(insertValues as any);
+            // Update account balance
+            await db.update(accountsTable).set({
+              currentBalance: newBalance,
+              theoreticalBalance: newBalance,
+              lastReportedAt: new Date(),
+            }).where(eq(accountsTable.id, matchedAccount.id));
+          } else if (existing.fbSynced) {
+            // Already a fb-synced record — update spend (balance delta)
+            const oldSpend = parseFloat(existing.spendAmount);
+            const delta = spendNum - oldSpend;
+            const newBalance = (parseFloat(existing.realBalance) - delta).toFixed(2);
+            await db.update(dailyStatsTable).set({
+              spendAmount: spendNum.toFixed(2),
+              realBalance: newBalance,
+              hasAlert: parseFloat(newBalance) < 100,
+              status: "approved" as const,
+            }).where(eq(dailyStatsTable.id, existing.id));
+            if (delta !== 0) {
+              const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
+              if (acct) {
+                const newCurrent = (parseFloat(acct.currentBalance) - delta).toFixed(2);
+                const newTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - delta).toFixed(2);
+                await db.update(accountsTable).set({ currentBalance: newCurrent, theoreticalBalance: newTheo }).where(eq(accountsTable.id, matchedAccount.id));
+              }
+            }
+          }
+          // If existing is manual (fbSynced=false), don't overwrite — pitcher's manual data takes precedence
+        }
+
         totalSynced++;
       }
 
