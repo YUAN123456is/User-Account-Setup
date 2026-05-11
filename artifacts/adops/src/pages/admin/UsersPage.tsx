@@ -501,19 +501,31 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-3 items-center">
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8 h-8 w-56 text-sm" placeholder="搜索姓名或用户名..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(1); }}>
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部角色</SelectItem>
-            <SelectItem value="provider">开户商</SelectItem>
-            <SelectItem value="pitcher">投手</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
+          {[
+            { value: "all", label: "全部" },
+            { value: "provider", label: "开户商" },
+            { value: "pitcher", label: "投手" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setRoleFilter(opt.value); setPage(1); }}
+              className={[
+                "px-3 h-full text-xs font-medium transition-colors border-r border-border last:border-r-0",
+                roleFilter === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
