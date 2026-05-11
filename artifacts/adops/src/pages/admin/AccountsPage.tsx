@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, UserPlus, Search, Trash2, SlidersHorizontal } from "lucide-react";
+import { CreditCard, UserPlus, Search, Trash2, SlidersHorizontal, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Label } from "@/components/ui/label";
 
@@ -141,6 +141,14 @@ export default function AccountsPage() {
   const [assignAccount, setAssignAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
+  const [sortKey, setSortKey] = useState<string>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+    setPage(1);
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const deleteHook = useDeleteAccount({
@@ -183,12 +191,27 @@ export default function AccountsPage() {
     return rows;
   }, [allAccounts, search, platformFilter, dateRange]);
 
-  const paged = usePagination(filtered, PAGE_SIZE, page);
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const va = (a as unknown as Record<string, unknown>)[sortKey] ?? "";
+      const vb = (b as unknown as Record<string, unknown>)[sortKey] ?? "";
+      if (sortKey === "currentBalance") return sortDir === "asc" ? Number(va) - Number(vb) : Number(vb) - Number(va);
+      const sa = String(va);
+      const sb = String(vb);
+      if (!sa && !sb) return 0;
+      if (!sa) return sortDir === "asc" ? -1 : 1;
+      if (!sb) return sortDir === "asc" ? 1 : -1;
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const paged = usePagination(sorted, PAGE_SIZE, page);
 
   const activeCount = filtered.filter((a) => a.status === "active").length;
   const idleCount = filtered.filter((a) => a.status === "idle").length;
   const bannedCount = filtered.filter((a) => a.status === "banned").length;
   const unassignedCount = filtered.filter((a) => !a.pitcherId).length;
+  const totalBalance = filtered.reduce((s, a) => s + Number(a.currentBalance), 0);
 
   return (
     <div className="space-y-4">
@@ -316,23 +339,41 @@ export default function AccountsPage() {
         { label: "空闲", value: idleCount, color: "amber" },
         { label: "已封禁", value: bannedCount, color: bannedCount > 0 ? "red" : "default" },
         { label: "未分配投手", value: unassignedCount, color: unassignedCount > 0 ? "amber" : "default" },
+        { label: "余额合计", value: `$${totalBalance.toFixed(2)}`, color: "green" },
       ]} />
 
-      <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
+      <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+        <Table className="min-w-max">
           <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead>账户名称</TableHead>
-              <TableHead>平台账户ID</TableHead>
-              <TableHead>平台</TableHead>
-              <TableHead>开户商</TableHead>
-              <TableHead>投手</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>余额</TableHead>
-              <TableHead>最近上报</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="w-20">操作</TableHead>
-            </TableRow>
+            {(() => {
+              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+                <TableHead
+                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                  onClick={() => handleSort(col)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortKey === col
+                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
+                  </span>
+                </TableHead>
+              );
+              return (
+                <TableRow className="bg-muted/40">
+                  <SortHead col="accountName" label="账户名称" />
+                  <SortHead col="platformAccountId" label="平台账户ID" />
+                  <TableHead>平台</TableHead>
+                  <SortHead col="providerName" label="开户商" />
+                  <SortHead col="pitcherName" label="投手" />
+                  <TableHead>状态</TableHead>
+                  <SortHead col="currentBalance" label="余额" className="text-right" />
+                  <SortHead col="lastReportedAt" label="最近上报" />
+                  <SortHead col="createdAt" label="创建时间" />
+                  <TableHead className="w-20">操作</TableHead>
+                </TableRow>
+              );
+            })()}
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (

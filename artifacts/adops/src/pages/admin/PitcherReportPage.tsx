@@ -1,16 +1,17 @@
-import { useState, Fragment } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useGetSpendByPitcher, useGetPitcherAccounts, useListDailyStats } from "@workspace/api-client-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BarChart3, ChevronDown, ChevronRight, Loader2, History } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Loader2, History, Search, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BizBadge, BizMetrics } from "@/components/shared/BizDisplay";
+import { BizBadge } from "@/components/shared/BizDisplay";
 
 interface PitcherSpend {
   pitcherId: number;
@@ -238,8 +239,17 @@ function AccountDetailPanel({
 export default function PitcherReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<string>("totalSpend");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selectedAccount, setSelectedAccount] = useState<SelectedAccount | null>(null);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+    setPage(1);
+  };
 
   const params: Record<string, string> = {};
   if (dateRange.from) params.dateFrom = dateRange.from;
@@ -247,16 +257,38 @@ export default function PitcherReportPage() {
 
   const { data, isLoading } = useGetSpendByPitcher(params);
   const rows = Array.isArray(data) ? (data as PitcherSpend[]) : [];
-  const paged = usePagination(rows, PAGE_SIZE, page);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter((r) => r.pitcherName.toLowerCase().includes(q));
+  }, [rows, search]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const numericKeys = ["totalSpend", "totalBalance", "totalRecharge", "accountCount"];
+      const numericAltKeys = ["yesterdaySpend", "yesterdayRecharge"];
+      if (numericKeys.includes(sortKey) || numericAltKeys.includes(sortKey)) {
+        const va = Number((a as unknown as Record<string, unknown>)[sortKey] ?? 0);
+        const vb = Number((b as unknown as Record<string, unknown>)[sortKey] ?? 0);
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      const sa = String((a as unknown as Record<string, unknown>)[sortKey] ?? "");
+      const sb = String((b as unknown as Record<string, unknown>)[sortKey] ?? "");
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const paged = usePagination(sorted, PAGE_SIZE, page);
 
   const hasFilter = !!(dateRange.from || dateRange.to);
-  const totalTodaySpend = rows.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0), 0);
-  const totalPeriodSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
-  const totalBalance = rows.reduce((s, r) => s + Number(r.totalBalance), 0);
-  const todayRecharge = rows.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0), 0);
-  const totalRecharge = rows.reduce((s, r) => s + Number(r.totalRecharge), 0);
-  const totalAccounts = rows.reduce((s, r) => s + r.accountCount, 0);
-  const topPitcher = rows.length > 0 ? rows.reduce((best, r) => Number(r.totalSpend) > Number(best.totalSpend) ? r : best) : null;
+  const totalTodaySpend = filtered.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0), 0);
+  const totalPeriodSpend = filtered.reduce((s, r) => s + Number(r.totalSpend), 0);
+  const totalBalance = filtered.reduce((s, r) => s + Number(r.totalBalance), 0);
+  const todayRecharge = filtered.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0), 0);
+  const totalRecharge = filtered.reduce((s, r) => s + Number(r.totalRecharge), 0);
+  const totalAccounts = filtered.reduce((s, r) => s + r.accountCount, 0);
+  const topPitcher = filtered.length > 0 ? filtered.reduce((best, r) => Number(r.totalSpend) > Number(best.totalSpend) ? r : best) : null;
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -275,13 +307,22 @@ export default function PitcherReportPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8 h-8 w-44 text-sm" placeholder="搜索投手名称..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+        </div>
+        {search && (
+          <button onClick={() => { setSearch(""); setPage(1); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+            清除
+          </button>
+        )}
         <div className="ml-auto">
           <QuickDateFilter onChange={(r) => { setDateRange(r); setPage(1); }} />
         </div>
       </div>
 
       <StatsBar items={[
-        { label: "投手数量", value: rows.length },
+        { label: "投手数量", value: filtered.length },
         { label: "昨日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" },
         { label: hasFilter ? "期间总消耗" : "累计总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "purple" },
         { label: "账户余额合计", value: `$${totalBalance.toFixed(2)}`, color: "green" },
@@ -294,16 +335,33 @@ export default function PitcherReportPage() {
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead className="w-8" />
-              <TableHead>投手名称</TableHead>
-              <TableHead>昨日消耗</TableHead>
-              <TableHead>{hasFilter ? "期间消耗" : "累计消耗"}</TableHead>
-              <TableHead>余额合计</TableHead>
-              <TableHead>昨日充值</TableHead>
-              <TableHead>{hasFilter ? "期间充值" : "累计充值"}</TableHead>
-              <TableHead>账户数</TableHead>
-            </TableRow>
+            {(() => {
+              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+                <TableHead
+                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                  onClick={() => handleSort(col)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortKey === col
+                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
+                  </span>
+                </TableHead>
+              );
+              return (
+                <TableRow className="bg-muted/40">
+                  <TableHead className="w-8" />
+                  <SortHead col="pitcherName" label="投手名称" />
+                  <SortHead col="yesterdaySpend" label="昨日消耗" />
+                  <SortHead col="totalSpend" label={hasFilter ? "期间消耗" : "累计消耗"} />
+                  <SortHead col="totalBalance" label="余额合计" />
+                  <SortHead col="yesterdayRecharge" label="昨日充值" />
+                  <SortHead col="totalRecharge" label={hasFilter ? "期间充值" : "累计充值"} />
+                  <SortHead col="accountCount" label="账户数" />
+                </TableRow>
+              );
+            })()}
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 3 }).map((_, i) => (

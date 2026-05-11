@@ -18,9 +18,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
-import { BizBadge, BizMetrics } from "@/components/shared/BizDisplay";
+import { BizBadge } from "@/components/shared/BizDisplay";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart3, Plus, X, CheckCircle, Pencil, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { BarChart3, Plus, X, CheckCircle, Pencil, ChevronDown, ChevronUp, AlertCircle, ChevronsUpDown } from "lucide-react";
 
 interface Account {
   id: number;
@@ -204,6 +205,14 @@ export default function DailyReportPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const [histFilter, setHistFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<string>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+    setHistPage(1);
+  };
   const [quickDate, setQuickDate] = useState("yesterday");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -246,11 +255,37 @@ export default function DailyReportPage() {
 
   const { data: statsData, isLoading: statsLoading } = useListDailyStats(apiParams);
   const allStats = useMemo(() => {
-    const raw = Array.isArray(statsData) ? (statsData as DailyStat[]) : [];
-    return [...raw].sort((a, b) => b.date.localeCompare(a.date));
+    return Array.isArray(statsData) ? (statsData as DailyStat[]) : [];
   }, [statsData]);
-  const pagedStats = usePagination(allStats, PAGE_SIZE, histPage);
+
+  const sortedStats = useMemo(() => {
+    return [...allStats].sort((a, b) => {
+      const numericKeys = ["spendAmount", "realBalance", "fanCount"];
+      if (numericKeys.includes(sortKey)) {
+        const va = Number((a as unknown as Record<string, unknown>)[sortKey] ?? 0);
+        const vb = Number((b as unknown as Record<string, unknown>)[sortKey] ?? 0);
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      const sa = String((a as unknown as Record<string, unknown>)[sortKey] ?? "");
+      const sb = String((b as unknown as Record<string, unknown>)[sortKey] ?? "");
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+  }, [allStats, sortKey, sortDir]);
+
+  const pagedStats = usePagination(sortedStats, PAGE_SIZE, histPage);
   const totalSpend = allStats.reduce((s, r) => s + Number(r.spendAmount), 0);
+
+  const liveStatsRows = allStats.filter((s) => s.businessType === "liveChat");
+  const ecomStatsRows = allStats.filter((s) => s.businessType === "ecommerce");
+  const statsHasLive = liveStatsRows.length > 0;
+  const statsHasEcom = ecomStatsRows.length > 0;
+  const statsTotalFans = liveStatsRows.reduce((s, r) => s + (r.fanCount ?? 0), 0);
+  const statsLiveSpend = liveStatsRows.reduce((s, r) => s + Number(r.spendAmount), 0);
+  const statsAvgFanCost = statsTotalFans > 0 ? statsLiveSpend / statsTotalFans : 0;
+  const statsTotalGmv = ecomStatsRows.reduce((s, r) => s + Number(r.gmv ?? 0), 0);
+  const statsTotalOrders = ecomStatsRows.reduce((s, r) => s + (r.orderCount ?? 0), 0);
+  const statsEcomSpend = ecomStatsRows.reduce((s, r) => s + Number(r.spendAmount), 0);
+  const statsRoas = statsEcomSpend > 0 && statsTotalGmv > 0 ? statsTotalGmv / statsEcomSpend : 0;
 
   const { data: yStatsData } = useListDailyStats({ dateFrom: sharedDate, dateTo: sharedDate } as Record<string, string>);
   const reportedIds = useMemo(() => new Set((Array.isArray(yStatsData) ? yStatsData : []).map((s: { accountId: number }) => s.accountId)), [yStatsData]);
@@ -520,11 +555,21 @@ export default function DailyReportPage() {
             </div>
           )}
 
-          <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
-            <span>{allStats.length} 条</span>
-            <span className="font-mono font-semibold text-primary">${totalSpend.toFixed(2)}</span>
-          </div>
         </div>
+
+        <StatsBar items={[
+          { label: "记录条数", value: allStats.length },
+          { label: "总消耗", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
+          ...(statsHasLive ? [
+            { label: "聊单进粉", value: statsTotalFans, color: "purple" as const },
+            { label: "平均粉成本", value: statsTotalFans > 0 ? `$${statsAvgFanCost.toFixed(4)}` : "—", color: "amber" as const },
+          ] : []),
+          ...(statsHasEcom ? [
+            { label: "独立站GMV", value: `$${statsTotalGmv.toFixed(2)}`, color: "green" as const },
+            { label: "总订单", value: statsTotalOrders },
+            { label: "ROAS", value: statsRoas > 0 ? statsRoas.toFixed(2) : "—", color: "green" as const },
+          ] : []),
+        ]} />
 
         {/* 表格 */}
         {(() => {
@@ -538,21 +583,38 @@ export default function DailyReportPage() {
             <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
               <Table className="min-w-max">
                 <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="w-[86px] whitespace-nowrap">日期</TableHead>
-                    <TableHead className="w-[120px]">账户</TableHead>
-                    <TableHead className="w-[80px] text-right">消耗</TableHead>
-                    <TableHead className="w-[86px] text-right">余额</TableHead>
-                    {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
-                    {showLive && <TableHead className="w-[68px]">团队</TableHead>}
-                    {showLive && <TableHead className="w-[54px] text-right">进粉</TableHead>}
-                    {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
-                    {showEcom && <TableHead className="w-[86px] text-right">GMV</TableHead>}
-                    {showEcom && <TableHead className="w-[58px] text-right">ROAS</TableHead>}
-                    {showEcom && <TableHead className="w-[50px] text-right">订单</TableHead>}
-                    {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
-                    <TableHead className="w-8 sticky right-0 bg-muted/40"></TableHead>
-                  </TableRow>
+                  {(() => {
+                    const SH = ({ col, label, cls }: { col: string; label: string; cls?: string }) => (
+                      <TableHead
+                        className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${cls ?? ""}`}
+                        onClick={() => handleSort(col)}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          {sortKey === col
+                            ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                            : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
+                        </span>
+                      </TableHead>
+                    );
+                    return (
+                      <TableRow className="bg-muted/40">
+                        <SH col="date" label="日期" cls="w-[86px]" />
+                        <SH col="accountName" label="账户" cls="w-[120px]" />
+                        <SH col="spendAmount" label="消耗" cls="w-[80px] text-right" />
+                        <SH col="realBalance" label="余额" cls="w-[86px] text-right" />
+                        {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
+                        {showLive && <TableHead className="w-[68px]">团队</TableHead>}
+                        {showLive && <SH col="fanCount" label="进粉" cls="w-[54px] text-right" />}
+                        {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
+                        {showEcom && <SH col="gmv" label="GMV" cls="w-[86px] text-right" />}
+                        {showEcom && <SH col="roas" label="ROAS" cls="w-[58px] text-right" />}
+                        {showEcom && <SH col="orderCount" label="订单" cls="w-[50px] text-right" />}
+                        {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
+                        <TableHead className="w-8 sticky right-0 bg-muted/40"></TableHead>
+                      </TableRow>
+                    );
+                  })()}
                 </TableHeader>
                 <TableBody>
                   {statsLoading && Array.from({ length: 5 }).map((_, i) => (

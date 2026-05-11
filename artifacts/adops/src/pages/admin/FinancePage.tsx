@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
-import { Check, X, Wallet, Search } from "lucide-react";
+import { Check, X, Wallet, Search, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface RechargeOrder {
@@ -31,6 +31,14 @@ export default function FinancePage() {
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<string>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+    setPage(1);
+  };
   const queryClient = useQueryClient();
 
   const apiParams: Record<string, string> = {};
@@ -60,7 +68,16 @@ export default function FinancePage() {
     );
   }, [allOrders, search]);
 
-  const paged = usePagination(filtered, PAGE_SIZE, page);
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (sortKey === "amount") return sortDir === "asc" ? Number(a.amount) - Number(b.amount) : Number(b.amount) - Number(a.amount);
+      const sa = String((a as unknown as Record<string, unknown>)[sortKey] ?? "");
+      const sb = String((b as unknown as Record<string, unknown>)[sortKey] ?? "");
+      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const paged = usePagination(sorted, PAGE_SIZE, page);
 
   const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
   const pendingCount = filtered.filter((o) => o.status === "pending").length;
@@ -115,15 +132,32 @@ export default function FinancePage() {
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead>账户</TableHead>
-              <TableHead>充值金额</TableHead>
-              <TableHead>开户商</TableHead>
-              <TableHead>投手</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>提交时间</TableHead>
-              <TableHead className="w-28">操作</TableHead>
-            </TableRow>
+            {(() => {
+              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+                <TableHead
+                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                  onClick={() => handleSort(col)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortKey === col
+                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
+                  </span>
+                </TableHead>
+              );
+              return (
+                <TableRow className="bg-muted/40">
+                  <SortHead col="accountName" label="账户" />
+                  <SortHead col="amount" label="充值金额" />
+                  <SortHead col="providerName" label="开户商" />
+                  <SortHead col="pitcherName" label="投手" />
+                  <SortHead col="status" label="状态" />
+                  <SortHead col="createdAt" label="提交时间" />
+                  <TableHead className="w-28">操作</TableHead>
+                </TableRow>
+              );
+            })()}
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => (
