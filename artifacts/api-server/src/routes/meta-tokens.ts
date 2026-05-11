@@ -31,12 +31,13 @@ function normalizeAccountId(id: string) {
 interface MetaAdAccount {
   account_id: string;
   name: string;
-  insights?: { data: Array<{ spend: string; currency: string }> };
+  currency?: string;
+  insights?: { data: Array<{ spend: string }> };
 }
 
 async function fetchAdAccountsWithSpendForDate(accessToken: string, date: string): Promise<MetaAdAccount[]> {
   const timeRange = encodeURIComponent(JSON.stringify({ since: date, until: date }));
-  const fields = `account_id,name,insights.time_range(${timeRange}){spend,currency}`;
+  const fields = `account_id,name,currency,insights.time_range(${timeRange}){spend}`;
   const url = `${META_GRAPH}/me/adaccounts?fields=${fields}&limit=200&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
   const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string } };
@@ -72,7 +73,7 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
 
         for (const adAcc of adAccounts) {
           const spend = adAcc.insights?.data?.[0]?.spend ?? "0";
-          const currency = adAcc.insights?.data?.[0]?.currency ?? "USD";
+          const currency = adAcc.currency ?? "USD";
           const fbId = normalizeAccountId(adAcc.account_id);
 
           let matchedAccount = fbAccounts.find(
