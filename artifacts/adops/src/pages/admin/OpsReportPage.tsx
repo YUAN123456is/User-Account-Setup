@@ -34,7 +34,6 @@ const PAGE_SIZE = 30;
 
 export default function OpsReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
-  const [bizFilter, setBizFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [page, setPage] = useState(1);
 
@@ -53,10 +52,9 @@ export default function OpsReportPage() {
 
   const filtered = useMemo(() => {
     let rows = allStats.filter((s) => s.businessType != null);
-    if (bizFilter !== "all") rows = rows.filter((s) => s.businessType === bizFilter);
     if (teamFilter !== "all") rows = rows.filter((s) => String(s.teamId) === teamFilter);
     return [...rows].sort((a, b) => b.date.localeCompare(a.date));
-  }, [allStats, bizFilter, teamFilter]);
+  }, [allStats, teamFilter]);
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 
@@ -78,20 +76,7 @@ export default function OpsReportPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
-          {[{ value: "all", label: "全部业务" }, { value: "liveChat", label: "聊单" }, { value: "ecommerce", label: "独立站" }].map((opt, i, arr) => (
-            <button key={opt.value} onClick={() => { setBizFilter(opt.value); setTeamFilter("all"); setPage(1); }}
-              className={[
-                "px-3 h-full text-xs font-medium transition-colors",
-                i < arr.length - 1 ? "border-r border-border" : "",
-                bizFilter === opt.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-              ].join(" ")}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {(bizFilter === "all" || bizFilter === "liveChat") && liveChatTeams.length > 0 && (
+        {liveChatTeams.length > 0 && (
           <Select value={teamFilter} onValueChange={(v) => { setTeamFilter(v); setPage(1); }}>
             <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="全部团队" /></SelectTrigger>
             <SelectContent>
@@ -123,9 +108,12 @@ export default function OpsReportPage() {
       ]} />
 
       {(() => {
-        const showLive = bizFilter === "all" || bizFilter === "liveChat";
-        const showEcom = bizFilter === "all" || bizFilter === "ecommerce";
-        const colCount = bizFilter === "ecommerce" ? 8 : bizFilter === "liveChat" ? 7 : 12;
+        const hasLive = filtered.some((s) => s.businessType === "liveChat");
+        const hasEcom = filtered.some((s) => s.businessType === "ecommerce");
+        const showBizCol = hasLive && hasEcom;
+        const showLive = hasLive;
+        const showEcom = hasEcom;
+        const colCount = 3 + (showBizCol ? 1 : 0) + 1 + (showLive ? 3 : 0) + (showEcom ? 4 : 0);
         return (
           <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
             <Table className="min-w-max">
@@ -134,7 +122,7 @@ export default function OpsReportPage() {
                   <TableHead className="w-[86px] whitespace-nowrap">日期</TableHead>
                   <TableHead className="w-[120px]">账户</TableHead>
                   <TableHead className="w-[80px]">投手</TableHead>
-                  {bizFilter === "all" && <TableHead className="w-[56px]">业务</TableHead>}
+                  {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
                   <TableHead className="w-[80px] text-right">消耗</TableHead>
                   {showLive && <TableHead className="w-[68px]">团队</TableHead>}
                   {showLive && <TableHead className="w-[54px] text-right">进粉</TableHead>}
@@ -174,7 +162,7 @@ export default function OpsReportPage() {
                     <TableCell className="text-xs text-muted-foreground max-w-[80px]">
                       <TruncatedCell value={s.pitcherName ?? "—"} />
                     </TableCell>
-                    {bizFilter === "all" && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
+                    {showBizCol && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
                     <TableCell className="text-right font-mono font-semibold whitespace-nowrap text-sm">${Number(s.spendAmount).toFixed(2)}</TableCell>
                     {showLive && (
                       <TableCell className="text-xs text-muted-foreground max-w-[68px]">

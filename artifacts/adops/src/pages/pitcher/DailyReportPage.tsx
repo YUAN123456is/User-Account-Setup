@@ -204,7 +204,6 @@ export default function DailyReportPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const [histFilter, setHistFilter] = useState("all");
-  const [histBizFilter, setHistBizFilter] = useState("all");
   const [quickDate, setQuickDate] = useState("yesterday");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -248,10 +247,8 @@ export default function DailyReportPage() {
   const { data: statsData, isLoading: statsLoading } = useListDailyStats(apiParams);
   const allStats = useMemo(() => {
     const raw = Array.isArray(statsData) ? (statsData as DailyStat[]) : [];
-    let rows = [...raw].sort((a, b) => b.date.localeCompare(a.date));
-    if (histBizFilter !== "all") rows = rows.filter((s) => s.businessType === histBizFilter);
-    return rows;
-  }, [statsData, histBizFilter]);
+    return [...raw].sort((a, b) => b.date.localeCompare(a.date));
+  }, [statsData]);
   const pagedStats = usePagination(allStats, PAGE_SIZE, histPage);
   const totalSpend = allStats.reduce((s, r) => s + Number(r.spendAmount), 0);
 
@@ -507,20 +504,6 @@ export default function DailyReportPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center rounded-md border border-border overflow-hidden h-8">
-            {(["all", "liveChat", "ecommerce"] as const).map((v, i, arr) => (
-              <button key={v}
-                onClick={() => { setHistBizFilter(v); setHistPage(1); }}
-                className={[
-                  "px-3 h-full text-xs font-medium transition-colors",
-                  i < arr.length - 1 ? "border-r border-border" : "",
-                  histBizFilter === v ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",
-                ].join(" ")}>
-                {v === "all" ? "全部" : v === "liveChat" ? "聊单" : "独立站"}
-              </button>
-            ))}
-          </div>
-
           <div className="h-4 w-px bg-border mx-0.5" />
 
           <QuickDate label="昨天" value="yesterday" active={quickDate === "yesterday"} onClick={handleQuickDate} />
@@ -545,9 +528,12 @@ export default function DailyReportPage() {
 
         {/* 表格 */}
         {(() => {
-          const colCount = histBizFilter === "ecommerce" ? 9 : histBizFilter === "liveChat" ? 8 : 13;
-          const showLive = histBizFilter === "all" || histBizFilter === "liveChat";
-          const showEcom = histBizFilter === "all" || histBizFilter === "ecommerce";
+          const hasLive = allStats.some((s) => s.businessType === "liveChat");
+          const hasEcom = allStats.some((s) => s.businessType === "ecommerce");
+          const showBizCol = hasLive && hasEcom;
+          const showLive = hasLive;
+          const showEcom = hasEcom;
+          const colCount = 4 + (showBizCol ? 1 : 0) + (showLive ? 3 : 0) + (showEcom ? 4 : 0) + 1;
           return (
             <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
               <Table className="min-w-max">
@@ -557,7 +543,7 @@ export default function DailyReportPage() {
                     <TableHead className="w-[120px]">账户</TableHead>
                     <TableHead className="w-[80px] text-right">消耗</TableHead>
                     <TableHead className="w-[86px] text-right">余额</TableHead>
-                    {histBizFilter === "all" && <TableHead className="w-[56px]">业务</TableHead>}
+                    {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
                     {showLive && <TableHead className="w-[68px]">团队</TableHead>}
                     {showLive && <TableHead className="w-[54px] text-right">进粉</TableHead>}
                     {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
@@ -594,7 +580,7 @@ export default function DailyReportPage() {
                         ${Number(s.realBalance).toFixed(2)}
                         {s.hasAlert && <span className="ml-1 text-red-500 text-xs">!</span>}
                       </TableCell>
-                      {histBizFilter === "all" && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
+                      {showBizCol && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
                       {showLive && (
                         <TableCell className="text-xs text-muted-foreground max-w-[68px]">
                           <TruncatedCell value={s.teamName ?? "—"} />
