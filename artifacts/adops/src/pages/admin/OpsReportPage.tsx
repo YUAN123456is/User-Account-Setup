@@ -123,25 +123,26 @@ export default function OpsReportPage() {
       ]} />
 
       {(() => {
-        const colCount = bizFilter === "ecommerce" ? 8 : 7;
+        const showLive = bizFilter === "all" || bizFilter === "liveChat";
+        const showEcom = bizFilter === "all" || bizFilter === "ecommerce";
+        const colCount = bizFilter === "ecommerce" ? 8 : bizFilter === "liveChat" ? 7 : 12;
         return (
           <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
-            <Table className="min-w-full">
+            <Table className="min-w-max">
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead className="w-[86px] whitespace-nowrap">日期</TableHead>
-                  <TableHead className="w-[140px]">账户</TableHead>
-                  <TableHead className="w-[90px]">投手</TableHead>
-                  {bizFilter === "all" && <TableHead className="w-[60px]">业务</TableHead>}
-                  {(bizFilter === "all" || bizFilter === "liveChat") && <TableHead className="w-[80px]">团队</TableHead>}
-                  <TableHead className="w-[90px] text-right">消耗</TableHead>
-                  {bizFilter === "all" && <TableHead className="min-w-[220px]">运营数据</TableHead>}
-                  {bizFilter === "liveChat" && <TableHead className="w-[72px] text-right">进粉</TableHead>}
-                  {bizFilter === "liveChat" && <TableHead className="w-[90px] text-right">粉成本</TableHead>}
-                  {bizFilter === "ecommerce" && <TableHead className="w-[100px] text-right">GMV</TableHead>}
-                  {bizFilter === "ecommerce" && <TableHead className="w-[68px] text-right">ROAS</TableHead>}
-                  {bizFilter === "ecommerce" && <TableHead className="w-[60px] text-right">订单</TableHead>}
-                  {bizFilter === "ecommerce" && <TableHead className="w-[90px] text-right">客单</TableHead>}
+                  <TableHead className="w-[120px]">账户</TableHead>
+                  <TableHead className="w-[80px]">投手</TableHead>
+                  {bizFilter === "all" && <TableHead className="w-[56px]">业务</TableHead>}
+                  <TableHead className="w-[80px] text-right">消耗</TableHead>
+                  {showLive && <TableHead className="w-[68px]">团队</TableHead>}
+                  {showLive && <TableHead className="w-[54px] text-right">进粉</TableHead>}
+                  {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
+                  {showEcom && <TableHead className="w-[86px] text-right">GMV</TableHead>}
+                  {showEcom && <TableHead className="w-[58px] text-right">ROAS</TableHead>}
+                  {showEcom && <TableHead className="w-[50px] text-right">订单</TableHead>}
+                  {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -167,41 +168,40 @@ export default function OpsReportPage() {
                 {!isLoading && paged.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono text-xs whitespace-nowrap">{s.date}</TableCell>
-                    <TableCell className="w-[140px] max-w-[140px]">
+                    <TableCell className="max-w-[120px]">
                       <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[90px]">
+                    <TableCell className="text-xs text-muted-foreground max-w-[80px]">
                       <TruncatedCell value={s.pitcherName ?? "—"} />
                     </TableCell>
                     {bizFilter === "all" && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
-                    {(bizFilter === "all" || bizFilter === "liveChat") && (
-                      <TableCell className="text-xs text-muted-foreground max-w-[80px]">
+                    <TableCell className="text-right font-mono font-semibold whitespace-nowrap text-sm">${Number(s.spendAmount).toFixed(2)}</TableCell>
+                    {showLive && (
+                      <TableCell className="text-xs text-muted-foreground max-w-[68px]">
                         <TruncatedCell value={s.teamName ?? "—"} />
                       </TableCell>
                     )}
-                    <TableCell className="text-right font-mono font-semibold whitespace-nowrap">${Number(s.spendAmount).toFixed(2)}</TableCell>
-                    {bizFilter === "all" && <TableCell><BizMetrics s={s} /></TableCell>}
-                    {bizFilter === "liveChat" && (
-                      <TableCell className="text-right font-mono text-sm">{s.fanCount ?? "—"}</TableCell>
+                    {showLive && (
+                      <TableCell className="text-right font-mono text-xs">{s.fanCount ?? "—"}</TableCell>
                     )}
-                    {bizFilter === "liveChat" && (
-                      <TableCell className="text-right font-mono text-sm text-green-600 whitespace-nowrap">
-                        {s.fanCost ? `$${Number(s.fanCost).toFixed(4)}` : "—"}
+                    {showLive && (
+                      <TableCell className="text-right font-mono text-xs whitespace-nowrap">
+                        {s.fanCost ? `$${Number(s.fanCost).toFixed(2)}` : "—"}
                       </TableCell>
                     )}
-                    {bizFilter === "ecommerce" && (
-                      <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                    {showEcom && (
+                      <TableCell className="text-right font-mono text-xs whitespace-nowrap">
                         {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
                       </TableCell>
                     )}
-                    {bizFilter === "ecommerce" && (
-                      <TableCell className="text-right font-mono text-sm">{s.roas ? Number(s.roas).toFixed(2) : "—"}</TableCell>
+                    {showEcom && (
+                      <TableCell className="text-right font-mono text-xs">{s.roas ? Number(s.roas).toFixed(2) : "—"}</TableCell>
                     )}
-                    {bizFilter === "ecommerce" && (
-                      <TableCell className="text-right font-mono text-sm">{s.orderCount ?? "—"}</TableCell>
+                    {showEcom && (
+                      <TableCell className="text-right font-mono text-xs">{s.orderCount ?? "—"}</TableCell>
                     )}
-                    {bizFilter === "ecommerce" && (
-                      <TableCell className="text-right font-mono text-sm whitespace-nowrap">
+                    {showEcom && (
+                      <TableCell className="text-right font-mono text-xs whitespace-nowrap">
                         {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
                       </TableCell>
                     )}
