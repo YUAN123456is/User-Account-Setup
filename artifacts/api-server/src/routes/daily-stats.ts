@@ -121,22 +121,14 @@ router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): P
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
+  // Balance is NOT restored on rejection — the pitcher will edit and resubmit,
+  // at which point the spend delta will naturally correct the balance.
+  // Restoring here then resubmitting would cause double-addition.
   const [stat] = await db
     .update(dailyStatsTable)
     .set({ status: "rejected", reviewNote: body.note ?? null })
     .where(eq(dailyStatsTable.id, id))
     .returning();
-
-  // Reverse the balance deduction since the record is rejected
-  const spendAmount = parseFloat(existing.spendAmount);
-  if (spendAmount > 0) {
-    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-    if (acct) {
-      const restored = (parseFloat(acct.currentBalance) + spendAmount).toFixed(2);
-      const restoredT = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spendAmount).toFixed(2);
-      await db.update(accountsTable).set({ currentBalance: restored, theoreticalBalance: restoredT }).where(eq(accountsTable.id, existing.accountId));
-    }
-  }
 
   res.json(await formatStat(stat));
 });

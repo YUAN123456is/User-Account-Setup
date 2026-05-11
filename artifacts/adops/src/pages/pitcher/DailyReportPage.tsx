@@ -107,9 +107,18 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const roas = businessType === "ecommerce" && gmvNum > 0 && spend > 0 ? (gmvNum / spend).toFixed(2) : null;
   const avgOrder = businessType === "ecommerce" && gmvNum > 0 && orderNum > 0 ? (gmvNum / orderNum).toFixed(2) : null;
 
+  const wasRejected = stat.status === "rejected";
+
   const update = useUpdateDailyStat({
     mutation: {
-      onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) }); toast({ title: "修改成功" }); onClose(); },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+        toast({
+          title: wasRejected ? "已重新提交审核" : "修改成功",
+          description: wasRejected ? "管理员确认后数据将正式生效" : undefined,
+        });
+        onClose();
+      },
       onError: (err: unknown) => { toast({ title: (err as { data?: { error?: string } })?.data?.error ?? "修改失败", variant: "destructive" }); },
     },
   });
@@ -138,12 +147,32 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle className="flex items-center gap-2 text-base"><Pencil className="h-4 w-4 text-primary" />编辑上报数据</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="h-4 w-4 text-primary" />
+            {wasRejected ? "修改并重新提交" : "编辑上报数据"}
+          </DialogTitle>
+        </DialogHeader>
         <div className="space-y-3 py-1">
           <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
             <p className="text-xs text-muted-foreground mb-0.5">{stat.date}</p>
             <p className="font-medium truncate">{acc?.accountName ?? stat.accountName ?? `#${stat.accountId}`}</p>
           </div>
+          {wasRejected && stat.reviewNote && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5">
+              <XCircle className="h-3.5 w-3.5 text-red-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-red-400 mb-0.5">驳回原因</p>
+                <p className="text-xs text-red-300">{stat.reviewNote}</p>
+              </div>
+            </div>
+          )}
+          {wasRejected && !stat.reviewNote && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
+              <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+              <p className="text-xs text-red-400">此条数据已被驳回，请修改后重新提交</p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-sm">消耗金额（美元）<span className="text-destructive">*</span></Label>
             <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
@@ -702,22 +731,28 @@ export default function DailyReportPage() {
                           {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
                         </TableCell>
                       )}
-                      <TableCell>
-                        <div className="flex flex-col items-center gap-0.5">
+                      <TableCell className="pr-3">
+                        {s.fbSynced ? (
+                          <span className="text-muted-foreground/30 p-1 block text-center" title="FB同步数据，无法手动编辑">
+                            <Pencil className="h-3.5 w-3.5 mx-auto" />
+                          </span>
+                        ) : s.status === "rejected" ? (
                           <button
                             onClick={() => setEditTarget(s)}
-                            className="text-muted-foreground hover:text-primary transition-colors p-1"
-                            title={s.fbSynced ? "FB同步数据，无法手动编辑" : s.status === "pending" ? "待审核中，编辑后将重置为待审核" : "编辑"}
-                            disabled={!!s.fbSynced}
+                            className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap"
+                            title={s.reviewNote ?? "已驳回，点击修改"}
                           >
-                            <Pencil className={`h-3.5 w-3.5 ${s.fbSynced ? "opacity-25 cursor-not-allowed" : ""}`} />
+                            <Pencil className="h-3 w-3 shrink-0" />修改
                           </button>
-                          {s.status === "rejected" && s.reviewNote && (
-                            <span className="text-[9px] text-red-400 max-w-[56px] text-center leading-tight" title={s.reviewNote}>
-                              {s.reviewNote.slice(0, 12)}{s.reviewNote.length > 12 ? "…" : ""}
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditTarget(s)}
+                            className="text-muted-foreground hover:text-primary transition-colors p-1 block"
+                            title={s.status === "pending" ? "待审核中，编辑后将重新提交审核" : "编辑"}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

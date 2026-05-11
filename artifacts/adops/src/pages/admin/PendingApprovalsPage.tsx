@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  CheckCircle, XCircle, ClipboardList, Loader2, RefreshCw,
-  User, CalendarDays, DollarSign, ChevronDown, ChevronRight,
+  CheckCircle, XCircle, Loader2, RefreshCw,
+  User, CalendarDays, ChevronDown, ChevronRight, AlertTriangle,
 } from "lucide-react";
 
 interface PendingStat {
@@ -59,7 +59,7 @@ function StatRow({
             <p className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
               <User className="h-3 w-3" />{stat.pitcherName ?? "—"}
               <CalendarDays className="h-3 w-3 ml-1" />{stat.date}
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground/60">
                 {new Date(stat.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
               </span>
             </p>
@@ -126,15 +126,46 @@ function StatRow({
               <span className="text-foreground font-medium">{stat.orderCount}</span>
             </div>
           )}
-          {stat.reviewNote && (
-            <div className="col-span-2 flex items-start gap-2 text-xs text-muted-foreground">
-              <span className="w-14 shrink-0">备注</span>
-              <span className="text-foreground">{stat.reviewNote}</span>
-            </div>
-          )}
         </div>
       )}
     </div>
+  );
+}
+
+// ── Batch confirm dialog ──────────────────────────────────────────────────────
+function BatchConfirmDialog({
+  pitcherName,
+  count,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  pitcherName: string; count: number;
+  onConfirm: () => void; onCancel: () => void; loading: boolean;
+}) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && !loading && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-500" />批量通过确认
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground py-2">
+          将通过「<span className="text-foreground font-medium">{pitcherName}</span>」提交的全部 <span className="text-foreground font-semibold">{count}</span> 条上报记录，请确认数据无误后再操作。
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={loading}>取消</Button>
+          <Button
+            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 gap-1.5"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />批准中...</> : <>确认全部通过</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -145,6 +176,7 @@ export default function PendingApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [approveTarget, setApproveTarget] = useState<PendingStat | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PendingStat | null>(null);
+  const [batchPitcher, setBatchPitcher] = useState<{ name: string; items: PendingStat[] } | null>(null);
   const [note, setNote] = useState("");
   const [acting, setActing] = useState(false);
 
@@ -155,7 +187,10 @@ export default function PendingApprovalsPage() {
     finally { setLoading(false); }
   }, [toast]);
 
-  useState(() => { void load(); });
+  // ✅ Fixed: was incorrectly using useState(() => load())
+  useEffect(() => { void load(); }, [load]);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
 
   const handleApprove = async () => {
     if (!approveTarget) return;
@@ -164,8 +199,7 @@ export default function PendingApprovalsPage() {
       await api(`/api/daily-stats/${approveTarget.id}/approve`, { method: "POST", body: JSON.stringify({ note }) });
       toast({ title: `已通过「${approveTarget.accountName}」的上报` });
       setApproveTarget(null); setNote("");
-      await load();
-      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      await load(); invalidate();
     } catch (e) {
       toast({ title: String(e instanceof Error ? e.message : "操作失败"), variant: "destructive" });
     } finally { setActing(false); }
@@ -173,16 +207,31 @@ export default function PendingApprovalsPage() {
 
   const handleReject = async () => {
     if (!rejectTarget) return;
-    if (!note.trim()) { toast({ title: "请填写驳回原因", variant: "destructive" }); return; }
     setActing(true);
     try {
       await api(`/api/daily-stats/${rejectTarget.id}/reject`, { method: "POST", body: JSON.stringify({ note }) });
-      toast({ title: `已驳回「${rejectTarget.accountName}」的上报，消耗已回退` });
+      toast({ title: `已驳回「${rejectTarget.accountName}」的上报，投手可修改后重新提交` });
       setRejectTarget(null); setNote("");
-      await load();
-      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      await load(); invalidate();
     } catch (e) {
       toast({ title: String(e instanceof Error ? e.message : "操作失败"), variant: "destructive" });
+    } finally { setActing(false); }
+  };
+
+  const handleBatchApprove = async () => {
+    if (!batchPitcher) return;
+    setActing(true);
+    try {
+      await Promise.all(
+        batchPitcher.items.map((s) =>
+          api(`/api/daily-stats/${s.id}/approve`, { method: "POST", body: JSON.stringify({ note: "" }) })
+        )
+      );
+      toast({ title: `已全部通过「${batchPitcher.name}」的 ${batchPitcher.items.length} 条上报` });
+      setBatchPitcher(null);
+      await load(); invalidate();
+    } catch (e) {
+      toast({ title: String(e instanceof Error ? e.message : "批量操作失败"), variant: "destructive" });
     } finally { setActing(false); }
   };
 
@@ -237,23 +286,7 @@ export default function PendingApprovalsPage() {
                   <Button
                     size="sm"
                     className="h-6 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-                    onClick={async () => {
-                      for (const s of pitcherStats) {
-                        setApproveTarget(s);
-                      }
-                      // Batch approve all for this pitcher
-                      setActing(true);
-                      try {
-                        for (const s of pitcherStats) {
-                          await api(`/api/daily-stats/${s.id}/approve`, { method: "POST", body: JSON.stringify({ note: "" }) });
-                        }
-                        toast({ title: `已全部通过「${pitcherName}」的 ${pitcherStats.length} 条上报` });
-                        await load();
-                        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
-                      } catch (e) {
-                        toast({ title: String(e instanceof Error ? e.message : "操作失败"), variant: "destructive" });
-                      } finally { setActing(false); setApproveTarget(null); }
-                    }}
+                    onClick={() => setBatchPitcher({ name: pitcherName, items: pitcherStats })}
                     disabled={acting}
                   >
                     <CheckCircle className="h-3 w-3" />全部通过
@@ -262,7 +295,12 @@ export default function PendingApprovalsPage() {
               </div>
               <div>
                 {pitcherStats.map((s) => (
-                  <StatRow key={s.id} stat={s} onApprove={(st) => { setApproveTarget(st); setNote(""); }} onReject={(st) => { setRejectTarget(st); setNote(""); }} />
+                  <StatRow
+                    key={s.id}
+                    stat={s}
+                    onApprove={(st) => { setApproveTarget(st); setNote(""); }}
+                    onReject={(st) => { setRejectTarget(st); setNote(""); }}
+                  />
                 ))}
               </div>
             </div>
@@ -270,8 +308,8 @@ export default function PendingApprovalsPage() {
         </div>
       )}
 
-      {/* Approve dialog */}
-      <Dialog open={!!approveTarget && !acting} onOpenChange={(o) => !o && setApproveTarget(null)}>
+      {/* ── Approve dialog — stays open during loading, shows spinner ── */}
+      <Dialog open={!!approveTarget} onOpenChange={(o) => { if (!o && !acting) { setApproveTarget(null); setNote(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -282,25 +320,40 @@ export default function PendingApprovalsPage() {
             {approveTarget && (
               <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm space-y-0.5">
                 <p className="font-medium">{approveTarget.accountName}</p>
-                <p className="text-muted-foreground text-xs">{approveTarget.date} · 消耗 ${Number(approveTarget.spendAmount).toFixed(2)}</p>
+                <p className="text-muted-foreground text-xs">
+                  {approveTarget.date} · 投手 {approveTarget.pitcherName} · 消耗 ${Number(approveTarget.spendAmount).toFixed(2)}
+                </p>
               </div>
             )}
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">备注（可选）</label>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="可填写审核意见..." rows={2} className="resize-none" />
+              <label className="text-sm text-muted-foreground">备注（可选，投手可见）</label>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="可填写审核意见..."
+                rows={2}
+                className="resize-none"
+                disabled={acting}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveTarget(null)}>取消</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white border-0" onClick={handleApprove} disabled={acting}>
-              {acting ? "处理中..." : "确认通过"}
+            <Button variant="outline" onClick={() => { setApproveTarget(null); setNote(""); }} disabled={acting}>
+              取消
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 gap-1.5"
+              onClick={handleApprove}
+              disabled={acting}
+            >
+              {acting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />处理中...</> : "确认通过"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Reject dialog */}
-      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+      {/* ── Reject dialog ── */}
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o && !acting) { setRejectTarget(null); setNote(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -311,25 +364,58 @@ export default function PendingApprovalsPage() {
             {rejectTarget && (
               <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm space-y-0.5">
                 <p className="font-medium">{rejectTarget.accountName}</p>
-                <p className="text-muted-foreground text-xs">{rejectTarget.date} · 消耗 ${Number(rejectTarget.spendAmount).toFixed(2)}</p>
+                <p className="text-muted-foreground text-xs">
+                  {rejectTarget.date} · 投手 {rejectTarget.pitcherName} · 消耗 ${Number(rejectTarget.spendAmount).toFixed(2)}
+                </p>
               </div>
             )}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">驳回原因 <span className="text-destructive">*</span></label>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="请说明驳回原因，投手可看到..." rows={3} className="resize-none" />
+              <label className="text-sm font-medium">
+                驳回原因 <span className="text-destructive">*</span>
+                <span className="text-xs text-muted-foreground font-normal ml-1">（投手会看到这条说明）</span>
+              </label>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="请说明数据哪里有问题，方便投手修正后重新提交..."
+                rows={3}
+                className="resize-none"
+                disabled={acting}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              驳回后该条消耗将从账户余额中回退，投手需重新提交。
-            </p>
+            <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-600">
+                驳回后投手可在历史记录中查看原因并修改重新提交。
+              </p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectTarget(null)}>取消</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={acting || !note.trim()}>
-              {acting ? "处理中..." : "确认驳回"}
+            <Button variant="outline" onClick={() => { setRejectTarget(null); setNote(""); }} disabled={acting}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={acting || !note.trim()}
+              className="gap-1.5"
+            >
+              {acting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />处理中...</> : "确认驳回"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Batch approve confirm ── */}
+      {batchPitcher && (
+        <BatchConfirmDialog
+          pitcherName={batchPitcher.name}
+          count={batchPitcher.items.length}
+          onConfirm={handleBatchApprove}
+          onCancel={() => !acting && setBatchPitcher(null)}
+          loading={acting}
+        />
+      )}
     </div>
   );
 }
