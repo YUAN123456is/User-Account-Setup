@@ -27,22 +27,8 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-type RadixCustomEvent = { detail?: { originalEvent?: { target?: EventTarget | null } } };
-
-function isInsideRadixPortal(target: EventTarget | null | undefined): boolean {
-  if (!(target instanceof Element)) return false;
-  return !!(
-    target.closest("[data-radix-popper-content-wrapper]") ||
-    target.closest("[data-radix-select-viewport]") ||
-    target.closest("[data-radix-select-content]") ||
-    target.closest("[data-radix-popover-content]") ||
-    target.closest("[data-radix-dropdown-menu-content]") ||
-    target.closest("[data-radix-tooltip-content]")
-  );
-}
-
-function getClickedTarget(e: unknown): EventTarget | null | undefined {
-  return (e as RadixCustomEvent)?.detail?.originalEvent?.target;
+function hasOpenRadixPopper(): boolean {
+  return !!document.querySelector("[data-radix-popper-content-wrapper]");
 }
 
 const DialogContent = React.forwardRef<
@@ -58,17 +44,11 @@ const DialogContent = React.forwardRef<
         className
       )}
       onPointerDownOutside={(e) => {
-        if (isInsideRadixPortal(getClickedTarget(e))) {
-          e.preventDefault();
-          return;
-        }
+        if (hasOpenRadixPopper()) { e.preventDefault(); return; }
         onPointerDownOutside?.(e);
       }}
       onInteractOutside={(e) => {
-        if (isInsideRadixPortal(getClickedTarget(e))) {
-          e.preventDefault();
-          return;
-        }
+        if (hasOpenRadixPopper()) { e.preventDefault(); return; }
         onInteractOutside?.(e);
       }}
       {...props}
