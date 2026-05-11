@@ -35,7 +35,7 @@ interface RechargeOrder {
 }
 
 export default function PitcherDashboardPage() {
-  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  const yesterday = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
 
   const { data: accountsData, isLoading: acctLoading } = useListAccounts({});
   const { data: todayStatsData } = useListDailyStats({ dateFrom: yesterday, dateTo: yesterday } as Record<string, string>);
@@ -172,7 +172,7 @@ export default function PitcherDashboardPage() {
             查看账户
           </Button>
         </Link>
-        <Link href="/pitcher/history">
+        <Link href="/pitcher/report">
           <Button size="sm" variant="outline" className="gap-1.5">
             <History className="h-4 w-4" />
             上报记录
@@ -185,7 +185,7 @@ export default function PitcherDashboardPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">最近上报记录</h2>
-            <Link href="/pitcher/history">
+            <Link href="/pitcher/report">
               <span className="text-xs text-primary cursor-pointer hover:underline">查看全部 →</span>
             </Link>
           </div>
