@@ -5,9 +5,10 @@ import { cn } from "@/lib/utils";
 interface TruncatedCellProps {
   value: string;
   className?: string;
+  maxWidth?: string;
 }
 
-export function TruncatedCell({ value, className }: TruncatedCellProps) {
+export function TruncatedCell({ value, className, maxWidth }: TruncatedCellProps) {
   const { toast } = useToast();
 
   const copy = async () => {
@@ -28,7 +29,7 @@ export function TruncatedCell({ value, className }: TruncatedCellProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className={cn("block truncate cursor-default select-text", className)}
+          className={cn("block truncate cursor-default select-text", maxWidth, className)}
           onDoubleClick={copy}
         >
           {value}

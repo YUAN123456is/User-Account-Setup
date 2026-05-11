@@ -69,8 +69,8 @@ interface ReportRow {
   expanded: boolean;
 }
 
-const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
-const today = new Date().toISOString().slice(0, 10);
+const yesterday = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
+const today = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); return d.toISOString().slice(0, 10); })();
 
 function newRow(): ReportRow {
   return { key: Math.random().toString(36).slice(2), accountId: "", spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "", expanded: false };
