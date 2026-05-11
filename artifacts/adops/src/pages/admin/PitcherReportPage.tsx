@@ -323,11 +323,19 @@ export default function PitcherReportPage() {
 
       <StatsBar items={[
         { label: "投手数量", value: filtered.length },
-        { label: "昨日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" },
-        { label: hasFilter ? "期间总消耗" : "累计总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "purple" },
+        ...(hasFilter ? [
+          { label: "期间总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "blue" as const },
+        ] : [
+          { label: "昨日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" as const },
+          { label: "累计总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "purple" as const },
+        ]),
         { label: "账户余额合计", value: `$${totalBalance.toFixed(2)}`, color: "green" },
-        { label: "昨日充值到账", value: `$${todayRecharge.toFixed(2)}`, color: "amber" },
-        { label: hasFilter ? "期间充值" : "累计充值", value: `$${totalRecharge.toFixed(2)}` },
+        ...(hasFilter ? [
+          { label: "期间充值", value: `$${totalRecharge.toFixed(2)}`, color: "amber" as const },
+        ] : [
+          { label: "昨日充值到账", value: `$${todayRecharge.toFixed(2)}`, color: "amber" as const },
+          { label: "累计充值", value: `$${totalRecharge.toFixed(2)}` },
+        ]),
         { label: "账户总数", value: totalAccounts },
         { label: "消耗最高", value: topPitcher ? topPitcher.pitcherName : "—", color: "amber" },
       ]} />
