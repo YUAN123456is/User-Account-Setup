@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { initAdminUser } from "./lib/init-admin";
 import { runFbSync, yesterday } from "./routes/meta-tokens";
+import { msUntilHourUTC8 } from "./lib/tz";
 
 const rawPort = process.env["PORT"];
 
@@ -21,14 +22,10 @@ initAdminUser().catch((err) => {
   logger.error({ err }, "Failed to initialize admin user");
 });
 
-// Daily auto-sync: run at 02:00 server time every day
+// Daily auto-sync: run at 02:00 UTC-8 every day
 function scheduleDailyFbSync() {
   function msUntilNextRun() {
-    const now = new Date();
-    const next = new Date();
-    next.setHours(2, 0, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    return next.getTime() - now.getTime();
+    return msUntilHourUTC8(2);
   }
 
   function schedule() {

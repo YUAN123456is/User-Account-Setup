@@ -2,14 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, sql, and, gte, lte, isNotNull, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
+import { yesterdayUTC8, nowUTC8 } from "../lib/tz";
 
 const router: IRouter = Router();
 
-const yesterdayStr = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-};
+const yesterdayStr = yesterdayUTC8;
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promise<void> => {
@@ -298,8 +295,8 @@ router.get("/dashboard/low-balance-alerts", requireRole("admin"), async (req, re
 // ─── Overdue Alerts ───────────────────────────────────────────────────────────
 router.get("/dashboard/overdue-alerts", requireRole("admin"), async (req, res): Promise<void> => {
   const days = Number(req.query.days ?? 3);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
+  const cutoff = nowUTC8();
+  cutoff.setUTCDate(cutoff.getUTCDate() - days);
 
   const rows = await db.select({
     account: accountsTable,
@@ -338,8 +335,8 @@ router.get("/dashboard/overdue-alerts", requireRole("admin"), async (req, res): 
 // ─── Daily Trend ──────────────────────────────────────────────────────────────
 router.get("/dashboard/daily-trend", requireRole("admin"), async (req, res): Promise<void> => {
   const days = Number(req.query.days ?? 30);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days + 1);
+  const cutoff = nowUTC8();
+  cutoff.setUTCDate(cutoff.getUTCDate() - days + 1);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
   const rows = await db.select({
@@ -356,7 +353,7 @@ router.get("/dashboard/daily-trend", requireRole("admin"), async (req, res): Pro
   const result: { date: string; totalSpend: string }[] = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(cutoff);
-    d.setDate(cutoff.getDate() + i);
+    d.setUTCDate(cutoff.getUTCDate() + i);
     const ds = d.toISOString().slice(0, 10);
     result.push({ date: ds, totalSpend: map.get(ds) ?? "0" });
   }

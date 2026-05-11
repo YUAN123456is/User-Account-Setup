@@ -3,15 +3,14 @@ import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { logger } from "../lib/logger";
+import { yesterdayUTC8 } from "../lib/tz";
 
 const router: IRouter = Router();
 
 const META_GRAPH = "https://graph.facebook.com/v21.0";
 
 export function yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return yesterdayUTC8();
 }
 
 function dateRange(from: string, to: string): string[] {
