@@ -123,7 +123,7 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     spendAmount: parsed.data.spendAmount,
     realBalance: newBalance,
     pitcherId: req.session.userId!,
-    hasAlert: false,
+    hasAlert: parseFloat(newBalance) < 100,
     businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
     teamId: parsed.data.teamId ?? null,
     fanCount: parsed.data.fanCount ?? null,
@@ -184,6 +184,7 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
     updates.spendAmount = parsed.data.spendAmount;
     updates.realBalance = newRealBalance;
+    updates.hasAlert = parseFloat(newRealBalance) < 100;
 
     const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
     if (account) {

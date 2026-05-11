@@ -350,7 +350,7 @@ function BatchCreateAccountDialog({ open, onClose }: { open: boolean; onClose: (
         <DialogFooter className="border-t border-border pt-4 mt-2 flex-shrink-0">
           <div className="flex items-center gap-2 mr-auto text-xs text-muted-foreground">
             {submitting ? (
-              <span>正在提交… {doneCount}/{rows.length + doneCount + errorCount}</span>
+              <span>正在提交… {doneCount + errorCount}/{rows.length}</span>
             ) : (
               <span>共 {rows.length} 行 · {validRows.length} 行有效</span>
             )}
