@@ -598,10 +598,10 @@ export const GetSpendByProviderQueryParams = zod.object({
 export const GetSpendByProviderResponseItem = zod.object({
   providerId: zod.number(),
   providerName: zod.string(),
-  todaySpend: zod.string(),
+  yesterdaySpend: zod.string(),
   totalSpend: zod.string(),
   totalRecharge: zod.string(),
-  todayRecharge: zod.string(),
+  yesterdayRecharge: zod.string(),
   totalBalance: zod.string(),
   accountCount: zod.number(),
 });
@@ -620,10 +620,10 @@ export const GetSpendByPitcherQueryParams = zod.object({
 export const GetSpendByPitcherResponseItem = zod.object({
   pitcherId: zod.number(),
   pitcherName: zod.string(),
-  todaySpend: zod.string(),
+  yesterdaySpend: zod.string(),
   totalSpend: zod.string(),
   totalRecharge: zod.string(),
-  todayRecharge: zod.string(),
+  yesterdayRecharge: zod.string(),
   totalBalance: zod.string(),
   accountCount: zod.number(),
 });
@@ -737,7 +737,7 @@ export const GetPitcherAccountsResponseItem = zod.object({
   platform: zod.string(),
   status: zod.string(),
   currentBalance: zod.string(),
-  todaySpend: zod.string(),
+  yesterdaySpend: zod.string(),
   totalSpend: zod.string(),
 });
 export const GetPitcherAccountsResponse = zod.array(
@@ -760,7 +760,7 @@ export const GetProviderAccountsResponseItem = zod.object({
   platform: zod.string(),
   status: zod.string(),
   currentBalance: zod.string(),
-  todaySpend: zod.string(),
+  yesterdaySpend: zod.string(),
   totalSpend: zod.string(),
   pitcherName: zod.string().nullish(),
 });

@@ -16,10 +16,10 @@ import { BizBadge } from "@/components/shared/BizDisplay";
 interface PitcherSpend {
   pitcherId: number;
   pitcherName: string;
-  todaySpend: string | number;
+  yesterdaySpend: string | number;
   totalSpend: string | number;
   totalRecharge: string | number;
-  todayRecharge: string | number;
+  yesterdayRecharge: string | number;
   totalBalance: string | number;
   accountCount: number;
 }
@@ -31,7 +31,7 @@ interface PitcherAccountDetail {
   platform: string;
   status: string;
   currentBalance: string | number;
-  todaySpend: string | number;
+  yesterdaySpend: string | number;
   totalSpend: string | number;
 }
 
@@ -223,7 +223,7 @@ function AccountDetailPanel({
                     <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
                     <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
                     <td className="px-4 py-2 font-mono font-semibold text-primary">${Number(acc.currentBalance).toFixed(2)}</td>
-                    <td className="px-4 py-2 font-mono">${Number((acc as unknown as Record<string,unknown>).yesterdaySpend ?? 0).toFixed(2)}</td>
+                    <td className="px-4 py-2 font-mono">${Number(acc.yesterdaySpend).toFixed(2)}</td>
                     <td className="px-4 py-2 font-mono">${Number(acc.totalSpend).toFixed(2)}</td>
                   </tr>
                 ))}
@@ -282,10 +282,10 @@ export default function PitcherReportPage() {
   const paged = usePagination(sorted, PAGE_SIZE, page);
 
   const hasFilter = !!(dateRange.from || dateRange.to);
-  const totalTodaySpend = filtered.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0), 0);
+  const totalTodaySpend = filtered.reduce((s, r) => s + Number(r.yesterdaySpend), 0);
   const totalPeriodSpend = filtered.reduce((s, r) => s + Number(r.totalSpend), 0);
   const totalBalance = filtered.reduce((s, r) => s + Number(r.totalBalance), 0);
-  const todayRecharge = filtered.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0), 0);
+  const todayRecharge = filtered.reduce((s, r) => s + Number(r.yesterdayRecharge), 0);
   const totalRecharge = filtered.reduce((s, r) => s + Number(r.totalRecharge), 0);
   const totalAccounts = filtered.reduce((s, r) => s + r.accountCount, 0);
   const topPitcher = filtered.length > 0 ? filtered.reduce((best, r) => Number(r.totalSpend) > Number(best.totalSpend) ? r : best) : null;
@@ -388,10 +388,10 @@ export default function PitcherReportPage() {
                       {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell className="font-semibold">{r.pitcherName}</TableCell>
-                    <TableCell className="font-mono">${Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono">${Number(r.yesterdaySpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalSpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono font-semibold text-primary">${Number(r.totalBalance).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono text-amber-600">${Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-amber-600">${Number(r.yesterdayRecharge).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalRecharge).toFixed(2)}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center justify-center bg-muted text-muted-foreground text-xs rounded-full px-2 py-0.5 min-w-[24px]">

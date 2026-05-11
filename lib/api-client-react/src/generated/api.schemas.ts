@@ -385,10 +385,10 @@ export interface DashboardSummary {
 export interface SpendByProvider {
   providerId: number;
   providerName: string;
-  todaySpend: string;
+  yesterdaySpend: string;
   totalSpend: string;
   totalRecharge: string;
-  todayRecharge: string;
+  yesterdayRecharge: string;
   totalBalance: string;
   accountCount: number;
 }
@@ -396,10 +396,10 @@ export interface SpendByProvider {
 export interface SpendByPitcher {
   pitcherId: number;
   pitcherName: string;
-  todaySpend: string;
+  yesterdaySpend: string;
   totalSpend: string;
   totalRecharge: string;
-  todayRecharge: string;
+  yesterdayRecharge: string;
   totalBalance: string;
   accountCount: number;
 }
@@ -411,7 +411,7 @@ export interface PitcherAccountDetail {
   platform: string;
   status: string;
   currentBalance: string;
-  todaySpend: string;
+  yesterdaySpend: string;
   totalSpend: string;
 }
 
@@ -422,7 +422,7 @@ export interface ProviderAccountDetail {
   platform: string;
   status: string;
   currentBalance: string;
-  todaySpend: string;
+  yesterdaySpend: string;
   totalSpend: string;
   /** @nullable */
   pitcherName?: string | null;

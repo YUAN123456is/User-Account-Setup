@@ -106,7 +106,7 @@ function RechargeDialog({ account, onClose }: { account: Account & { feeRate?: s
   const feeRate = useMemo(() => {
     if (account.feeRate) return parseFloat(account.feeRate);
     const orders = Array.isArray(ordersData) ? (ordersData as RechargeOrder[]) : [];
-    const related = orders.find((o) => o.feeRate && (o.accountId === account.id || true));
+    const related = orders.find((o) => o.feeRate && o.accountId === account.id);
     return related?.feeRate ? parseFloat(related.feeRate) : null;
   }, [account, ordersData]);
 

@@ -185,16 +185,6 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     updates.spendAmount = parsed.data.spendAmount;
     updates.realBalance = newRealBalance;
     updates.hasAlert = parseFloat(newRealBalance) < 100;
-
-    const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-    if (account) {
-      const newBal = (parseFloat(account.currentBalance) - spendDelta).toFixed(2);
-      const newTheo = (parseFloat(account.theoreticalBalance ?? account.currentBalance) - spendDelta).toFixed(2);
-      await db.update(accountsTable).set({
-        currentBalance: newBal,
-        theoreticalBalance: newTheo,
-      }).where(eq(accountsTable.id, existing.accountId));
-    }
   }
 
   const [stat] = await db.update(dailyStatsTable)

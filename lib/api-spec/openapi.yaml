@@ -1275,13 +1275,13 @@ components:
           type: integer
         providerName:
           type: string
-        todaySpend:
+        yesterdaySpend:
           type: string
         totalSpend:
           type: string
         totalRecharge:
           type: string
-        todayRecharge:
+        yesterdayRecharge:
           type: string
         totalBalance:
           type: string
@@ -1290,10 +1290,10 @@ components:
       required:
         - providerId
         - providerName
-        - todaySpend
+        - yesterdaySpend
         - totalSpend
         - totalRecharge
-        - todayRecharge
+        - yesterdayRecharge
         - totalBalance
         - accountCount
 
@@ -1304,13 +1304,13 @@ components:
           type: integer
         pitcherName:
           type: string
-        todaySpend:
+        yesterdaySpend:
           type: string
         totalSpend:
           type: string
         totalRecharge:
           type: string
-        todayRecharge:
+        yesterdayRecharge:
           type: string
         totalBalance:
           type: string
@@ -1319,10 +1319,10 @@ components:
       required:
         - pitcherId
         - pitcherName
-        - todaySpend
+        - yesterdaySpend
         - totalSpend
         - totalRecharge
-        - todayRecharge
+        - yesterdayRecharge
         - totalBalance
         - accountCount
 
@@ -1341,7 +1341,7 @@ components:
           type: string
         currentBalance:
           type: string
-        todaySpend:
+        yesterdaySpend:
           type: string
         totalSpend:
           type: string
@@ -1352,7 +1352,7 @@ components:
         - platform
         - status
         - currentBalance
-        - todaySpend
+        - yesterdaySpend
         - totalSpend
 
     ProviderAccountDetail:
@@ -1370,7 +1370,7 @@ components:
           type: string
         currentBalance:
           type: string
-        todaySpend:
+        yesterdaySpend:
           type: string
         totalSpend:
           type: string
@@ -1383,7 +1383,7 @@ components:
         - platform
         - status
         - currentBalance
-        - todaySpend
+        - yesterdaySpend
         - totalSpend
 
     LowBalanceAlert:
