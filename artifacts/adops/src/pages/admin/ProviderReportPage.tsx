@@ -53,7 +53,7 @@ function AccountDetailPanel({
 
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={8} className="p-0">
+      <TableCell colSpan={hasFilter ? 6 : 8} className="p-0">
         <div className="mx-4 my-2 rounded-lg border border-primary/20 bg-muted/30 overflow-hidden shadow-sm">
           <div className="px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center gap-2">
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">账户明细</span>
@@ -79,7 +79,7 @@ function AccountDetailPanel({
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">状态</th>
                   <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">当前余额</th>
-                  <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">昨日消耗</th>
+                  {!hasFilter && <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">昨日消耗</th>}
                   <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">{hasFilter ? "期间消耗" : "累计消耗"}</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">绑定投手</th>
                 </tr>
@@ -92,7 +92,7 @@ function AccountDetailPanel({
                     <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
                     <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
                     <td className="px-4 py-2 font-mono font-semibold text-primary text-right whitespace-nowrap">${Number(acc.currentBalance).toFixed(2)}</td>
-                    <td className="px-4 py-2 font-mono text-right whitespace-nowrap">${Number(acc.yesterdaySpend).toFixed(2)}</td>
+                    {!hasFilter && <td className="px-4 py-2 font-mono text-right whitespace-nowrap">${Number(acc.yesterdaySpend).toFixed(2)}</td>}
                     <td className="px-4 py-2 font-mono text-right whitespace-nowrap">${Number(acc.totalSpend).toFixed(2)}</td>
                     <td className="px-4 py-2 text-muted-foreground">{acc.pitcherName ?? "—"}</td>
                   </tr>
@@ -175,23 +175,23 @@ export default function ProviderReportPage() {
             <TableRow className="bg-muted/40">
               <TableHead className="w-8" />
               <TableHead>开户商名称</TableHead>
-              <TableHead className="text-right">昨日消耗</TableHead>
+              {!hasFilter && <TableHead className="text-right">昨日消耗</TableHead>}
               <TableHead className="text-right">{hasFilter ? "期间消耗" : "累计消耗"}</TableHead>
               <TableHead className="text-right">余额合计</TableHead>
-              <TableHead className="text-right">昨日充值</TableHead>
+              {!hasFilter && <TableHead className="text-right">昨日充值</TableHead>}
               <TableHead className="text-right">{hasFilter ? "期间充值" : "累计充值"}</TableHead>
               <TableHead className="text-right w-16">账户数</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 3 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: hasFilter ? 6 : 8 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={hasFilter ? 6 : 8}>
                   <EmptyState icon={BarChart3} title="暂无数据" description="投手上报每日数据后将在此显示。" />
                 </TableCell>
               </TableRow>
@@ -208,10 +208,10 @@ export default function ProviderReportPage() {
                       {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell className="font-semibold">{r.providerName}</TableCell>
-                    <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.yesterdaySpend).toFixed(2)}</TableCell>
+                    {!hasFilter && <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.yesterdaySpend).toFixed(2)}</TableCell>}
                     <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.totalSpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono font-semibold text-primary text-right whitespace-nowrap">${Number(r.totalBalance).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono text-amber-600 text-right whitespace-nowrap">${Number(r.yesterdayRecharge).toFixed(2)}</TableCell>
+                    {!hasFilter && <TableCell className="font-mono text-amber-600 text-right whitespace-nowrap">${Number(r.yesterdayRecharge).toFixed(2)}</TableCell>}
                     <TableCell className="font-mono text-right whitespace-nowrap">${Number(r.totalRecharge).toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <span className="inline-flex items-center justify-center bg-muted text-muted-foreground text-xs rounded-full px-2 py-0.5 min-w-[24px]">
