@@ -1,5 +1,5 @@
 import { useState, Fragment } from "react";
-import { useGetSpendByPitcher, useGetPitcherAccounts } from "@workspace/api-client-react";
+import { useGetSpendByPitcher, useGetPitcherAccounts, useListDailyStats } from "@workspace/api-client-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -7,7 +7,8 @@ import { DateRangePicker, type DateRange } from "@/components/shared/DateRangePi
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
-import { BarChart3, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BarChart3, ChevronDown, ChevronRight, Loader2, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PitcherSpend {
@@ -34,14 +35,100 @@ interface PitcherAccountDetail {
 
 const PAGE_SIZE = 20;
 
+interface SelectedAccount {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+}
+
+function AccountHistoryDialog({
+  account,
+  onClose,
+}: {
+  account: SelectedAccount | null;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError } = useListDailyStats(
+    account ? { accountId: account.accountId } : undefined,
+  );
+
+  const rows = Array.isArray(data) ? [...data].sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const totalSpend = rows.reduce((s, r) => s + Number(r.spendAmount), 0);
+
+  return (
+    <Dialog open={!!account} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-primary" />
+            历史消耗记录
+          </DialogTitle>
+          {account && (
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {account.accountName}
+              {account.platformAccountId && (
+                <span className="ml-2 font-mono opacity-70">({account.platformAccountId})</span>
+              )}
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="flex-1 overflow-auto min-h-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              加载中...
+            </div>
+          ) : isError ? (
+            <div className="text-center text-sm text-destructive py-10">加载失败，请稍后重试</div>
+          ) : rows.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-10">该账户暂无消耗记录</div>
+          ) : (
+            <>
+              <div className="flex items-center gap-4 mb-3 px-1 text-xs text-muted-foreground">
+                <span>共 <span className="font-semibold text-foreground">{rows.length}</span> 条记录</span>
+                <span>累计消耗 <span className="font-semibold text-primary">${totalSpend.toFixed(2)}</span></span>
+              </div>
+              <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">日期</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">当日消耗</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">余额快照</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, idx) => (
+                    <tr key={r.id} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
+                      <td className="px-4 py-2.5 font-mono text-sm">{r.date}</td>
+                      <td className="px-4 py-2.5 font-mono text-right font-semibold text-orange-500">
+                        ${Number(r.spendAmount).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-right text-primary">
+                        ${Number(r.realBalance).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AccountDetailPanel({
   pitcherId,
   dateRange,
   hasFilter,
+  onAccountClick,
 }: {
   pitcherId: number;
   dateRange: DateRange;
   hasFilter: boolean;
+  onAccountClick: (acc: SelectedAccount) => void;
 }) {
   const params: Record<string, string | number> = { pitcherId };
   if (dateRange.from) params.dateFrom = dateRange.from;
@@ -59,6 +146,7 @@ function AccountDetailPanel({
             {!isLoading && !isError && (
               <span className="text-xs text-muted-foreground">（共 {rows.length} 个账户）</span>
             )}
+            <span className="text-xs text-muted-foreground ml-auto">点击账户行查看历史消耗</span>
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-6 gap-2 text-muted-foreground text-sm">
@@ -84,8 +172,24 @@ function AccountDetailPanel({
               </thead>
               <tbody>
                 {rows.map((acc, idx) => (
-                  <tr key={acc.accountId} className={cn("border-b border-border/40 last:border-0", idx % 2 === 1 && "bg-muted/20")}>
-                    <td className="px-4 py-2 font-medium max-w-[160px]"><TruncatedCell value={acc.accountName} /></td>
+                  <tr
+                    key={acc.accountId}
+                    className={cn(
+                      "border-b border-border/40 last:border-0 cursor-pointer transition-colors hover:bg-primary/10",
+                      idx % 2 === 1 && "bg-muted/20",
+                    )}
+                    onClick={() => onAccountClick({
+                      accountId: acc.accountId,
+                      accountName: acc.accountName ?? "",
+                      platformAccountId: acc.platformAccountId ?? "",
+                    })}
+                  >
+                    <td className="px-4 py-2 font-medium max-w-[160px]">
+                      <div className="flex items-center gap-1.5">
+                        <History className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <TruncatedCell value={acc.accountName} />
+                      </div>
+                    </td>
                     <td className="px-4 py-2 font-mono text-xs text-muted-foreground max-w-[140px]"><TruncatedCell value={acc.platformAccountId} /></td>
                     <td className="px-4 py-2"><PlatformBadge platform={acc.platform} /></td>
                     <td className="px-4 py-2"><AccountStatusBadge status={acc.status as "idle" | "active" | "banned"} /></td>
@@ -107,6 +211,7 @@ export default function PitcherReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [selectedAccount, setSelectedAccount] = useState<SelectedAccount | null>(null);
 
   const params: Record<string, string> = {};
   if (dateRange.from) params.dateFrom = dateRange.from;
@@ -212,6 +317,7 @@ export default function PitcherReportPage() {
                       pitcherId={r.pitcherId}
                       dateRange={dateRange}
                       hasFilter={hasFilter}
+                      onAccountClick={setSelectedAccount}
                     />
                   )}
                 </Fragment>
@@ -221,6 +327,11 @@ export default function PitcherReportPage() {
         </Table>
         <TablePagination page={page} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} />
       </div>
+
+      <AccountHistoryDialog
+        account={selectedAccount}
+        onClose={() => setSelectedAccount(null)}
+      />
     </div>
   );
 }
