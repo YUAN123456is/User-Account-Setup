@@ -304,6 +304,21 @@ export const ListDailyStatsResponseItem = zod.object({
   pitcherId: zod.number(),
   pitcherName: zod.string().nullish(),
   hasAlert: zod.boolean(),
+  businessType: zod
+    .union([
+      zod.literal("liveChat"),
+      zod.literal("ecommerce"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  teamId: zod.number().nullish(),
+  teamName: zod.string().nullish(),
+  fanCount: zod.number().nullish(),
+  fanCost: zod.string().nullish().describe("Computed: spendAmount \/ fanCount"),
+  gmv: zod.string().nullish(),
+  orderCount: zod.number().nullish(),
+  roas: zod.string().nullish().describe("Computed: gmv \/ spendAmount"),
+  avgOrderValue: zod.string().nullish().describe("Computed: gmv \/ orderCount"),
   createdAt: zod.string(),
 });
 export const ListDailyStatsResponse = zod.array(ListDailyStatsResponseItem);
@@ -315,6 +330,17 @@ export const CreateDailyStatBody = zod.object({
   accountId: zod.number(),
   date: zod.string(),
   spendAmount: zod.string(),
+  businessType: zod
+    .union([
+      zod.literal("liveChat"),
+      zod.literal("ecommerce"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  teamId: zod.number().nullish(),
+  fanCount: zod.number().nullish(),
+  gmv: zod.string().nullish(),
+  orderCount: zod.number().nullish(),
 });
 
 /**
@@ -327,6 +353,17 @@ export const UpdateDailyStatParams = zod.object({
 export const UpdateDailyStatBody = zod.object({
   spendAmount: zod.string().nullish(),
   realBalance: zod.string().nullish(),
+  businessType: zod
+    .union([
+      zod.literal("liveChat"),
+      zod.literal("ecommerce"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  teamId: zod.number().nullish(),
+  fanCount: zod.number().nullish(),
+  gmv: zod.string().nullish(),
+  orderCount: zod.number().nullish(),
 });
 
 export const UpdateDailyStatResponse = zod.object({
@@ -340,7 +377,79 @@ export const UpdateDailyStatResponse = zod.object({
   pitcherId: zod.number(),
   pitcherName: zod.string().nullish(),
   hasAlert: zod.boolean(),
+  businessType: zod
+    .union([
+      zod.literal("liveChat"),
+      zod.literal("ecommerce"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  teamId: zod.number().nullish(),
+  teamName: zod.string().nullish(),
+  fanCount: zod.number().nullish(),
+  fanCost: zod.string().nullish().describe("Computed: spendAmount \/ fanCount"),
+  gmv: zod.string().nullish(),
+  orderCount: zod.number().nullish(),
+  roas: zod.string().nullish().describe("Computed: gmv \/ spendAmount"),
+  avgOrderValue: zod.string().nullish().describe("Computed: gmv \/ orderCount"),
   createdAt: zod.string(),
+});
+
+/**
+ * @summary List teams (admin)
+ */
+export const ListTeamsQueryParams = zod.object({
+  businessType: zod
+    .union([
+      zod.literal("liveChat"),
+      zod.literal("ecommerce"),
+      zod.literal(null),
+    ])
+    .nullish(),
+});
+
+export const ListTeamsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  businessType: zod.enum(["liveChat", "ecommerce"]),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListTeamsResponse = zod.array(ListTeamsResponseItem);
+
+/**
+ * @summary Create a team (admin)
+ */
+export const CreateTeamBody = zod.object({
+  name: zod.string(),
+  businessType: zod.enum(["liveChat", "ecommerce"]),
+});
+
+/**
+ * @summary Update a team (admin)
+ */
+export const UpdateTeamParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateTeamBody = zod.object({
+  name: zod.string().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateTeamResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  businessType: zod.enum(["liveChat", "ecommerce"]),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a team (admin)
+ */
+export const DeleteTeamParams = zod.object({
+  id: zod.coerce.number(),
 });
 
 /**

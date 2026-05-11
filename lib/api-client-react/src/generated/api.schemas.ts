@@ -153,6 +153,18 @@ export interface AssignAccountBody {
   pitcherId: number | null;
 }
 
+/**
+ * @nullable
+ */
+export type DailyStatBusinessType =
+  | (typeof DailyStatBusinessType)[keyof typeof DailyStatBusinessType]
+  | null;
+
+export const DailyStatBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
+
 export interface DailyStat {
   id: number;
   accountId: number;
@@ -167,20 +179,125 @@ export interface DailyStat {
   /** @nullable */
   pitcherName?: string | null;
   hasAlert: boolean;
+  /** @nullable */
+  businessType?: DailyStatBusinessType;
+  /** @nullable */
+  teamId?: number | null;
+  /** @nullable */
+  teamName?: string | null;
+  /** @nullable */
+  fanCount?: number | null;
+  /**
+   * Computed: spendAmount / fanCount
+   * @nullable
+   */
+  fanCost?: string | null;
+  /** @nullable */
+  gmv?: string | null;
+  /** @nullable */
+  orderCount?: number | null;
+  /**
+   * Computed: gmv / spendAmount
+   * @nullable
+   */
+  roas?: string | null;
+  /**
+   * Computed: gmv / orderCount
+   * @nullable
+   */
+  avgOrderValue?: string | null;
   createdAt: string;
 }
+
+/**
+ * @nullable
+ */
+export type CreateDailyStatBodyBusinessType =
+  | (typeof CreateDailyStatBodyBusinessType)[keyof typeof CreateDailyStatBodyBusinessType]
+  | null;
+
+export const CreateDailyStatBodyBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
 
 export interface CreateDailyStatBody {
   accountId: number;
   date: string;
   spendAmount: string;
+  /** @nullable */
+  businessType?: CreateDailyStatBodyBusinessType;
+  /** @nullable */
+  teamId?: number | null;
+  /** @nullable */
+  fanCount?: number | null;
+  /** @nullable */
+  gmv?: string | null;
+  /** @nullable */
+  orderCount?: number | null;
 }
+
+/**
+ * @nullable
+ */
+export type UpdateDailyStatBodyBusinessType =
+  | (typeof UpdateDailyStatBodyBusinessType)[keyof typeof UpdateDailyStatBodyBusinessType]
+  | null;
+
+export const UpdateDailyStatBodyBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
 
 export interface UpdateDailyStatBody {
   /** @nullable */
   spendAmount?: string | null;
   /** @nullable */
   realBalance?: string | null;
+  /** @nullable */
+  businessType?: UpdateDailyStatBodyBusinessType;
+  /** @nullable */
+  teamId?: number | null;
+  /** @nullable */
+  fanCount?: number | null;
+  /** @nullable */
+  gmv?: string | null;
+  /** @nullable */
+  orderCount?: number | null;
+}
+
+export type TeamBusinessType =
+  (typeof TeamBusinessType)[keyof typeof TeamBusinessType];
+
+export const TeamBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
+
+export interface Team {
+  id: number;
+  name: string;
+  businessType: TeamBusinessType;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type CreateTeamBodyBusinessType =
+  (typeof CreateTeamBodyBusinessType)[keyof typeof CreateTeamBodyBusinessType];
+
+export const CreateTeamBodyBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
+
+export interface CreateTeamBody {
+  name: string;
+  businessType: CreateTeamBodyBusinessType;
+}
+
+export interface UpdateTeamBody {
+  name?: string;
+  isActive?: boolean;
 }
 
 export type RechargeOrderStatus =
@@ -420,6 +537,22 @@ export type ListDailyStatsParams = {
    */
   dateTo?: string | null;
 };
+
+export type ListTeamsParams = {
+  /**
+   * @nullable
+   */
+  businessType?: ListTeamsBusinessType;
+};
+
+export type ListTeamsBusinessType =
+  | (typeof ListTeamsBusinessType)[keyof typeof ListTeamsBusinessType]
+  | null;
+
+export const ListTeamsBusinessType = {
+  liveChat: "liveChat",
+  ecommerce: "ecommerce",
+} as const;
 
 export type ListRechargeOrdersParams = {
   status?: ListRechargeOrdersStatus;

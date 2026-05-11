@@ -22,6 +22,8 @@ tags:
     description: Recharge order management
   - name: dashboard
     description: Dashboard and analytics
+  - name: teams
+    description: Team management (admin only)
 
 paths:
   /healthz:
@@ -417,6 +419,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DailyStat"
+
+  # ─── Teams ────────────────────────────────────────────────────────────────
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [teams]
+      summary: List teams (admin)
+      parameters:
+        - in: query
+          name: businessType
+          schema:
+            type: ["string", "null"]
+            enum: [liveChat, ecommerce, null]
+      responses:
+        "200":
+          description: List of teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+
+    post:
+      operationId: createTeam
+      tags: [teams]
+      summary: Create a team (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamBody"
+      responses:
+        "201":
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/{id}:
+    patch:
+      operationId: updateTeam
+      tags: [teams]
+      summary: Update a team (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTeamBody"
+      responses:
+        "200":
+          description: Updated team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+    delete:
+      operationId: deleteTeam
+      tags: [teams]
+      summary: Delete a team (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   # ─── Recharge Orders ──────────────────────────────────────────────────────
   /recharge-orders:
@@ -955,6 +1036,28 @@ components:
           type: ["string", "null"]
         hasAlert:
           type: boolean
+        businessType:
+          type: ["string", "null"]
+          enum: [liveChat, ecommerce, null]
+        teamId:
+          type: ["integer", "null"]
+        teamName:
+          type: ["string", "null"]
+        fanCount:
+          type: ["integer", "null"]
+        fanCost:
+          type: ["string", "null"]
+          description: "Computed: spendAmount / fanCount"
+        gmv:
+          type: ["string", "null"]
+        orderCount:
+          type: ["integer", "null"]
+        roas:
+          type: ["string", "null"]
+          description: "Computed: gmv / spendAmount"
+        avgOrderValue:
+          type: ["string", "null"]
+          description: "Computed: gmv / orderCount"
         createdAt:
           type: string
       required:
@@ -976,6 +1079,17 @@ components:
           type: string
         spendAmount:
           type: string
+        businessType:
+          type: ["string", "null"]
+          enum: [liveChat, ecommerce, null]
+        teamId:
+          type: ["integer", "null"]
+        fanCount:
+          type: ["integer", "null"]
+        gmv:
+          type: ["string", "null"]
+        orderCount:
+          type: ["integer", "null"]
       required:
         - accountId
         - date
@@ -988,6 +1102,59 @@ components:
           type: ["string", "null"]
         realBalance:
           type: ["string", "null"]
+        businessType:
+          type: ["string", "null"]
+          enum: [liveChat, ecommerce, null]
+        teamId:
+          type: ["integer", "null"]
+        fanCount:
+          type: ["integer", "null"]
+        gmv:
+          type: ["string", "null"]
+        orderCount:
+          type: ["integer", "null"]
+
+    # ─── Teams ────────────────────────────────────────────────────────────────
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        businessType:
+          type: string
+          enum: [liveChat, ecommerce]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - businessType
+        - isActive
+        - createdAt
+
+    CreateTeamBody:
+      type: object
+      properties:
+        name:
+          type: string
+        businessType:
+          type: string
+          enum: [liveChat, ecommerce]
+      required:
+        - name
+        - businessType
+
+    UpdateTeamBody:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
 
     # ─── Recharge Orders ──────────────────────────────────────────────────
     RechargeOrder:

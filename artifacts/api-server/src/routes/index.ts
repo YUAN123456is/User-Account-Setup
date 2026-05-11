@@ -6,6 +6,7 @@ import accountsRouter from "./accounts";
 import dailyStatsRouter from "./daily-stats";
 import rechargeOrdersRouter from "./recharge-orders";
 import dashboardRouter from "./dashboard";
+import teamsRouter from "./teams";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(accountsRouter);
 router.use(dailyStatsRouter);
 router.use(rechargeOrdersRouter);
 router.use(dashboardRouter);
+router.use(teamsRouter);
 
 export default router;

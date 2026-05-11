@@ -5,6 +5,7 @@ import {
   useCreateRechargeOrder,
   useListRechargeOrders,
   useUpdateRechargeOrder,
+  useListDailyStats,
   getListRechargeOrdersQueryKey,
   getListAccountsQueryKey,
 } from "@workspace/api-client-react";
@@ -332,6 +333,79 @@ function RechargeHistoryDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+interface SelectedAccount {
+  accountId: number;
+  accountName: string;
+  platformAccountId: string;
+}
+
+function AccountHistoryDialog({ account, onClose }: { account: SelectedAccount | null; onClose: () => void }) {
+  const { data, isLoading, isError } = useListDailyStats(
+    account ? { accountId: account.accountId } : undefined,
+  );
+  const rows = useMemo(() => {
+    const raw = Array.isArray(data) ? (data as Array<{ id: number; date: string; spendAmount: string | number; realBalance: string | number }>) : [];
+    return [...raw].sort((a, b) => b.date.localeCompare(a.date));
+  }, [data]);
+  const totalSpend = rows.reduce((s, r) => s + Number(r.spendAmount), 0);
+
+  return (
+    <Dialog open={!!account} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <History className="h-4 w-4 text-primary" />
+            历史消耗记录
+          </DialogTitle>
+          {account && (
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {account.accountName}
+              {account.platformAccountId && <span className="ml-2 font-mono opacity-70">({account.platformAccountId})</span>}
+            </p>
+          )}
+        </DialogHeader>
+        <div className="flex-1 overflow-auto min-h-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground text-sm">
+              <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              加载中...
+            </div>
+          ) : isError ? (
+            <div className="text-center text-sm text-destructive py-10">加载失败，请稍后重试</div>
+          ) : rows.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-10">该账户暂无消耗记录</div>
+          ) : (
+            <>
+              <div className="flex items-center gap-4 mb-3 px-1 text-xs text-muted-foreground">
+                <span>共 <span className="font-semibold text-foreground">{rows.length}</span> 条记录</span>
+                <span>累计消耗 <span className="font-semibold text-primary">${totalSpend.toFixed(2)}</span></span>
+              </div>
+              <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">日期</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">当日消耗</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">余额快照</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, idx) => (
+                    <tr key={r.id} className={["border-b border-border/40 last:border-0", idx % 2 === 1 ? "bg-muted/20" : ""].join(" ")}>
+                      <td className="px-4 py-2.5 font-mono text-sm">{r.date}</td>
+                      <td className="px-4 py-2.5 font-mono text-right font-semibold text-orange-500">${Number(r.spendAmount).toFixed(2)}</td>
+                      <td className="px-4 py-2.5 font-mono text-right text-primary">${Number(r.realBalance).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PitcherAccountsPage() {
   const { user } = useAuth();
 
@@ -342,6 +416,7 @@ export default function PitcherAccountsPage() {
   const [page, setPage] = useState(1);
   const [rechargeTarget, setRechargeTarget] = useState<Account | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [spendHistory, setSpendHistory] = useState<SelectedAccount | null>(null);
 
   const { data, isLoading } = useListAccounts({});
   const allAccounts = Array.isArray(data) ? (data as unknown as Account[]) : [];
@@ -443,11 +518,20 @@ export default function PitcherAccountsPage() {
               </TableRow>
             )}
             {!isLoading && paged.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
+              <TableRow
+                key={a.id}
+                className="cursor-pointer hover:bg-muted/40 transition-colors"
+                onClick={() => setSpendHistory({ accountId: a.id, accountName: a.accountName, platformAccountId: a.platformAccountId })}
+              >
+                <TableCell className="font-medium max-w-[160px]">
+                  <div className="flex items-center gap-1.5">
+                    <History className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <TruncatedCell value={a.accountName} />
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
-                <TableCell className="p-0 pl-2">
+                <TableCell className="p-0 pl-2" onClick={(e) => e.stopPropagation()}>
                   <StatusSelect account={a} />
                 </TableCell>
                 <TableCell className="font-mono">${Number(a.currentBalance).toFixed(2)}</TableCell>
@@ -455,7 +539,7 @@ export default function PitcherAccountsPage() {
                 <TableCell className="text-sm text-muted-foreground">
                   {a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleDateString("zh-CN") : "—"}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="outline"
                     size="sm"
@@ -478,6 +562,10 @@ export default function PitcherAccountsPage() {
       {showHistory && (
         <RechargeHistoryDialog onClose={() => setShowHistory(false)} />
       )}
+      <AccountHistoryDialog
+        account={spendHistory}
+        onClose={() => setSpendHistory(null)}
+      />
     </div>
   );
 }

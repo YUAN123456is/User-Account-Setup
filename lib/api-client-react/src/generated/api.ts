@@ -23,6 +23,7 @@ import type {
   CreateAccountBody,
   CreateDailyStatBody,
   CreateRechargeOrderBody,
+  CreateTeamBody,
   CreateUserBody,
   CrossReportRow,
   DailyStat,
@@ -41,6 +42,7 @@ import type {
   ListAccountsParams,
   ListDailyStatsParams,
   ListRechargeOrdersParams,
+  ListTeamsParams,
   ListUsersParams,
   LoginBody,
   LoginResponse,
@@ -51,9 +53,11 @@ import type {
   RechargeOrder,
   SpendByPitcher,
   SpendByProvider,
+  Team,
   UpdateAccountBody,
   UpdateDailyStatBody,
   UpdateRechargeOrderBody,
+  UpdateTeamBody,
   UpdateUserBody,
   User,
 } from "./api.schemas";
@@ -1588,6 +1592,357 @@ export const useUpdateDailyStat = <
   TContext
 > => {
   return useMutation(getUpdateDailyStatMutationOptions(options));
+};
+
+/**
+ * @summary List teams (admin)
+ */
+export const getListTeamsUrl = (params?: ListTeamsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/teams?${stringifiedParams}`
+    : `/api/teams`;
+};
+
+export const listTeams = async (
+  params?: ListTeamsParams,
+  options?: RequestInit,
+): Promise<Team[]> => {
+  return customFetch<Team[]>(getListTeamsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamsQueryKey = (params?: ListTeamsParams) => {
+  return [`/api/teams`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTeamsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeams>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeams>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTeamsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeams>>> = ({
+    signal,
+  }) => listTeams(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeams>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeams>>
+>;
+export type ListTeamsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List teams (admin)
+ */
+
+export function useListTeams<
+  TData = Awaited<ReturnType<typeof listTeams>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeams>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a team (admin)
+ */
+export const getCreateTeamUrl = () => {
+  return `/api/teams`;
+};
+
+export const createTeam = async (
+  createTeamBody: CreateTeamBody,
+  options?: RequestInit,
+): Promise<Team> => {
+  return customFetch<Team>(getCreateTeamUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTeamBody),
+  });
+};
+
+export const getCreateTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeam>>,
+    TError,
+    { data: BodyType<CreateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTeam>>,
+  TError,
+  { data: BodyType<CreateTeamBody> },
+  TContext
+> => {
+  const mutationKey = ["createTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTeam>>,
+    { data: BodyType<CreateTeamBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTeam(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTeam>>
+>;
+export type CreateTeamMutationBody = BodyType<CreateTeamBody>;
+export type CreateTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a team (admin)
+ */
+export const useCreateTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeam>>,
+    TError,
+    { data: BodyType<CreateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTeam>>,
+  TError,
+  { data: BodyType<CreateTeamBody> },
+  TContext
+> => {
+  return useMutation(getCreateTeamMutationOptions(options));
+};
+
+/**
+ * @summary Update a team (admin)
+ */
+export const getUpdateTeamUrl = (id: number) => {
+  return `/api/teams/${id}`;
+};
+
+export const updateTeam = async (
+  id: number,
+  updateTeamBody: UpdateTeamBody,
+  options?: RequestInit,
+): Promise<Team> => {
+  return customFetch<Team>(getUpdateTeamUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateTeamBody),
+  });
+};
+
+export const getUpdateTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTeam>>,
+    TError,
+    { id: number; data: BodyType<UpdateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTeam>>,
+  TError,
+  { id: number; data: BodyType<UpdateTeamBody> },
+  TContext
+> => {
+  const mutationKey = ["updateTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTeam>>,
+    { id: number; data: BodyType<UpdateTeamBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTeam(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTeam>>
+>;
+export type UpdateTeamMutationBody = BodyType<UpdateTeamBody>;
+export type UpdateTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a team (admin)
+ */
+export const useUpdateTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTeam>>,
+    TError,
+    { id: number; data: BodyType<UpdateTeamBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTeam>>,
+  TError,
+  { id: number; data: BodyType<UpdateTeamBody> },
+  TContext
+> => {
+  return useMutation(getUpdateTeamMutationOptions(options));
+};
+
+/**
+ * @summary Delete a team (admin)
+ */
+export const getDeleteTeamUrl = (id: number) => {
+  return `/api/teams/${id}`;
+};
+
+export const deleteTeam = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteTeamUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTeamMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTeam>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTeam"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTeam(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTeamMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTeam>>
+>;
+
+export type DeleteTeamMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a team (admin)
+ */
+export const useDeleteTeam = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeam>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTeam>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteTeamMutationOptions(options));
 };
 
 /**

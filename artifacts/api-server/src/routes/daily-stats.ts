@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray, SQL } from "drizzle-orm";
-import { db, dailyStatsTable, accountsTable, usersTable } from "@workspace/db";
+import { db, dailyStatsTable, accountsTable, usersTable, teamsTable } from "@workspace/db";
 import {
   CreateDailyStatBody,
   UpdateDailyStatBody,
@@ -18,6 +18,18 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
   const pitcher = stat.pitcherId
     ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
     : null;
+  const team = stat.teamId
+    ? (await db.select({ name: teamsTable.name }).from(teamsTable).where(eq(teamsTable.id, stat.teamId)))[0]
+    : null;
+
+  const spend = parseFloat(stat.spendAmount);
+  const fanCount = stat.fanCount ?? null;
+  const gmv = stat.gmv != null ? parseFloat(stat.gmv) : null;
+  const orderCount = stat.orderCount ?? null;
+
+  const fanCost = fanCount && fanCount > 0 ? (spend / fanCount).toFixed(4) : null;
+  const roas = gmv != null && spend > 0 ? (gmv / spend).toFixed(4) : null;
+  const avgOrderValue = gmv != null && orderCount && orderCount > 0 ? (gmv / orderCount).toFixed(2) : null;
 
   return {
     id: stat.id,
@@ -30,6 +42,15 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     pitcherId: stat.pitcherId,
     pitcherName: pitcher?.displayName ?? null,
     hasAlert: stat.hasAlert,
+    businessType: stat.businessType ?? null,
+    teamId: stat.teamId ?? null,
+    teamName: team?.name ?? null,
+    fanCount: stat.fanCount ?? null,
+    fanCost,
+    gmv: stat.gmv ?? null,
+    orderCount: stat.orderCount ?? null,
+    roas,
+    avgOrderValue,
     createdAt: stat.createdAt.toISOString(),
   };
 }
@@ -94,8 +115,6 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
 
   const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
   const spend = parseFloat(parsed.data.spendAmount);
-
-  // System auto-calculates the new balance; pitcher only reports spend amount
   const newBalance = (theoreticalBal - spend).toFixed(2);
 
   const [stat] = await db.insert(dailyStatsTable).values({
@@ -105,6 +124,11 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     realBalance: newBalance,
     pitcherId: req.session.userId!,
     hasAlert: false,
+    businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
+    teamId: parsed.data.teamId ?? null,
+    fanCount: parsed.data.fanCount ?? null,
+    gmv: parsed.data.gmv ?? null,
+    orderCount: parsed.data.orderCount ?? null,
   }).returning();
 
   await db.update(accountsTable).set({
@@ -139,31 +163,43 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     return;
   }
 
-  if (parsed.data.spendAmount == null) {
+  const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
+
+  if (parsed.data.businessType !== undefined) updates.businessType = (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null;
+  if (parsed.data.teamId !== undefined) updates.teamId = parsed.data.teamId ?? null;
+  if (parsed.data.fanCount !== undefined) updates.fanCount = parsed.data.fanCount ?? null;
+  if (parsed.data.gmv !== undefined) updates.gmv = parsed.data.gmv ?? null;
+  if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
+
+  if (parsed.data.spendAmount == null && Object.keys(updates).length === 0) {
     res.json(await formatStat(existing));
     return;
   }
 
-  const oldSpend = parseFloat(existing.spendAmount);
-  const newSpend = parseFloat(parsed.data.spendAmount);
-  const spendDelta = newSpend - oldSpend;
+  let newRealBalance = existing.realBalance;
+  if (parsed.data.spendAmount != null) {
+    const oldSpend = parseFloat(existing.spendAmount);
+    const newSpend = parseFloat(parsed.data.spendAmount);
+    const spendDelta = newSpend - oldSpend;
+    newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
+    updates.spendAmount = parsed.data.spendAmount;
+    updates.realBalance = newRealBalance;
 
-  const newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
+    const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+    if (account) {
+      const newBal = (parseFloat(account.currentBalance) - spendDelta).toFixed(2);
+      const newTheo = (parseFloat(account.theoreticalBalance ?? account.currentBalance) - spendDelta).toFixed(2);
+      await db.update(accountsTable).set({
+        currentBalance: newBal,
+        theoreticalBalance: newTheo,
+      }).where(eq(accountsTable.id, existing.accountId));
+    }
+  }
 
   const [stat] = await db.update(dailyStatsTable)
-    .set({ spendAmount: parsed.data.spendAmount, realBalance: newRealBalance })
+    .set(updates)
     .where(eq(dailyStatsTable.id, params.data.id))
     .returning();
-
-  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-  if (account) {
-    const newBal = (parseFloat(account.currentBalance) - spendDelta).toFixed(2);
-    const newTheo = (parseFloat(account.theoreticalBalance ?? account.currentBalance) - spendDelta).toFixed(2);
-    await db.update(accountsTable).set({
-      currentBalance: newBal,
-      theoreticalBalance: newTheo,
-    }).where(eq(accountsTable.id, existing.accountId));
-  }
 
   res.json(await formatStat(stat));
 });

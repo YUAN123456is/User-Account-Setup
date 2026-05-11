@@ -10,9 +10,11 @@ import MagicLoginPage from "@/pages/MagicLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
 import DashboardPage from "@/pages/admin/DashboardPage";
 import UsersPage from "@/pages/admin/UsersPage";
+import TeamsPage from "@/pages/admin/TeamsPage";
 import AccountsPage from "@/pages/admin/AccountsPage";
 import ProviderReportPage from "@/pages/admin/ProviderReportPage";
 import PitcherReportPage from "@/pages/admin/PitcherReportPage";
+import OpsReportPage from "@/pages/admin/OpsReportPage";
 import CrossReportPage from "@/pages/admin/CrossReportPage";
 import FinancePage from "@/pages/admin/FinancePage";
 import AlertsPage from "@/pages/admin/AlertsPage";
@@ -27,7 +29,6 @@ import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
 import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
-import PitcherHistoryPage from "@/pages/pitcher/PitcherHistoryPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,8 +114,10 @@ function AppRoutes() {
       <Route path="/admin/dashboard" component={AdminRoute(AdminLayout, DashboardPage)} />
       <Route path="/admin/users" component={AdminRoute(AdminLayout, UsersPage)} />
       <Route path="/admin/accounts" component={AdminRoute(AdminLayout, AccountsPage)} />
+      <Route path="/admin/teams" component={AdminRoute(AdminLayout, TeamsPage)} />
       <Route path="/admin/reports/provider" component={AdminRoute(AdminLayout, ProviderReportPage)} />
       <Route path="/admin/reports/pitcher" component={AdminRoute(AdminLayout, PitcherReportPage)} />
+      <Route path="/admin/reports/ops" component={AdminRoute(AdminLayout, OpsReportPage)} />
       <Route path="/admin/reports/cross" component={AdminRoute(AdminLayout, CrossReportPage)} />
       <Route path="/admin/finance" component={AdminRoute(AdminLayout, FinancePage)} />
       <Route path="/admin/alerts" component={AdminRoute(AdminLayout, AlertsPage)} />
@@ -135,7 +138,6 @@ function AppRoutes() {
       <Route path="/pitcher/pool" component={PitcherRoute(PitcherLayout, PitcherPoolPage)} />
       <Route path="/pitcher/report" component={PitcherRoute(PitcherLayout, DailyReportPage)} />
       <Route path="/pitcher/recharge" component={PitcherRoute(PitcherLayout, RechargeRequestPage)} />
-      <Route path="/pitcher/history" component={PitcherRoute(PitcherLayout, PitcherHistoryPage)} />
       <Route path="/pitcher">
         <Redirect to="/pitcher/dashboard" />
       </Route>
