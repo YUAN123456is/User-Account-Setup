@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useListDailyStats, useListTeams } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
@@ -9,6 +8,7 @@ import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { TrendingUp } from "lucide-react";
+import { BizBadge, BizMetrics } from "@/components/shared/BizDisplay";
 
 interface DailyStat {
   id: number;
@@ -30,7 +30,6 @@ interface DailyStat {
 
 interface Team { id: number; name: string; businessType: string; }
 
-const BIZ_LABELS: Record<string, string> = { liveChat: "聊单", ecommerce: "独立站" };
 const PAGE_SIZE = 30;
 
 export default function OpsReportPage() {
@@ -134,25 +133,24 @@ export default function OpsReportPage() {
               <TableHead>团队</TableHead>
               <TableHead>消耗</TableHead>
               <TableHead>运营数据</TableHead>
-              <TableHead>核心指标</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 6 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-16" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && !hasOps && (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={7}>
                   <EmptyState icon={TrendingUp} title="暂无运营数据" description="投手填报含业务类型的消耗数据后将在此展示。" />
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && hasOps && paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={7}>
                   <EmptyState icon={TrendingUp} title="暂无符合条件的数据" description="调整筛选条件后重试。" />
                 </TableCell>
               </TableRow>
@@ -164,36 +162,10 @@ export default function OpsReportPage() {
                   <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{s.pitcherName ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={s.businessType === "liveChat"
-                    ? "text-purple-400 border-purple-500/30 bg-purple-500/10"
-                    : "text-blue-400 border-blue-500/30 bg-blue-500/10"}>
-                    {BIZ_LABELS[s.businessType ?? ""] ?? s.businessType}
-                  </Badge>
-                </TableCell>
+                <TableCell><BizBadge biz={s.businessType} /></TableCell>
                 <TableCell className="text-sm text-muted-foreground">{s.teamName ?? "—"}</TableCell>
                 <TableCell className="font-mono text-sm font-semibold">${Number(s.spendAmount).toFixed(2)}</TableCell>
-                <TableCell className="text-xs">
-                  {s.businessType === "liveChat" ? (
-                    s.fanCount != null ? <span>进粉 <span className="font-mono font-medium">{s.fanCount}</span></span> : <span className="text-muted-foreground">—</span>
-                  ) : s.businessType === "ecommerce" ? (
-                    s.gmv != null ? (
-                      <span>GMV <span className="font-mono font-medium">${Number(s.gmv).toFixed(0)}</span>
-                        {s.orderCount != null && <span className="text-muted-foreground"> · {s.orderCount} 单</span>}
-                      </span>
-                    ) : <span className="text-muted-foreground">—</span>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </TableCell>
-                <TableCell className="text-xs">
-                  {s.businessType === "liveChat" && s.fanCost ? (
-                    <span className="text-green-500 font-mono">${Number(s.fanCost).toFixed(4)}/粉</span>
-                  ) : s.businessType === "ecommerce" && s.roas ? (
-                    <span>
-                      <span className="text-green-500 font-mono">ROAS {Number(s.roas).toFixed(2)}</span>
-                      {s.avgOrderValue && <span className="text-muted-foreground"> · 客单 ${Number(s.avgOrderValue).toFixed(0)}</span>}
-                    </span>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </TableCell>
+                <TableCell><BizMetrics s={s} /></TableCell>
               </TableRow>
             ))}
           </TableBody>

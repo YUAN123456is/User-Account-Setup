@@ -10,6 +10,7 @@ import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBad
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BarChart3, ChevronDown, ChevronRight, Loader2, History } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BizBadge, BizMetrics } from "@/components/shared/BizDisplay";
 
 interface PitcherSpend {
   pitcherId: number;
@@ -95,6 +96,8 @@ function AccountHistoryDialog({
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">日期</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">当日消耗</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">余额快照</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">业务</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">运营数据</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -106,6 +109,12 @@ function AccountHistoryDialog({
                       </td>
                       <td className="px-4 py-2.5 font-mono text-right text-primary">
                         ${Number(r.realBalance).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <BizBadge biz={(r as unknown as Record<string, unknown>).businessType as string | null} />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <BizMetrics s={r as unknown as Parameters<typeof BizMetrics>[0]["s"]} />
                       </td>
                     </tr>
                   ))}
