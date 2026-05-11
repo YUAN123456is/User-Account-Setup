@@ -52,36 +52,59 @@ function RequireRole({ role, children }: { role: "admin" | "provider" | "pitcher
   return <>{children}</>;
 }
 
-function AdminRoute(Layout: React.ComponentType<{ children: React.ReactNode }>, Page: React.ComponentType) {
-  return () => (
-    <RequireRole role="admin">
-      <Layout><Page /></Layout>
-    </RequireRole>
-  );
+function makeAdminRoute(Page: React.ComponentType) {
+  return function AdminRoute() {
+    return (
+      <RequireRole role="admin">
+        <AdminLayout><Page /></AdminLayout>
+      </RequireRole>
+    );
+  };
 }
 
-function ProviderRoute(Layout: React.ComponentType<{ children: React.ReactNode }>, Page: React.ComponentType) {
-  return () => (
-    <RequireRole role="provider">
-      <Layout><Page /></Layout>
-    </RequireRole>
-  );
+function makeProviderRoute(Page: React.ComponentType) {
+  return function ProviderRoute() {
+    return (
+      <RequireRole role="provider">
+        <ProviderLayout><Page /></ProviderLayout>
+      </RequireRole>
+    );
+  };
 }
 
-function PitcherRoute(Layout: React.ComponentType<{ children: React.ReactNode }>, Page: React.ComponentType) {
-  return () => (
-    <RequireRole role="pitcher">
-      <Layout><Page /></Layout>
-    </RequireRole>
-  );
+function makePitcherRoute(Page: React.ComponentType) {
+  return function PitcherRoute() {
+    return (
+      <RequireRole role="pitcher">
+        <PitcherLayout><Page /></PitcherLayout>
+      </RequireRole>
+    );
+  };
 }
+
+const AdminDashboardRoute = makeAdminRoute(DashboardPage);
+const AdminUsersRoute = makeAdminRoute(UsersPage);
+const AdminAccountsRoute = makeAdminRoute(AccountsPage);
+const AdminTeamsRoute = makeAdminRoute(TeamsPage);
+const AdminProviderReportRoute = makeAdminRoute(ProviderReportPage);
+const AdminPitcherReportRoute = makeAdminRoute(PitcherReportPage);
+const AdminOpsReportRoute = makeAdminRoute(OpsReportPage);
+const AdminCrossReportRoute = makeAdminRoute(CrossReportPage);
+const AdminFinanceRoute = makeAdminRoute(FinancePage);
+const AdminAlertsRoute = makeAdminRoute(AlertsPage);
+
+const ProviderAccountsRoute = makeProviderRoute(ProviderAccountsPage);
+const ProviderRechargeOrdersRoute = makeProviderRoute(ProviderRechargeOrdersPage);
+
+const PitcherDashboardRoute = makePitcherRoute(PitcherDashboardPage);
+const PitcherAccountsRoute = makePitcherRoute(PitcherAccountsPage);
+const PitcherPoolRoute = makePitcherRoute(PitcherPoolPage);
+const PitcherReportRoute = makePitcherRoute(DailyReportPage);
+const PitcherRechargeRoute = makePitcherRoute(RechargeRequestPage);
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
 
-  // Magic link route — always accessible regardless of auth state
-  // Must be checked before isLoading so the token is handled immediately
-  // (Wouter's Switch below won't run if we return early here, so we peek at the path)
   if (window.location.pathname.match(/\/p\/[^/]+/)) {
     return <Route path="/p/:token" component={MagicLoginPage} />;
   }
@@ -110,44 +133,39 @@ function AppRoutes() {
 
   return (
     <Switch>
-      {/* Admin routes — only accessible to admin role */}
-      <Route path="/admin/dashboard" component={AdminRoute(AdminLayout, DashboardPage)} />
-      <Route path="/admin/users" component={AdminRoute(AdminLayout, UsersPage)} />
-      <Route path="/admin/accounts" component={AdminRoute(AdminLayout, AccountsPage)} />
-      <Route path="/admin/teams" component={AdminRoute(AdminLayout, TeamsPage)} />
-      <Route path="/admin/reports/provider" component={AdminRoute(AdminLayout, ProviderReportPage)} />
-      <Route path="/admin/reports/pitcher" component={AdminRoute(AdminLayout, PitcherReportPage)} />
-      <Route path="/admin/reports/ops" component={AdminRoute(AdminLayout, OpsReportPage)} />
-      <Route path="/admin/reports/cross" component={AdminRoute(AdminLayout, CrossReportPage)} />
-      <Route path="/admin/finance" component={AdminRoute(AdminLayout, FinancePage)} />
-      <Route path="/admin/alerts" component={AdminRoute(AdminLayout, AlertsPage)} />
+      <Route path="/admin/dashboard" component={AdminDashboardRoute} />
+      <Route path="/admin/users" component={AdminUsersRoute} />
+      <Route path="/admin/accounts" component={AdminAccountsRoute} />
+      <Route path="/admin/teams" component={AdminTeamsRoute} />
+      <Route path="/admin/reports/provider" component={AdminProviderReportRoute} />
+      <Route path="/admin/reports/pitcher" component={AdminPitcherReportRoute} />
+      <Route path="/admin/reports/ops" component={AdminOpsReportRoute} />
+      <Route path="/admin/reports/cross" component={AdminCrossReportRoute} />
+      <Route path="/admin/finance" component={AdminFinanceRoute} />
+      <Route path="/admin/alerts" component={AdminAlertsRoute} />
       <Route path="/admin">
         <Redirect to="/admin/dashboard" />
       </Route>
 
-      {/* Provider routes — only accessible to provider role */}
-      <Route path="/provider/accounts" component={ProviderRoute(ProviderLayout, ProviderAccountsPage)} />
-      <Route path="/provider/recharge-orders" component={ProviderRoute(ProviderLayout, ProviderRechargeOrdersPage)} />
+      <Route path="/provider/accounts" component={ProviderAccountsRoute} />
+      <Route path="/provider/recharge-orders" component={ProviderRechargeOrdersRoute} />
       <Route path="/provider">
         <Redirect to="/provider/accounts" />
       </Route>
 
-      {/* Pitcher routes — only accessible to pitcher role */}
-      <Route path="/pitcher/dashboard" component={PitcherRoute(PitcherLayout, PitcherDashboardPage)} />
-      <Route path="/pitcher/accounts" component={PitcherRoute(PitcherLayout, PitcherAccountsPage)} />
-      <Route path="/pitcher/pool" component={PitcherRoute(PitcherLayout, PitcherPoolPage)} />
-      <Route path="/pitcher/report" component={PitcherRoute(PitcherLayout, DailyReportPage)} />
-      <Route path="/pitcher/recharge" component={PitcherRoute(PitcherLayout, RechargeRequestPage)} />
+      <Route path="/pitcher/dashboard" component={PitcherDashboardRoute} />
+      <Route path="/pitcher/accounts" component={PitcherAccountsRoute} />
+      <Route path="/pitcher/pool" component={PitcherPoolRoute} />
+      <Route path="/pitcher/report" component={PitcherReportRoute} />
+      <Route path="/pitcher/recharge" component={PitcherRechargeRoute} />
       <Route path="/pitcher">
         <Redirect to="/pitcher/dashboard" />
       </Route>
 
-      {/* Redirect authenticated users away from /login */}
       <Route path="/login">
         <Redirect to={roleHome(user.role)} />
       </Route>
 
-      {/* Root redirect by role */}
       <Route path="/">
         <Redirect to={roleHome(user.role)} />
       </Route>
