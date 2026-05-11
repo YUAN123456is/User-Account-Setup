@@ -69,13 +69,13 @@ interface ReportCard {
   orderCount: string;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
 const PAGE_SIZE = 20;
 
 const BIZ_LABELS: Record<string, string> = { liveChat: "聊单", ecommerce: "独立站" };
 
 function newCard(): ReportCard {
-  return { key: Math.random().toString(36).slice(2), accountId: "", date: today, spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "" };
+  return { key: Math.random().toString(36).slice(2), accountId: "", date: yesterday, spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "" };
 }
 
 function EditStatDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accounts: Account[]; teams: Team[]; onClose: () => void }) {
@@ -225,7 +225,7 @@ export default function DailyReportPage() {
 
   const totalSpend = allStats.reduce((s, r) => s + Number(r.spendAmount), 0);
 
-  const { data: todayStatsData } = useListDailyStats({ dateFrom: today, dateTo: today } as Record<string, string>);
+  const { data: todayStatsData } = useListDailyStats({ dateFrom: yesterday, dateTo: yesterday } as Record<string, string>);
   const todayStats = Array.isArray(todayStatsData) ? todayStatsData : [];
   const reportedIds = useMemo(() => new Set((todayStats as Array<{ accountId: number }>).map((s) => s.accountId)), [todayStats]);
 
@@ -329,7 +329,7 @@ export default function DailyReportPage() {
           const fanCost = card.businessType === "liveChat" && fanNum > 0 && spend > 0 ? (spend / fanNum).toFixed(4) : null;
           const roas = card.businessType === "ecommerce" && gmvNum > 0 && spend > 0 ? (gmvNum / spend).toFixed(2) : null;
           const avgOrder = card.businessType === "ecommerce" && gmvNum > 0 && orderNum > 0 ? (gmvNum / orderNum).toFixed(2) : null;
-          const alreadyReported = card.accountId && reportedIds.has(Number(card.accountId)) && card.date === today;
+          const alreadyReported = card.accountId && reportedIds.has(Number(card.accountId)) && card.date === yesterday;
 
           return (
             <div key={card.key} className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -359,7 +359,7 @@ export default function DailyReportPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">日期 <span className="text-destructive">*</span></Label>
-                  <Input type="date" className="h-8 text-xs" value={card.date} max={today}
+                  <Input type="date" className="h-8 text-xs" value={card.date} max={yesterday}
                     onChange={(e) => updateCard(card.key, "date", e.target.value)} />
                 </div>
               </div>

@@ -60,11 +60,11 @@ export default function DashboardPage() {
   const hasDateFilter = chartDateRange.from || chartDateRange.to;
 
   const providerChartData = Array.isArray(providerSpend)
-    ? providerSpend.map((p) => ({ name: p.providerName ?? "", spend: Number(hasDateFilter ? p.totalSpend : p.todaySpend ?? 0) }))
+    ? providerSpend.map((p) => { const r = p as unknown as Record<string, unknown>; return { name: r.providerName as string ?? "", spend: Number(hasDateFilter ? p.totalSpend : r.yesterdaySpend ?? 0) }; })
     : [];
 
   const pitcherChartData = Array.isArray(pitcherSpend)
-    ? pitcherSpend.map((p) => ({ name: p.pitcherName ?? "", spend: Number(hasDateFilter ? p.totalSpend : p.todaySpend ?? 0) }))
+    ? pitcherSpend.map((p) => { const r = p as unknown as Record<string, unknown>; return { name: r.pitcherName as string ?? "", spend: Number(hasDateFilter ? p.totalSpend : r.yesterdaySpend ?? 0) }; })
     : [];
 
   const trendChartData = Array.isArray(trendData)
@@ -99,7 +99,7 @@ export default function DashboardPage() {
         <KpiCard title="空闲" value={s?.idleAccounts ?? 0} icon={Clock} className="text-amber-500" />
         <KpiCard title="已封禁" value={s?.bannedAccounts ?? 0} icon={Ban} className={(Number(s?.bannedAccounts) ?? 0) > 0 ? "text-red-500" : ""} />
         <KpiCard
-          title="今日总消耗"
+          title="昨日总消耗"
           value={`$${Number(s?.todayTotalSpend ?? 0).toFixed(2)}`}
           icon={TrendingUp}
           className="text-blue-500"
@@ -111,7 +111,7 @@ export default function DashboardPage() {
           className="text-green-500"
         />
         <KpiCard
-          title="今日充值"
+          title="昨日充值到账"
           value={`$${Number(s?.todayRecharge ?? 0).toFixed(2)}`}
           icon={Wallet}
           className="text-amber-500"
@@ -174,7 +174,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "开户商期间消耗" : "开户商今日消耗"}</CardTitle>
+              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "开户商期间消耗" : "开户商昨日消耗"}</CardTitle>
             </CardHeader>
             <CardContent>
               {providerChartData.length === 0 ? (
@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "投手期间消耗" : "投手今日消耗"}</CardTitle>
+              <CardTitle className="text-sm font-semibold">{hasDateFilter ? "投手期间消耗" : "投手昨日消耗"}</CardTitle>
             </CardHeader>
             <CardContent>
               {pitcherChartData.length === 0 ? (

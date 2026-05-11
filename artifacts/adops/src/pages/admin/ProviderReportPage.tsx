@@ -79,7 +79,7 @@ function AccountDetailPanel({
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">平台</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">状态</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">当前余额</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">今日消耗</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">昨日消耗</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{hasFilter ? "期间消耗" : "累计消耗"}</th>
                   <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">绑定投手</th>
                 </tr>
@@ -120,10 +120,10 @@ export default function ProviderReportPage() {
   const paged = usePagination(rows, PAGE_SIZE, page);
 
   const hasFilter = !!(dateRange.from || dateRange.to);
-  const totalTodaySpend = rows.reduce((s, r) => s + Number(r.todaySpend), 0);
+  const totalTodaySpend = rows.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0), 0);
   const totalPeriodSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
   const totalBalance = rows.reduce((s, r) => s + Number(r.totalBalance), 0);
-  const todayRecharge = rows.reduce((s, r) => s + Number(r.todayRecharge), 0);
+  const todayRecharge = rows.reduce((s, r) => s + Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0), 0);
   const totalRecharge = rows.reduce((s, r) => s + Number(r.totalRecharge), 0);
   const totalAccounts = rows.reduce((s, r) => s + r.accountCount, 0);
   const topProvider = rows.length > 0 ? rows.reduce((best, r) => Number(r.totalSpend) > Number(best.totalSpend) ? r : best) : null;
@@ -151,10 +151,10 @@ export default function ProviderReportPage() {
 
       <StatsBar items={[
         { label: "开户商数量", value: rows.length },
-        { label: "今日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" },
+        { label: "昨日总消耗", value: `$${totalTodaySpend.toFixed(2)}`, color: "blue" },
         { label: hasFilter ? "期间总消耗" : "累计总消耗", value: `$${totalPeriodSpend.toFixed(2)}`, color: "purple" },
         { label: "账户余额合计", value: `$${totalBalance.toFixed(2)}`, color: "green" },
-        { label: "今日充值", value: `$${todayRecharge.toFixed(2)}`, color: "amber" },
+        { label: "昨日充值到账", value: `$${todayRecharge.toFixed(2)}`, color: "amber" },
         { label: hasFilter ? "期间充值" : "累计充值", value: `$${totalRecharge.toFixed(2)}` },
         { label: "账户总数", value: totalAccounts },
         { label: "消耗最高", value: topProvider ? topProvider.providerName : "—", color: "amber" },
@@ -166,10 +166,10 @@ export default function ProviderReportPage() {
             <TableRow className="bg-muted/40">
               <TableHead className="w-8" />
               <TableHead>开户商名称</TableHead>
-              <TableHead>今日消耗</TableHead>
+              <TableHead>昨日消耗</TableHead>
               <TableHead>{hasFilter ? "期间消耗" : "累计消耗"}</TableHead>
               <TableHead>余额合计</TableHead>
-              <TableHead>今日充值</TableHead>
+              <TableHead>昨日充值</TableHead>
               <TableHead>{hasFilter ? "期间充值" : "累计充值"}</TableHead>
               <TableHead>账户数</TableHead>
             </TableRow>
@@ -199,10 +199,10 @@ export default function ProviderReportPage() {
                       {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     </TableCell>
                     <TableCell className="font-semibold">{r.providerName}</TableCell>
-                    <TableCell className="font-mono">${Number(r.todaySpend).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono">${Number((r as unknown as Record<string,unknown>).yesterdaySpend ?? 0).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalSpend).toFixed(2)}</TableCell>
                     <TableCell className="font-mono font-semibold text-primary">${Number(r.totalBalance).toFixed(2)}</TableCell>
-                    <TableCell className="font-mono text-amber-600">${Number(r.todayRecharge).toFixed(2)}</TableCell>
+                    <TableCell className="font-mono text-amber-600">${Number((r as unknown as Record<string,unknown>).yesterdayRecharge ?? 0).toFixed(2)}</TableCell>
                     <TableCell className="font-mono">${Number(r.totalRecharge).toFixed(2)}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center justify-center bg-muted text-muted-foreground text-xs rounded-full px-2 py-0.5 min-w-[24px]">

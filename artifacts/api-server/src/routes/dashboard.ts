@@ -6,6 +6,11 @@ import { requireRole } from "../middlewares/require-auth";
 const router: IRouter = Router();
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const yesterdayStr = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promise<void> => {
@@ -22,14 +27,14 @@ router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promis
 
   const [todaySpend] = await db.select({
     total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text`,
-  }).from(dailyStatsTable).where(eq(dailyStatsTable.date, todayStr()));
+  }).from(dailyStatsTable).where(eq(dailyStatsTable.date, yesterdayStr()));
 
   const [todayRecharge] = await db.select({
     total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text`,
   }).from(rechargeOrdersTable).where(
     and(
       eq(rechargeOrdersTable.status, "completed"),
-      sql`date(${rechargeOrdersTable.updatedAt}) = ${todayStr()}`
+      sql`date(${rechargeOrdersTable.updatedAt}) = ${yesterdayStr()}`
     )
   );
 
@@ -74,15 +79,15 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const todayConds: SQL[] = [eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, todayStr())];
+    const yesterdayConds: SQL[] = [eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, yesterdayStr())];
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
       .where(and(...dateConds));
 
-    const todayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+    const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(...todayConds));
+      .where(and(...yesterdayConds));
 
     const rechargeConds: SQL[] = [
       eq(accountsTable.providerId, row.providerId),
@@ -91,29 +96,29 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
     if (dateFrom) rechargeConds.push(gte(sql`date(${rechargeOrdersTable.updatedAt})`, dateFrom));
     if (dateTo) rechargeConds.push(lte(sql`date(${rechargeOrdersTable.updatedAt})`, dateTo));
 
-    const todayRechargeConds: SQL[] = [
+    const yesterdayRechargeConds: SQL[] = [
       eq(accountsTable.providerId, row.providerId),
       eq(rechargeOrdersTable.status, "completed"),
-      sql`date(${rechargeOrdersTable.updatedAt}) = ${todayStr()}`,
+      sql`date(${rechargeOrdersTable.updatedAt}) = ${yesterdayStr()}`,
     ];
 
     const rechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
       .from(rechargeOrdersTable).leftJoin(accountsTable, eq(rechargeOrdersTable.accountId, accountsTable.id))
       .where(and(...rechargeConds));
 
-    const todayRechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
+    const yesterdayRechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
       .from(rechargeOrdersTable).leftJoin(accountsTable, eq(rechargeOrdersTable.accountId, accountsTable.id))
-      .where(and(...todayRechargeConds));
+      .where(and(...yesterdayRechargeConds));
 
-    const [[range], [today], [recharge], [todayRecharge]] = await Promise.all([rangeQ, todayQ, rechargeQ, todayRechargeQ]);
+    const [[range], [yesterday], [recharge], [yesterdayRecharge]] = await Promise.all([rangeQ, yesterdayQ, rechargeQ, yesterdayRechargeQ]);
 
     return {
       providerId: row.providerId,
       providerName: row.providerName ?? "Unknown",
-      todaySpend: today?.total ?? "0",
+      yesterdaySpend: yesterday?.total ?? "0",
       totalSpend: range?.total ?? "0",
       totalRecharge: recharge?.total ?? "0",
-      todayRecharge: todayRecharge?.total ?? "0",
+      yesterdayRecharge: yesterdayRecharge?.total ?? "0",
       totalBalance: row.totalBalance ?? "0",
       accountCount: row.accountCount,
     };
@@ -145,9 +150,9 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const todayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+    const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
-      .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, todayStr())));
+      .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, yesterdayStr())));
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).where(and(...dateConds));
@@ -159,29 +164,29 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
     if (dateFrom) rechargeConds.push(gte(sql`date(${rechargeOrdersTable.updatedAt})`, dateFrom));
     if (dateTo) rechargeConds.push(lte(sql`date(${rechargeOrdersTable.updatedAt})`, dateTo));
 
-    const todayRechargeConds: SQL[] = [
+    const yesterdayRechargeConds: SQL[] = [
       eq(accountsTable.pitcherId, row.pitcherId),
       eq(rechargeOrdersTable.status, "completed"),
-      sql`date(${rechargeOrdersTable.updatedAt}) = ${todayStr()}`,
+      sql`date(${rechargeOrdersTable.updatedAt}) = ${yesterdayStr()}`,
     ];
 
     const rechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
       .from(rechargeOrdersTable).leftJoin(accountsTable, eq(rechargeOrdersTable.accountId, accountsTable.id))
       .where(and(...rechargeConds));
 
-    const todayRechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
+    const yesterdayRechargeQ = db.select({ total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text` })
       .from(rechargeOrdersTable).leftJoin(accountsTable, eq(rechargeOrdersTable.accountId, accountsTable.id))
-      .where(and(...todayRechargeConds));
+      .where(and(...yesterdayRechargeConds));
 
-    const [[today], [range], [recharge], [todayRecharge]] = await Promise.all([todayQ, rangeQ, rechargeQ, todayRechargeQ]);
+    const [[yesterday], [range], [recharge], [yesterdayRecharge]] = await Promise.all([yesterdayQ, rangeQ, rechargeQ, yesterdayRechargeQ]);
 
     return {
       pitcherId: row.pitcherId,
       pitcherName: row.pitcherName ?? "Unknown",
-      todaySpend: today?.total ?? "0",
+      yesterdaySpend: yesterday?.total ?? "0",
       totalSpend: range?.total ?? "0",
       totalRecharge: recharge?.total ?? "0",
-      todayRecharge: todayRecharge?.total ?? "0",
+      yesterdayRecharge: yesterdayRecharge?.total ?? "0",
       totalBalance: row.totalBalance ?? "0",
       accountCount: row.accountCount,
     };
@@ -202,8 +207,8 @@ router.get("/dashboard/pitcher-accounts", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const [today] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, todayStr())));
+    const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr())));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).where(and(...dateConds));
@@ -215,7 +220,7 @@ router.get("/dashboard/pitcher-accounts", requireRole("admin"), async (req, res)
       platform: acc.platform,
       status: acc.status,
       currentBalance: acc.currentBalance,
-      todaySpend: today?.total ?? "0",
+      yesterdaySpend: yesterday?.total ?? "0",
       totalSpend: range?.total ?? "0",
     };
   }));
@@ -240,8 +245,8 @@ router.get("/dashboard/provider-accounts", requireRole("admin"), async (req, res
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const [today] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, todayStr())));
+    const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
+      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr())));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).where(and(...dateConds));
@@ -253,7 +258,7 @@ router.get("/dashboard/provider-accounts", requireRole("admin"), async (req, res
       platform: acc.platform,
       status: acc.status,
       currentBalance: acc.currentBalance,
-      todaySpend: today?.total ?? "0",
+      yesterdaySpend: yesterday?.total ?? "0",
       totalSpend: range?.total ?? "0",
       pitcherName: pitcherName ?? null,
     };
