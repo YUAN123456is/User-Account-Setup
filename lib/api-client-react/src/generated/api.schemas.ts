@@ -279,6 +279,8 @@ export interface Team {
   name: string;
   businessType: TeamBusinessType;
   isActive: boolean;
+  /** @nullable */
+  publicToken?: string | null;
   createdAt: string;
 }
 
@@ -486,6 +488,63 @@ export interface BalanceAlert {
   lastReportedAt?: string | null;
 }
 
+export interface TeamPublicInfo {
+  teamId: number;
+  teamName: string;
+}
+
+export interface CreateTeamFeedbackBody {
+  date: string;
+  leadCount: number;
+  /** @nullable */
+  orderAmount?: string | null;
+  description: string;
+  images: string[];
+}
+
+export interface TeamFeedback {
+  id: number;
+  teamId: number;
+  /** @nullable */
+  teamName?: string | null;
+  date: string;
+  leadCount: number;
+  /** @nullable */
+  orderAmount?: string | null;
+  description: string;
+  images: string[];
+  submittedAt: string;
+}
+
+export interface PitcherTeamFeedback {
+  id: number;
+  teamId: number;
+  /** @nullable */
+  teamName?: string | null;
+  date: string;
+  description: string;
+  images: string[];
+  submittedAt: string;
+}
+
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export type RequestUploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: RequestUploadUrlResponseMetadata;
+}
+
 export type ListUsersParams = {
   role?: ListUsersRole;
 };
@@ -553,6 +612,36 @@ export const ListTeamsBusinessType = {
   liveChat: "liveChat",
   ecommerce: "ecommerce",
 } as const;
+
+export type ListTeamFeedbackParams = {
+  /**
+   * @nullable
+   */
+  teamId?: number | null;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
+};
+
+export type ListPitcherTeamFeedbackParams = {
+  /**
+   * @nullable
+   */
+  teamId?: number | null;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
+};
 
 export type ListRechargeOrdersParams = {
   status?: ListRechargeOrdersStatus;

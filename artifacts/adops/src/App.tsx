@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/LoginPage";
 import MagicLoginPage from "@/pages/MagicLoginPage";
+import PublicFeedbackPage from "@/pages/PublicFeedbackPage";
 
 import AdminLayout from "@/pages/admin/AdminLayout";
 import DashboardPage from "@/pages/admin/DashboardPage";
@@ -18,6 +19,7 @@ import OpsReportPage from "@/pages/admin/OpsReportPage";
 import CrossReportPage from "@/pages/admin/CrossReportPage";
 import FinancePage from "@/pages/admin/FinancePage";
 import AlertsPage from "@/pages/admin/AlertsPage";
+import AdminTeamFeedbackPage from "@/pages/admin/AdminTeamFeedbackPage";
 
 import ProviderLayout from "@/pages/provider/ProviderLayout";
 import ProviderAccountsPage from "@/pages/provider/ProviderAccountsPage";
@@ -29,6 +31,7 @@ import PitcherAccountsPage from "@/pages/pitcher/PitcherAccountsPage";
 import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
+import TeamFeedbackPage from "@/pages/pitcher/TeamFeedbackPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +95,7 @@ const AdminOpsReportRoute = makeAdminRoute(OpsReportPage);
 const AdminCrossReportRoute = makeAdminRoute(CrossReportPage);
 const AdminFinanceRoute = makeAdminRoute(FinancePage);
 const AdminAlertsRoute = makeAdminRoute(AlertsPage);
+const AdminTeamFeedbackRoute = makeAdminRoute(AdminTeamFeedbackPage);
 
 const ProviderAccountsRoute = makeProviderRoute(ProviderAccountsPage);
 const ProviderRechargeOrdersRoute = makeProviderRoute(ProviderRechargeOrdersPage);
@@ -101,12 +105,17 @@ const PitcherAccountsRoute = makePitcherRoute(PitcherAccountsPage);
 const PitcherPoolRoute = makePitcherRoute(PitcherPoolPage);
 const PitcherReportRoute = makePitcherRoute(DailyReportPage);
 const PitcherRechargeRoute = makePitcherRoute(RechargeRequestPage);
+const PitcherTeamFeedbackRoute = makePitcherRoute(TeamFeedbackPage);
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
 
   if (window.location.pathname.match(/\/p\/[^/]+/)) {
     return <Route path="/p/:token" component={MagicLoginPage} />;
+  }
+
+  if (window.location.pathname.match(/\/feedback\/[^/]+/)) {
+    return <Route path="/feedback/:token" component={PublicFeedbackPage} />;
   }
 
   if (isLoading) {
@@ -143,6 +152,7 @@ function AppRoutes() {
       <Route path="/admin/reports/cross" component={AdminCrossReportRoute} />
       <Route path="/admin/finance" component={AdminFinanceRoute} />
       <Route path="/admin/alerts" component={AdminAlertsRoute} />
+      <Route path="/admin/team-feedback" component={AdminTeamFeedbackRoute} />
       <Route path="/admin">
         <Redirect to="/admin/dashboard" />
       </Route>
@@ -158,6 +168,7 @@ function AppRoutes() {
       <Route path="/pitcher/pool" component={PitcherPoolRoute} />
       <Route path="/pitcher/report" component={PitcherReportRoute} />
       <Route path="/pitcher/recharge" component={PitcherRechargeRoute} />
+      <Route path="/pitcher/team-feedback" component={PitcherTeamFeedbackRoute} />
       <Route path="/pitcher">
         <Redirect to="/pitcher/dashboard" />
       </Route>

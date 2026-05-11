@@ -7,6 +7,7 @@ export const teamsTable = pgTable("teams", {
   name: text("name").notNull(),
   businessType: text("business_type", { enum: ["liveChat", "ecommerce"] }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  publicToken: text("public_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

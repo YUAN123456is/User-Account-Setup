@@ -24,6 +24,7 @@ import type {
   CreateDailyStatBody,
   CreateRechargeOrderBody,
   CreateTeamBody,
+  CreateTeamFeedbackBody,
   CreateUserBody,
   CrossReportRow,
   DailyStat,
@@ -41,7 +42,9 @@ import type {
   HealthStatus,
   ListAccountsParams,
   ListDailyStatsParams,
+  ListPitcherTeamFeedbackParams,
   ListRechargeOrdersParams,
+  ListTeamFeedbackParams,
   ListTeamsParams,
   ListUsersParams,
   LoginBody,
@@ -49,11 +52,16 @@ import type {
   LowBalanceAlert,
   OverdueAlert,
   PitcherAccountDetail,
+  PitcherTeamFeedback,
   ProviderAccountDetail,
   RechargeOrder,
+  RequestUploadUrlBody,
+  RequestUploadUrlResponse,
   SpendByPitcher,
   SpendByProvider,
   Team,
+  TeamFeedback,
+  TeamPublicInfo,
   UpdateAccountBody,
   UpdateDailyStatBody,
   UpdateRechargeOrderBody,
@@ -1943,6 +1951,551 @@ export const useDeleteTeam = <
   TContext
 > => {
   return useMutation(getDeleteTeamMutationOptions(options));
+};
+
+/**
+ * @summary Generate (or regenerate) public feedback token for a team (admin)
+ */
+export const getGenerateTeamTokenUrl = (id: number) => {
+  return `/api/teams/${id}/generate-token`;
+};
+
+export const generateTeamToken = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Team> => {
+  return customFetch<Team>(getGenerateTeamTokenUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerateTeamTokenMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateTeamToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateTeamToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["generateTeamToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateTeamToken>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return generateTeamToken(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateTeamTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateTeamToken>>
+>;
+
+export type GenerateTeamTokenMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate (or regenerate) public feedback token for a team (admin)
+ */
+export const useGenerateTeamToken = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateTeamToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateTeamToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getGenerateTeamTokenMutationOptions(options));
+};
+
+/**
+ * @summary Get team info by public token (no auth)
+ */
+export const getGetPublicTeamInfoUrl = (token: string) => {
+  return `/api/public/team-feedback/${token}`;
+};
+
+export const getPublicTeamInfo = async (
+  token: string,
+  options?: RequestInit,
+): Promise<TeamPublicInfo> => {
+  return customFetch<TeamPublicInfo>(getGetPublicTeamInfoUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPublicTeamInfoQueryKey = (token: string) => {
+  return [`/api/public/team-feedback/${token}`] as const;
+};
+
+export const getGetPublicTeamInfoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicTeamInfo>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicTeamInfo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPublicTeamInfoQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPublicTeamInfo>>
+  > = ({ signal }) => getPublicTeamInfo(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicTeamInfo>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicTeamInfoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicTeamInfo>>
+>;
+export type GetPublicTeamInfoQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get team info by public token (no auth)
+ */
+
+export function useGetPublicTeamInfo<
+  TData = Awaited<ReturnType<typeof getPublicTeamInfo>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicTeamInfo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicTeamInfoQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit team feedback via public token (no auth)
+ */
+export const getSubmitTeamFeedbackUrl = (token: string) => {
+  return `/api/public/team-feedback/${token}`;
+};
+
+export const submitTeamFeedback = async (
+  token: string,
+  createTeamFeedbackBody: CreateTeamFeedbackBody,
+  options?: RequestInit,
+): Promise<TeamFeedback> => {
+  return customFetch<TeamFeedback>(getSubmitTeamFeedbackUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTeamFeedbackBody),
+  });
+};
+
+export const getSubmitTeamFeedbackMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitTeamFeedback>>,
+    TError,
+    { token: string; data: BodyType<CreateTeamFeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitTeamFeedback>>,
+  TError,
+  { token: string; data: BodyType<CreateTeamFeedbackBody> },
+  TContext
+> => {
+  const mutationKey = ["submitTeamFeedback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitTeamFeedback>>,
+    { token: string; data: BodyType<CreateTeamFeedbackBody> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return submitTeamFeedback(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitTeamFeedbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitTeamFeedback>>
+>;
+export type SubmitTeamFeedbackMutationBody = BodyType<CreateTeamFeedbackBody>;
+export type SubmitTeamFeedbackMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Submit team feedback via public token (no auth)
+ */
+export const useSubmitTeamFeedback = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitTeamFeedback>>,
+    TError,
+    { token: string; data: BodyType<CreateTeamFeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitTeamFeedback>>,
+  TError,
+  { token: string; data: BodyType<CreateTeamFeedbackBody> },
+  TContext
+> => {
+  return useMutation(getSubmitTeamFeedbackMutationOptions(options));
+};
+
+/**
+ * @summary List all team feedback (admin only)
+ */
+export const getListTeamFeedbackUrl = (params?: ListTeamFeedbackParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/team-feedback?${stringifiedParams}`
+    : `/api/team-feedback`;
+};
+
+export const listTeamFeedback = async (
+  params?: ListTeamFeedbackParams,
+  options?: RequestInit,
+): Promise<TeamFeedback[]> => {
+  return customFetch<TeamFeedback[]>(getListTeamFeedbackUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamFeedbackQueryKey = (
+  params?: ListTeamFeedbackParams,
+) => {
+  return [`/api/team-feedback`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTeamFeedbackQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamFeedback>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamFeedbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamFeedback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTeamFeedbackQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeamFeedback>>
+  > = ({ signal }) => listTeamFeedback(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamFeedback>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamFeedbackQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamFeedback>>
+>;
+export type ListTeamFeedbackQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all team feedback (admin only)
+ */
+
+export function useListTeamFeedback<
+  TData = Awaited<ReturnType<typeof listTeamFeedback>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeamFeedbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeamFeedback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamFeedbackQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List team feedback for pitcher view (date + images + desc only)
+ */
+export const getListPitcherTeamFeedbackUrl = (
+  params?: ListPitcherTeamFeedbackParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/pitcher/team-feedback?${stringifiedParams}`
+    : `/api/pitcher/team-feedback`;
+};
+
+export const listPitcherTeamFeedback = async (
+  params?: ListPitcherTeamFeedbackParams,
+  options?: RequestInit,
+): Promise<PitcherTeamFeedback[]> => {
+  return customFetch<PitcherTeamFeedback[]>(
+    getListPitcherTeamFeedbackUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListPitcherTeamFeedbackQueryKey = (
+  params?: ListPitcherTeamFeedbackParams,
+) => {
+  return [`/api/pitcher/team-feedback`, ...(params ? [params] : [])] as const;
+};
+
+export const getListPitcherTeamFeedbackQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPitcherTeamFeedback>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListPitcherTeamFeedbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPitcherTeamFeedback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPitcherTeamFeedbackQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPitcherTeamFeedback>>
+  > = ({ signal }) =>
+    listPitcherTeamFeedback(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPitcherTeamFeedback>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPitcherTeamFeedbackQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPitcherTeamFeedback>>
+>;
+export type ListPitcherTeamFeedbackQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List team feedback for pitcher view (date + images + desc only)
+ */
+
+export function useListPitcherTeamFeedback<
+  TData = Awaited<ReturnType<typeof listPitcherTeamFeedback>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListPitcherTeamFeedbackParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPitcherTeamFeedback>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPitcherTeamFeedbackQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Request a presigned upload URL
+ */
+export const getRequestUploadUrlUrl = () => {
+  return `/api/storage/uploads/request-url`;
+};
+
+export const requestUploadUrl = async (
+  requestUploadUrlBody: RequestUploadUrlBody,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(getRequestUploadUrlUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestUploadUrlBody),
+  });
+};
+
+export const getRequestUploadUrlMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  const mutationKey = ["requestUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    { data: BodyType<RequestUploadUrlBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestUploadUrl>>
+>;
+export type RequestUploadUrlMutationBody = BodyType<RequestUploadUrlBody>;
+export type RequestUploadUrlMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request a presigned upload URL
+ */
+export const useRequestUploadUrl = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  return useMutation(getRequestUploadUrlMutationOptions(options));
 };
 
 /**

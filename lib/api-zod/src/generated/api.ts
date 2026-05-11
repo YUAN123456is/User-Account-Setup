@@ -413,6 +413,7 @@ export const ListTeamsResponseItem = zod.object({
   name: zod.string(),
   businessType: zod.enum(["liveChat", "ecommerce"]),
   isActive: zod.boolean(),
+  publicToken: zod.string().nullish(),
   createdAt: zod.string(),
 });
 export const ListTeamsResponse = zod.array(ListTeamsResponseItem);
@@ -442,6 +443,7 @@ export const UpdateTeamResponse = zod.object({
   name: zod.string(),
   businessType: zod.enum(["liveChat", "ecommerce"]),
   isActive: zod.boolean(),
+  publicToken: zod.string().nullish(),
   createdAt: zod.string(),
 });
 
@@ -450,6 +452,112 @@ export const UpdateTeamResponse = zod.object({
  */
 export const DeleteTeamParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Generate (or regenerate) public feedback token for a team (admin)
+ */
+export const GenerateTeamTokenParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GenerateTeamTokenResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  businessType: zod.enum(["liveChat", "ecommerce"]),
+  isActive: zod.boolean(),
+  publicToken: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Get team info by public token (no auth)
+ */
+export const GetPublicTeamInfoParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetPublicTeamInfoResponse = zod.object({
+  teamId: zod.number(),
+  teamName: zod.string(),
+});
+
+/**
+ * @summary Submit team feedback via public token (no auth)
+ */
+export const SubmitTeamFeedbackParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const SubmitTeamFeedbackBody = zod.object({
+  date: zod.string(),
+  leadCount: zod.number(),
+  orderAmount: zod.string().nullish(),
+  description: zod.string(),
+  images: zod.array(zod.string()),
+});
+
+/**
+ * @summary List all team feedback (admin only)
+ */
+export const ListTeamFeedbackQueryParams = zod.object({
+  teamId: zod.coerce.number().nullish(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
+});
+
+export const ListTeamFeedbackResponseItem = zod.object({
+  id: zod.number(),
+  teamId: zod.number(),
+  teamName: zod.string().nullish(),
+  date: zod.string(),
+  leadCount: zod.number(),
+  orderAmount: zod.string().nullish(),
+  description: zod.string(),
+  images: zod.array(zod.string()),
+  submittedAt: zod.string(),
+});
+export const ListTeamFeedbackResponse = zod.array(ListTeamFeedbackResponseItem);
+
+/**
+ * @summary List team feedback for pitcher view (date + images + desc only)
+ */
+export const ListPitcherTeamFeedbackQueryParams = zod.object({
+  teamId: zod.coerce.number().nullish(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
+});
+
+export const ListPitcherTeamFeedbackResponseItem = zod.object({
+  id: zod.number(),
+  teamId: zod.number(),
+  teamName: zod.string().nullish(),
+  date: zod.string(),
+  description: zod.string(),
+  images: zod.array(zod.string()),
+  submittedAt: zod.string(),
+});
+export const ListPitcherTeamFeedbackResponse = zod.array(
+  ListPitcherTeamFeedbackResponseItem,
+);
+
+/**
+ * @summary Request a presigned upload URL
+ */
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string(),
+  size: zod.number(),
+  contentType: zod.string(),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
+  metadata: zod.object({
+    name: zod.string(),
+    size: zod.number(),
+    contentType: zod.string(),
+  }),
 });
 
 /**

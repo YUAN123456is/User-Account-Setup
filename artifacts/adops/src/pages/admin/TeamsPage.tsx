@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListTeams, useCreateTeam, useUpdateTeam, useDeleteTeam, getListTeamsQueryKey } from "@workspace/api-client-react";
+import { useListTeams, useCreateTeam, useUpdateTeam, useDeleteTeam, useGenerateTeamToken, getListTeamsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Link2, Copy, RefreshCw } from "lucide-react";
 
-interface Team { id: number; name: string; businessType: string; isActive: boolean; createdAt: string; }
+interface Team { id: number; name: string; businessType: string; isActive: boolean; publicToken?: string | null; createdAt: string; }
 
 const BIZ_LABELS: Record<string, string> = { liveChat: "聊单", ecommerce: "独立站" };
 const BIZ_COLORS: Record<string, string> = { liveChat: "bg-purple-500/10 text-purple-400 border-purple-500/20", ecommerce: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
+
+function getPublicFeedbackUrl(token: string) {
+  const base = window.location.origin;
+  const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  return `${base}${basePath}/feedback/${token}`;
+}
 
 function TeamDialog({ team, onClose }: { team?: Team; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -82,12 +88,70 @@ function TeamDialog({ team, onClose }: { team?: Team; onClose: () => void }) {
   );
 }
 
+function TokenDialog({ team, onClose }: { team: Team; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const generateToken = useGenerateTeamToken({
+    mutation: {
+      onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListTeamsQueryKey({}) }); toast({ title: "链接已生成" }); },
+      onError: () => toast({ title: "生成失败", variant: "destructive" }),
+    },
+  });
+
+  const currentToken = team.publicToken;
+  const feedbackUrl = currentToken ? getPublicFeedbackUrl(currentToken) : null;
+
+  const copyLink = () => {
+    if (!feedbackUrl) return;
+    navigator.clipboard.writeText(feedbackUrl).then(() => toast({ title: "链接已复制" }));
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>反馈链接 — {team.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          {feedbackUrl ? (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">公开反馈链接（任何人无需登录即可提交）</Label>
+                <div className="flex gap-2">
+                  <Input value={feedbackUrl} readOnly className="text-xs font-mono" />
+                  <Button variant="outline" size="sm" onClick={copyLink} className="shrink-0">
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                <span>点击「重新生成」将使旧链接失效并生成新链接</span>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">该团队尚未生成反馈链接，点击下方按钮生成。</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>关闭</Button>
+          <Button onClick={() => generateToken.mutate({ id: team.id })} disabled={generateToken.isPending}>
+            {generateToken.isPending ? "生成中..." : currentToken ? "重新生成" : "生成链接"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeamsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Team | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Team | null>(null);
+  const [tokenTarget, setTokenTarget] = useState<Team | null>(null);
   const [bizFilter, setBizFilter] = useState("all");
 
   const { data, isLoading } = useListTeams({});
@@ -130,18 +194,19 @@ export default function TeamsPage() {
               <TableHead>团队名称</TableHead>
               <TableHead>投放业务</TableHead>
               <TableHead>状态</TableHead>
+              <TableHead>反馈链接</TableHead>
               <TableHead>创建时间</TableHead>
-              <TableHead className="w-20">操作</TableHead>
+              <TableHead className="w-24">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 4 }).map((_, i) => (
-              <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
+              <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
                 <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-24" /></TableCell>
               ))}</TableRow>
             ))}
             {!isLoading && filtered.length === 0 && (
-              <TableRow><TableCell colSpan={5}><EmptyState icon={Users} title="暂无团队" description="点击「新建团队」添加第一个投放团队。" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6}><EmptyState icon={Users} title="暂无团队" description="点击「新建团队」添加第一个投放团队。" /></TableCell></TableRow>
             )}
             {!isLoading && filtered.map((t) => (
               <TableRow key={t.id}>
@@ -155,6 +220,17 @@ export default function TeamsPage() {
                   {t.isActive
                     ? <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">启用</Badge>
                     : <Badge variant="outline" className="text-xs text-muted-foreground">停用</Badge>}
+                </TableCell>
+                <TableCell>
+                  {t.publicToken ? (
+                    <button onClick={() => setTokenTarget(t)} className="flex items-center gap-1 text-xs text-primary hover:underline">
+                      <Link2 className="h-3 w-3" /> 查看链接
+                    </button>
+                  ) : (
+                    <button onClick={() => setTokenTarget(t)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      生成链接
+                    </button>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                   {new Date(t.createdAt).toLocaleDateString("zh-CN")}
@@ -177,6 +253,7 @@ export default function TeamsPage() {
 
       {showCreate && <TeamDialog onClose={() => setShowCreate(false)} />}
       {editTarget && <TeamDialog team={editTarget} onClose={() => setEditTarget(null)} />}
+      {tokenTarget && <TokenDialog team={tokenTarget} onClose={() => setTokenTarget(null)} />}
 
       {deleteConfirm && (
         <Dialog open onOpenChange={() => setDeleteConfirm(null)}>

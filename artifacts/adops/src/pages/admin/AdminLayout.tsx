@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { LayoutDashboard, Users, CreditCard, BarChart3, Wallet, AlertTriangle, UsersRound, TrendingUp, GitMerge, LineChart } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, BarChart3, Wallet, AlertTriangle, UsersRound, TrendingUp, GitMerge, LineChart, MessageSquare } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { useGetLowBalanceAlerts } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { label: "交叉报表", href: "/admin/reports/cross", icon: GitMerge },
     { label: "财务管理", href: "/admin/finance", icon: Wallet },
     { label: "余额预警", href: "/admin/alerts", icon: AlertTriangle, badge: alertCount },
+    { label: "团队反馈", href: "/admin/team-feedback", icon: MessageSquare },
   ];
 
   return (

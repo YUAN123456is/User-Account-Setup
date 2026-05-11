@@ -24,6 +24,10 @@ tags:
     description: Dashboard and analytics
   - name: teams
     description: Team management (admin only)
+  - name: team-feedback
+    description: Team feedback (public submission + admin/pitcher view)
+  - name: storage
+    description: Object storage upload
 
 paths:
   /healthz:
@@ -498,6 +502,164 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # ─── Team Token ───────────────────────────────────────────────────────────
+  /teams/{id}/generate-token:
+    post:
+      operationId: generateTeamToken
+      tags: [teams]
+      summary: Generate (or regenerate) public feedback token for a team (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Team with publicToken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Team Feedback (public, no auth) ──────────────────────────────────────
+  /public/team-feedback/{token}:
+    get:
+      operationId: getPublicTeamInfo
+      tags: [team-feedback]
+      summary: Get team info by public token (no auth)
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Team public info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamPublicInfo"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: submitTeamFeedback
+      tags: [team-feedback]
+      summary: Submit team feedback via public token (no auth)
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamFeedbackBody"
+      responses:
+        "201":
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamFeedback"
+        "404":
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Team Feedback (authenticated) ────────────────────────────────────────
+  /team-feedback:
+    get:
+      operationId: listTeamFeedback
+      tags: [team-feedback]
+      summary: List all team feedback (admin only)
+      parameters:
+        - in: query
+          name: teamId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of feedback
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamFeedback"
+
+  /pitcher/team-feedback:
+    get:
+      operationId: listPitcherTeamFeedback
+      tags: [team-feedback]
+      summary: List team feedback for pitcher view (date + images + desc only)
+      parameters:
+        - in: query
+          name: teamId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of feedback (no financial data)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PitcherTeamFeedback"
+
+  # ─── Storage ───────────────────────────────────────────────────────────────
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL and object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
 
   # ─── Recharge Orders ──────────────────────────────────────────────────────
   /recharge-orders:
@@ -1127,6 +1289,8 @@ components:
           enum: [liveChat, ecommerce]
         isActive:
           type: boolean
+        publicToken:
+          type: ["string", "null"]
         createdAt:
           type: string
       required:
@@ -1503,3 +1667,135 @@ components:
         - theoreticalBalance
         - reportedBalance
         - discrepancyPct
+
+    # ─── Team Feedback ────────────────────────────────────────────────────────
+    TeamPublicInfo:
+      type: object
+      properties:
+        teamId:
+          type: integer
+        teamName:
+          type: string
+      required:
+        - teamId
+        - teamName
+
+    CreateTeamFeedbackBody:
+      type: object
+      properties:
+        date:
+          type: string
+        leadCount:
+          type: integer
+        orderAmount:
+          type: ["string", "null"]
+        description:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+      required:
+        - date
+        - leadCount
+        - description
+        - images
+
+    TeamFeedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: ["string", "null"]
+        date:
+          type: string
+        leadCount:
+          type: integer
+        orderAmount:
+          type: ["string", "null"]
+        description:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+      required:
+        - id
+        - teamId
+        - date
+        - leadCount
+        - description
+        - images
+        - submittedAt
+
+    PitcherTeamFeedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        teamName:
+          type: ["string", "null"]
+        date:
+          type: string
+        description:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+      required:
+        - id
+        - teamId
+        - date
+        - description
+        - images
+        - submittedAt
+
+    # ─── Storage ──────────────────────────────────────────────────────────────
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+            size:
+              type: integer
+            contentType:
+              type: string
+          required:
+            - name
+            - size
+            - contentType
+      required:
+        - uploadURL
+        - objectPath
+        - metadata

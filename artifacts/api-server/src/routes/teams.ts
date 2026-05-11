@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, SQL } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db, teamsTable } from "@workspace/db";
 import {
   ListTeamsQueryParams,
@@ -30,6 +31,7 @@ router.get("/teams", requireAuth, async (req, res): Promise<void> => {
     name: t.name,
     businessType: t.businessType,
     isActive: t.isActive,
+    publicToken: t.publicToken,
     createdAt: t.createdAt.toISOString(),
   })));
 });
@@ -84,6 +86,26 @@ router.patch("/teams/:id", requireRole("admin"), async (req, res): Promise<void>
     name: team.name,
     businessType: team.businessType,
     isActive: team.isActive,
+    createdAt: team.createdAt.toISOString(),
+  });
+});
+
+router.post("/teams/:id/generate-token", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(teamsTable).where(eq(teamsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Team not found" }); return; }
+
+  const token = randomUUID();
+  const [team] = await db.update(teamsTable).set({ publicToken: token }).where(eq(teamsTable.id, id)).returning();
+
+  res.json({
+    id: team.id,
+    name: team.name,
+    businessType: team.businessType,
+    isActive: team.isActive,
+    publicToken: team.publicToken,
     createdAt: team.createdAt.toISOString(),
   });
 });
