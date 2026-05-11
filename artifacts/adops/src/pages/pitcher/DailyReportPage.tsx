@@ -142,12 +142,11 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
 
   const acc = accounts.find((a) => a.id === stat.accountId);
 
-  const BizBtn = ({ v, label }: { v: string; label: string }) => (
-    <button onClick={() => { setBiz(v); setTeamId(""); setFanCount(""); setGmv(""); setOrderCount(""); }}
-      className={["flex-1 text-xs py-1.5 rounded-md border transition-colors", businessType === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"].join(" ")}>
-      {label}
-    </button>
-  );
+  const toggleBiz = (v: string) => {
+    const next = businessType === v ? "" : v;
+    setBiz(next);
+    setTeamId(""); setFanCount(""); setGmv(""); setOrderCount("");
+  };
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -165,9 +164,14 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
           <div className="space-y-1.5">
             <Label className="text-sm">投放业务</Label>
             <div className="flex gap-2">
-              <BizBtn v="" label="不填" />
-              <BizBtn v="liveChat" label="聊单" />
-              <BizBtn v="ecommerce" label="独立站" />
+              <button onClick={() => toggleBiz("liveChat")}
+                className={["flex-1 text-xs py-1.5 rounded-md border transition-colors", businessType === "liveChat" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"].join(" ")}>
+                聊单
+              </button>
+              <button onClick={() => toggleBiz("ecommerce")}
+                className={["flex-1 text-xs py-1.5 rounded-md border transition-colors", businessType === "ecommerce" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"].join(" ")}>
+                独立站
+              </button>
             </div>
           </div>
           {businessType === "liveChat" && (
