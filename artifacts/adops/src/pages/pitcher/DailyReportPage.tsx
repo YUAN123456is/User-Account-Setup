@@ -531,11 +531,11 @@ export default function DailyReportPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="w-24">日期</TableHead>
-                <TableHead>账户</TableHead>
-                <TableHead className="text-right">消耗</TableHead>
-                <TableHead className="text-right">余额</TableHead>
-                <TableHead className="w-20">业务</TableHead>
+                <TableHead className="w-[90px]">日期</TableHead>
+                <TableHead className="w-[160px]">账户</TableHead>
+                <TableHead className="w-[90px] text-right">消耗</TableHead>
+                <TableHead className="w-[100px] text-right">余额</TableHead>
+                <TableHead className="w-[68px]">业务</TableHead>
                 <TableHead>运营数据</TableHead>
                 <TableHead className="w-8"></TableHead>
               </TableRow>
@@ -556,7 +556,7 @@ export default function DailyReportPage() {
               {!statsLoading && pagedStats.map((s) => (
                 <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : ""}>
                   <TableCell className="font-mono text-sm text-muted-foreground">{s.date}</TableCell>
-                  <TableCell className="max-w-[180px]">
+                  <TableCell className="w-[160px] max-w-[160px]">
                     <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold text-orange-500">

@@ -31,22 +31,28 @@ export function BizBadge({ biz, team }: { biz?: string | null; team?: string | n
   return <span className="inline-flex items-center text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded w-fit">独立站</span>;
 }
 
+const SEP = <span className="text-border select-none">·</span>;
+
 export function BizMetrics({ s }: { s: StatRow }) {
   if (s.businessType === "liveChat") {
     return (
-      <div className="flex items-center gap-2.5 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <MetricItem label="进粉" value={s.fanCount != null ? String(s.fanCount) : "—"} />
-        <MetricItem label="粉成本" value={s.fanCost ? `$${s.fanCost}` : "—"} />
+        {SEP}
+        <MetricItem label="粉成本" value={s.fanCost ? `$${Number(s.fanCost).toFixed(4)}` : "—"} />
       </div>
     );
   }
   if (s.businessType === "ecommerce") {
     return (
-      <div className="flex items-center gap-2.5 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <MetricItem label="GMV" value={s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"} />
-        <MetricItem label="ROAS" value={s.roas ?? "—"} />
+        {SEP}
+        <MetricItem label="ROAS" value={s.roas ? Number(s.roas).toFixed(2) : "—"} />
+        {SEP}
         <MetricItem label="订单" value={s.orderCount != null ? String(s.orderCount) : "—"} />
-        <MetricItem label="客单" value={s.avgOrderValue ? `$${s.avgOrderValue}` : "—"} />
+        {SEP}
+        <MetricItem label="客单" value={s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"} />
       </div>
     );
   }
