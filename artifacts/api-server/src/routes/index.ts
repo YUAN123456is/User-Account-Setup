@@ -9,6 +9,8 @@ import dashboardRouter from "./dashboard";
 import teamsRouter from "./teams";
 import teamFeedbackRouter from "./team-feedback";
 import storageRouter from "./storage";
+import metaTokensRouter from "./meta-tokens";
+import pitcherMetaTokensRouter from "./pitcher-meta-tokens";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(dashboardRouter);
 router.use(teamsRouter);
 router.use(teamFeedbackRouter);
 router.use(storageRouter);
+router.use(metaTokensRouter);
+router.use(pitcherMetaTokensRouter);
 
 export default router;

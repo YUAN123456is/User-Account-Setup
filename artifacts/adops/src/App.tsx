@@ -32,6 +32,7 @@ import PitcherPoolPage from "@/pages/pitcher/PitcherPoolPage";
 import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
 import TeamFeedbackPage from "@/pages/pitcher/TeamFeedbackPage";
+import PitcherMetaTokensPage from "@/pages/pitcher/PitcherMetaTokensPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +107,7 @@ const PitcherPoolRoute = makePitcherRoute(PitcherPoolPage);
 const PitcherReportRoute = makePitcherRoute(DailyReportPage);
 const PitcherRechargeRoute = makePitcherRoute(RechargeRequestPage);
 const PitcherTeamFeedbackRoute = makePitcherRoute(TeamFeedbackPage);
+const PitcherMetaTokensRoute = makePitcherRoute(PitcherMetaTokensPage);
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -169,6 +171,7 @@ function AppRoutes() {
       <Route path="/pitcher/report" component={PitcherReportRoute} />
       <Route path="/pitcher/recharge" component={PitcherRechargeRoute} />
       <Route path="/pitcher/team-feedback" component={PitcherTeamFeedbackRoute} />
+      <Route path="/pitcher/meta-tokens" component={PitcherMetaTokensRoute} />
       <Route path="/pitcher">
         <Redirect to="/pitcher/dashboard" />
       </Route>
