@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RechargeStatusBadge } from "@/components/shared/StatusBadge";
-import { Wallet, CreditCard, BarChart3, PlusCircle, AlertTriangle, CheckCircle, Clock, History } from "lucide-react";
+import { Wallet, CreditCard, BarChart3, PlusCircle, AlertTriangle, CheckCircle, Clock, History, XCircle, Facebook } from "lucide-react";
 
 interface Account {
   id: number;
@@ -23,6 +23,8 @@ interface DailyStat {
   spendAmount: string;
   realBalance: string;
   hasAlert: boolean;
+  status?: string | null;
+  fbSynced?: boolean;
 }
 interface RechargeOrder {
   id: number;
@@ -109,7 +111,7 @@ export default function PitcherDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Today report progress */}
+        {/* Yesterday report progress */}
         <Card className={notReportedCount > 0 ? "border-amber-500/30 bg-amber-500/5" : "border-green-500/30 bg-green-500/5"}>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -118,7 +120,7 @@ export default function PitcherDashboardPage() {
                   ? <Clock className="h-4 w-4 text-amber-500" />
                   : <CheckCircle className="h-4 w-4 text-green-500" />}
               </div>
-              <span className="text-sm text-muted-foreground font-medium">今日上报</span>
+              <span className="text-sm text-muted-foreground font-medium">昨日上报</span>
             </div>
             <p className="text-3xl font-bold tabular-nums">
               {reportedTodayCount}
@@ -194,7 +196,7 @@ export default function PitcherDashboardPage() {
                   <TableHead className="w-24">日期</TableHead>
                   <TableHead>账户</TableHead>
                   <TableHead className="text-right">消耗</TableHead>
-                  <TableHead>状态</TableHead>
+                  <TableHead>审核</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,16 +208,34 @@ export default function PitcherDashboardPage() {
                   </TableRow>
                 ) : (
                   recentFive.map((s) => (
-                    <TableRow key={s.id}>
+                    <TableRow key={s.id} className={s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
                       <TableCell className="font-mono text-xs whitespace-nowrap">{s.date}</TableCell>
                       <TableCell className="text-sm max-w-[120px] truncate" title={s.accountName}>
                         {s.accountName ?? `账户 #${s.accountId}`}
                       </TableCell>
                       <TableCell className="font-mono text-sm text-right whitespace-nowrap">${Number(s.spendAmount).toFixed(2)}</TableCell>
                       <TableCell>
-                        {s.hasAlert
-                          ? <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />预警</Badge>
-                          : <Badge variant="outline" className="text-xs text-muted-foreground">正常</Badge>}
+                        {s.hasAlert ? (
+                          <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap">
+                            <AlertTriangle className="h-3 w-3" />预警
+                          </span>
+                        ) : s.fbSynced ? (
+                          <span className="flex items-center gap-1 text-xs text-blue-400 whitespace-nowrap">
+                            <Facebook className="h-3 w-3" />FB
+                          </span>
+                        ) : s.status === "pending" ? (
+                          <span className="flex items-center gap-1 text-xs text-amber-400 whitespace-nowrap">
+                            <Clock className="h-3 w-3" />待审
+                          </span>
+                        ) : s.status === "rejected" ? (
+                          <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap">
+                            <XCircle className="h-3 w-3" />驳回
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-emerald-500 whitespace-nowrap">
+                            <CheckCircle className="h-3 w-3" />通过
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

@@ -1,13 +1,10 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListAccounts,
-  useCreateDailyStat,
-  useUpdateDailyStat,
-  useListDailyStats,
-  useListTeams,
-  getListAccountsQueryKey,
-  getListDailyStatsQueryKey,
+  useListAccounts, useCreateDailyStat, useUpdateDailyStat,
+  useListDailyStats, useListTeams,
+  getListAccountsQueryKey, getListDailyStatsQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { BizBadge } from "@/components/shared/BizDisplay";
-import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart3, Plus, X, CheckCircle, Pencil, ChevronDown, ChevronUp, AlertCircle, ChevronsUpDown, Clock, XCircle, Facebook } from "lucide-react";
+import {
+  BarChart3, Plus, X, CheckCircle, Pencil,
+  AlertCircle, Clock, XCircle, Facebook,
+} from "lucide-react";
 
 interface Account {
   id: number;
@@ -73,19 +70,9 @@ interface ReportRow {
 
 const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
 const today = new Date().toISOString().slice(0, 10);
-const PAGE_SIZE = 20;
 
 function newRow(): ReportRow {
   return { key: Math.random().toString(36).slice(2), accountId: "", spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "", expanded: false };
-}
-
-function QuickDate({ label, value, active, onClick }: { label: string; value: string; active: boolean; onClick: (v: string) => void }) {
-  return (
-    <button
-      onClick={() => onClick(value)}
-      className={["text-xs px-2.5 py-1 rounded-md border transition-colors", active ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}
-    >{label}</button>
-  );
 }
 
 function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accounts: Account[]; teams: Team[]; onClose: () => void }) {
@@ -139,8 +126,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const acc = accounts.find((a) => a.id === stat.accountId);
 
   const toggleBiz = (v: string) => {
-    const next = businessType === v ? "" : v;
-    setBiz(next);
+    setBiz((prev) => prev === v ? "" : v);
     setTeamId(""); setFanCount(""); setGmv(""); setOrderCount("");
   };
 
@@ -178,16 +164,14 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
             <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm">投放业务</Label>
+            <Label className="text-sm">业务类型</Label>
             <div className="flex gap-2">
-              <button onClick={() => toggleBiz("liveChat")}
-                className={["flex-1 text-xs py-1.5 rounded-md border transition-colors", businessType === "liveChat" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"].join(" ")}>
-                聊单
-              </button>
-              <button onClick={() => toggleBiz("ecommerce")}
-                className={["flex-1 text-xs py-1.5 rounded-md border transition-colors", businessType === "ecommerce" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"].join(" ")}>
-                独立站
-              </button>
+              {[["liveChat", "聊单"], ["ecommerce", "独立站"]].map(([v, label]) => (
+                <button key={v} onClick={() => toggleBiz(v)}
+                  className={["text-xs px-3 py-1.5 rounded border transition-colors", businessType === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           {businessType === "liveChat" && (
@@ -195,7 +179,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               <div className="space-y-1.5">
                 <Label className="text-sm">服务团队</Label>
                 <Select value={teamId} onValueChange={setTeamId}>
-                  <SelectTrigger className="text-sm"><SelectValue placeholder="选择团队..." /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择团队..." /></SelectTrigger>
                   <SelectContent>{liveTeams.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -223,7 +207,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleSave} disabled={update.isPending}>{update.isPending ? "保存中..." : "保存"}</Button>
+          <Button onClick={handleSave} disabled={update.isPending}>{update.isPending ? "保存中..." : wasRejected ? "修改并重新提交" : "保存"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -235,20 +219,6 @@ export default function DailyReportPage() {
   const [rows, setRows] = useState<ReportRow[]>([newRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-
-  const [histFilter, setHistFilter] = useState("all");
-  const [sortKey, setSortKey] = useState<string>("date");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  const handleSort = (key: string) => {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("desc"); }
-    setHistPage(1);
-  };
-  const [quickDate, setQuickDate] = useState("yesterday");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [histPage, setHistPage] = useState(1);
   const [editTarget, setEditTarget] = useState<DailyStat | null>(null);
 
   const queryClient = useQueryClient();
@@ -260,67 +230,9 @@ export default function DailyReportPage() {
   const teams = useMemo(() => Array.isArray(teamsData) ? (teamsData as Team[]) : [], [teamsData]);
   const liveTeams = teams.filter((t) => t.businessType === "liveChat");
 
-  const getDateRange = () => {
-    if (quickDate === "yesterday") return { from: yesterday, to: yesterday };
-    if (quickDate === "week") {
-      const d = new Date(); d.setDate(d.getDate() - 6);
-      return { from: d.toISOString().slice(0, 10), to: yesterday };
-    }
-    if (quickDate === "month") {
-      const d = new Date(); d.setDate(1);
-      return { from: d.toISOString().slice(0, 10), to: yesterday };
-    }
-    if (quickDate === "lastmonth") {
-      const d = new Date(); d.setDate(1);
-      const end = new Date(d); end.setDate(0);
-      d.setMonth(d.getMonth() - 1);
-      return { from: d.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
-    }
-    return { from: customFrom, to: customTo };
-  };
-
-  const { from: dateFrom, to: dateTo } = getDateRange();
-  const apiParams: Record<string, string> = {};
-  if (dateFrom) apiParams.dateFrom = dateFrom;
-  if (dateTo) apiParams.dateTo = dateTo;
-  if (histFilter !== "all") apiParams.accountId = histFilter;
-
-  const { data: statsData, isLoading: statsLoading } = useListDailyStats(apiParams);
-  const allStats = useMemo(() => {
-    return Array.isArray(statsData) ? (statsData as DailyStat[]) : [];
-  }, [statsData]);
-
-  const sortedStats = useMemo(() => {
-    return [...allStats].sort((a, b) => {
-      const numericKeys = ["spendAmount", "realBalance", "fanCount"];
-      if (numericKeys.includes(sortKey)) {
-        const va = Number((a as unknown as Record<string, unknown>)[sortKey] ?? 0);
-        const vb = Number((b as unknown as Record<string, unknown>)[sortKey] ?? 0);
-        return sortDir === "asc" ? va - vb : vb - va;
-      }
-      const sa = String((a as unknown as Record<string, unknown>)[sortKey] ?? "");
-      const sb = String((b as unknown as Record<string, unknown>)[sortKey] ?? "");
-      return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
-    });
-  }, [allStats, sortKey, sortDir]);
-
-  const pagedStats = usePagination(sortedStats, PAGE_SIZE, histPage);
-  const totalSpend = allStats.reduce((s, r) => s + Number(r.spendAmount), 0);
-
-  const liveStatsRows = allStats.filter((s) => s.businessType === "liveChat");
-  const ecomStatsRows = allStats.filter((s) => s.businessType === "ecommerce");
-  const statsHasLive = liveStatsRows.length > 0;
-  const statsHasEcom = ecomStatsRows.length > 0;
-  const statsTotalFans = liveStatsRows.reduce((s, r) => s + (r.fanCount ?? 0), 0);
-  const statsLiveSpend = liveStatsRows.reduce((s, r) => s + Number(r.spendAmount), 0);
-  const statsAvgFanCost = statsTotalFans > 0 ? statsLiveSpend / statsTotalFans : 0;
-  const statsTotalGmv = ecomStatsRows.reduce((s, r) => s + Number(r.gmv ?? 0), 0);
-  const statsTotalOrders = ecomStatsRows.reduce((s, r) => s + (r.orderCount ?? 0), 0);
-  const statsEcomSpend = ecomStatsRows.reduce((s, r) => s + Number(r.spendAmount), 0);
-  const statsRoas = statsEcomSpend > 0 && statsTotalGmv > 0 ? statsTotalGmv / statsEcomSpend : 0;
-
-  const { data: yStatsData } = useListDailyStats({ dateFrom: sharedDate, dateTo: sharedDate } as Record<string, string>);
-  const reportedIds = useMemo(() => new Set((Array.isArray(yStatsData) ? yStatsData : []).map((s: { accountId: number }) => s.accountId)), [yStatsData]);
+  const { data: yStatsData, isLoading: dayLoading } = useListDailyStats({ dateFrom: sharedDate, dateTo: sharedDate } as Record<string, string>);
+  const dayStats = useMemo(() => Array.isArray(yStatsData) ? (yStatsData as DailyStat[]) : [], [yStatsData]);
+  const reportedIds = useMemo(() => new Set(dayStats.map((s) => s.accountId)), [dayStats]);
 
   const createMutation = useCreateDailyStat({});
 
@@ -328,7 +240,10 @@ export default function DailyReportPage() {
     setRows((prev) => prev.map((r) => {
       if (r.key !== key) return r;
       const next = { ...r, [field]: value };
-      if (field === "businessType") { next.teamId = ""; next.fanCount = ""; next.gmv = ""; next.orderCount = ""; }
+      if (field === "businessType") {
+        next.teamId = ""; next.fanCount = ""; next.gmv = ""; next.orderCount = "";
+        next.expanded = !!(value);
+      }
       return next;
     }));
   };
@@ -347,9 +262,7 @@ export default function DailyReportPage() {
       }
     }
     setSubmitting(true);
-    let failed = 0;
-    let succeeded = 0;
-    let duplicates = 0;
+    let failed = 0; let succeeded = 0; let duplicates = 0;
     for (const r of rows) {
       try {
         await new Promise<void>((resolve, reject) => {
@@ -367,12 +280,8 @@ export default function DailyReportPage() {
         succeeded++;
       } catch (e: unknown) {
         const msg = (e as { data?: { error?: string } })?.data?.error ?? "";
-        if (msg.includes("已上报")) {
-          duplicates++;
-          toast({ title: "重复上报", description: msg, variant: "destructive" });
-        } else {
-          failed++;
-        }
+        if (msg.includes("已上报")) { duplicates++; toast({ title: "重复上报", description: msg, variant: "destructive" }); }
+        else { failed++; }
       }
     }
     queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
@@ -382,41 +291,35 @@ export default function DailyReportPage() {
       setSubmitted(true);
       setRows([newRow()]);
       const dupNote = duplicates > 0 ? `（${duplicates} 条重复跳过）` : "";
-      toast({ title: "提交成功", description: `${succeeded} 条上报数据已保存。${dupNote}` });
+      toast({ title: "提交成功", description: `${succeeded} 条上报数据已提交审核。${dupNote}` });
       setTimeout(() => setSubmitted(false), 3000);
     } else if (failed > 0) {
       toast({ title: `${failed} 条提交失败`, variant: "destructive" });
     }
   };
 
-  const handleQuickDate = (v: string) => { setQuickDate(v); setHistPage(1); if (v !== "custom") { setCustomFrom(""); setCustomTo(""); } };
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold">每日上报</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">填写昨日各账户消耗，余额由系统自动计算</p>
+        <p className="text-sm text-muted-foreground mt-0.5">填写各账户消耗，余额由系统自动计算</p>
       </div>
 
       {/* ── 填报区 ── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* 共享日期 */}
         <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-muted/30">
           <span className="text-xs font-medium text-foreground shrink-0">上报日期</span>
           <Input
-            type="date"
-            className="h-7 w-36 text-xs"
-            value={sharedDate}
-            max={today}
+            type="date" className="h-7 w-36 text-xs"
+            value={sharedDate} max={today}
             onChange={(e) => setSharedDate(e.target.value)}
           />
-          <span className="text-xs text-muted-foreground hidden sm:block">各行共用，可单独改</span>
+          <span className="text-xs text-muted-foreground hidden sm:block">各行共用此日期</span>
           <Button variant="ghost" size="sm" className="ml-auto gap-1.5 h-7 text-xs" onClick={addRow}>
             <Plus className="h-3.5 w-3.5" /> 添加一行
           </Button>
         </div>
 
-        {/* 行列表 */}
         <div className="divide-y divide-border/60">
           {rows.map((row, idx) => {
             const selAcc = accounts.find((a) => String(a.id) === row.accountId);
@@ -434,11 +337,9 @@ export default function DailyReportPage() {
 
             return (
               <div key={row.key} className={["px-3 py-2 space-y-1.5 transition-colors", alreadyReported ? "bg-amber-50/50 dark:bg-amber-900/10" : ""].join(" ")}>
-                {/* 主行 */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground w-5 shrink-0 text-right">{idx + 1}</span>
 
-                  {/* 账户 */}
                   <Select value={row.accountId} onValueChange={(v) => updateRow(row.key, "accountId", v)}>
                     <SelectTrigger className="h-8 text-xs flex-[2] min-w-0">
                       <SelectValue placeholder="选择账户..." />
@@ -446,14 +347,12 @@ export default function DailyReportPage() {
                     <SelectContent>
                       {accounts.map((a) => (
                         <SelectItem key={a.id} value={String(a.id)}>
-                          {a.accountName}
-                          {reportedIds.has(a.id) ? " ✓已报" : ""}
+                          {a.accountName}{reportedIds.has(a.id) ? " ✓已报" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
-                  {/* 消耗 */}
                   <div className="relative flex-1 min-w-[100px]">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                     <Input
@@ -464,25 +363,16 @@ export default function DailyReportPage() {
                     />
                   </div>
 
-                  {/* 业务类型迷你按钮 */}
                   <div className="flex gap-1 shrink-0">
                     {[["liveChat", "聊单"], ["ecommerce", "独立站"]].map(([v, label]) => (
-                      <button key={v} onClick={() => updateRow(row.key, "businessType", row.businessType === v ? "" : v)}
+                      <button key={v}
+                        onClick={() => updateRow(row.key, "businessType", row.businessType === v ? "" : v)}
                         className={["text-xs px-2 py-1 rounded border transition-colors", row.businessType === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}>
                         {label}
                       </button>
                     ))}
                   </div>
 
-                  {/* 展开/收起运营字段 */}
-                  {hasOps && (
-                    <button onClick={() => updateRow(row.key, "expanded", !row.expanded)}
-                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                      {row.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                  )}
-
-                  {/* 删除 */}
                   {rows.length > 1 && (
                     <button onClick={() => removeRow(row.key)} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
                       <X className="h-4 w-4" />
@@ -490,7 +380,6 @@ export default function DailyReportPage() {
                   )}
                 </div>
 
-                {/* 提示行 */}
                 {(alreadyReported || previewBal !== null) && (
                   <div className="flex items-center gap-3 pl-6 text-xs">
                     {alreadyReported && (
@@ -504,8 +393,8 @@ export default function DailyReportPage() {
                   </div>
                 )}
 
-                {/* 运营字段（展开） */}
-                {hasOps && row.expanded && (
+                {/* 选业务类型后自动展开，无需额外点击 */}
+                {hasOps && (
                   <div className="pl-6 grid grid-cols-2 gap-2.5 pt-0.5">
                     {row.businessType === "liveChat" && (
                       <>
@@ -547,221 +436,97 @@ export default function DailyReportPage() {
           })}
         </div>
 
-        {/* 提交 */}
         <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
             {rows.length > 1 ? `共 ${rows.length} 行` : ""}
           </span>
           <Button size="sm" className="gap-1.5 px-5" onClick={handleSubmitAll} disabled={submitting}>
-            {submitted ? (
-              <><CheckCircle className="h-3.5 w-3.5" /> 已全部提交</>
-            ) : submitting ? "提交中..." : (
-              <><CheckCircle className="h-3.5 w-3.5" /> 提交{rows.length > 1 ? ` ${rows.length} 条` : ""}上报</>
-            )}
+            {submitted
+              ? <><CheckCircle className="h-3.5 w-3.5" /> 已全部提交</>
+              : submitting ? "提交中..."
+              : <><CheckCircle className="h-3.5 w-3.5" /> 提交{rows.length > 1 ? ` ${rows.length} 条` : ""}上报</>}
           </Button>
         </div>
       </div>
 
-      {/* ── 上报记录 ── */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold">上报记录</h2>
-
-        {/* 筛选工具栏 */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <Select value={histFilter} onValueChange={(v) => { setHistFilter(v); setHistPage(1); }}>
-            <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部账户</SelectItem>
-              {accounts.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.accountName}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <div className="h-4 w-px bg-border mx-0.5" />
-
-          <QuickDate label="昨天" value="yesterday" active={quickDate === "yesterday"} onClick={handleQuickDate} />
-          <QuickDate label="近7天" value="week" active={quickDate === "week"} onClick={handleQuickDate} />
-          <QuickDate label="本月" value="month" active={quickDate === "month"} onClick={handleQuickDate} />
-          <QuickDate label="上月" value="lastmonth" active={quickDate === "lastmonth"} onClick={handleQuickDate} />
-          <QuickDate label="自定义" value="custom" active={quickDate === "custom"} onClick={handleQuickDate} />
-
-          {quickDate === "custom" && (
-            <div className="flex items-center gap-1.5">
-              <Input type="date" className="h-8 w-34 text-xs" value={customFrom} onChange={(e) => { setCustomFrom(e.target.value); setHistPage(1); }} />
-              <span className="text-xs text-muted-foreground">至</span>
-              <Input type="date" className="h-8 w-34 text-xs" value={customTo} onChange={(e) => { setCustomTo(e.target.value); setHistPage(1); }} />
-            </div>
-          )}
-
+      {/* ── 当日已报记录 ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">
+            {sharedDate} 已报记录
+            {dayStats.length > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{dayStats.length} 条</span>}
+          </h2>
+          <Link href="/pitcher/history">
+            <span className="text-xs text-primary hover:underline cursor-pointer">查看全部历史 →</span>
+          </Link>
         </div>
 
-        <StatsBar items={[
-          { label: "记录条数", value: allStats.length },
-          { label: "总消耗", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
-          ...(statsHasLive ? [
-            { label: "聊单进粉", value: statsTotalFans, color: "purple" as const },
-            { label: "平均粉成本", value: statsTotalFans > 0 ? `$${statsAvgFanCost.toFixed(4)}` : "—", color: "amber" as const },
-          ] : []),
-          ...(statsHasEcom ? [
-            { label: "独立站GMV", value: `$${statsTotalGmv.toFixed(2)}`, color: "green" as const },
-            { label: "总订单", value: statsTotalOrders },
-            { label: "ROAS", value: statsRoas > 0 ? statsRoas.toFixed(2) : "—", color: "green" as const },
-          ] : []),
-        ]} />
-
-        {/* 表格 */}
-        {(() => {
-          const hasLive = allStats.some((s) => s.businessType === "liveChat");
-          const hasEcom = allStats.some((s) => s.businessType === "ecommerce");
-          const showBizCol = hasLive && hasEcom;
-          const showLive = hasLive;
-          const showEcom = hasEcom;
-          const colCount = 4 + (showBizCol ? 1 : 0) + (showLive ? 3 : 0) + (showEcom ? 4 : 0) + 1;
-          return (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <Table className="min-w-max">
-                <TableHeader>
-                  {(() => {
-                    const SH = ({ col, label, cls, right }: { col: string; label: string; cls?: string; right?: boolean }) => {
-                      const icon = sortKey === col
-                        ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                        : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
-                      return (
-                        <TableHead
-                          className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${cls ?? ""}`}
-                          onClick={() => handleSort(col)}
-                        >
-                          <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
-                            {right && icon}
-                            {label}
-                            {!right && icon}
-                          </span>
-                        </TableHead>
-                      );
-                    };
-                    return (
-                      <TableRow className="bg-muted/40">
-                        <SH col="date" label="日期" cls="w-[86px]" />
-                        <SH col="accountName" label="账户" cls="w-[120px]" />
-                        <SH col="spendAmount" label="消耗" cls="w-[80px] text-right" right />
-                        <SH col="realBalance" label="余额" cls="w-[86px] text-right" right />
-                        {showBizCol && <TableHead className="w-[56px]">业务</TableHead>}
-                        {showLive && <TableHead className="w-[68px]">团队</TableHead>}
-                        {showLive && <SH col="fanCount" label="进粉" cls="w-[54px] text-right" right />}
-                        {showLive && <TableHead className="w-[78px] text-right">粉成本</TableHead>}
-                        {showEcom && <SH col="gmv" label="GMV" cls="w-[86px] text-right" right />}
-                        {showEcom && <SH col="roas" label="ROAS" cls="w-[58px] text-right" right />}
-                        {showEcom && <SH col="orderCount" label="订单" cls="w-[50px] text-right" right />}
-                        {showEcom && <TableHead className="w-[78px] text-right">客单</TableHead>}
-                        <TableHead className="w-8 sticky right-0 bg-muted/40"></TableHead>
-                      </TableRow>
-                    );
-                  })()}
-                </TableHeader>
-                <TableBody>
-                  {statsLoading && Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>{Array.from({ length: colCount }).map((__, j) => (
-                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-full" /></TableCell>
-                    ))}</TableRow>
-                  ))}
-                  {!statsLoading && pagedStats.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={colCount}>
-                        <EmptyState icon={BarChart3} title="暂无上报记录" description="该时间段内还没有任何上报数据。" />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {!statsLoading && pagedStats.map((s) => (
-                    <TableRow key={s.id} className={s.hasAlert ? "bg-red-50/40 dark:bg-red-900/10" : s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
-                      <TableCell className="font-mono text-xs whitespace-nowrap text-muted-foreground">
-                        <div className="flex flex-col gap-0.5">
-                          <span>{s.date}</span>
-                          {(!s.status || s.status === "approved") && !s.fbSynced && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-emerald-500"><CheckCircle className="h-2.5 w-2.5" />已通过</span>
-                          )}
-                          {s.fbSynced && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-blue-400"><Facebook className="h-2.5 w-2.5" />FB同步</span>
-                          )}
-                          {s.status === "pending" && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-amber-400"><Clock className="h-2.5 w-2.5" />待审核</span>
-                          )}
-                          {s.status === "rejected" && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-red-400" title={s.reviewNote ?? ""}><XCircle className="h-2.5 w-2.5" />已驳回</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[120px]">
-                        <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-semibold text-orange-500 whitespace-nowrap">
-                        ${Number(s.spendAmount).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-primary whitespace-nowrap">
-                        ${Number(s.realBalance).toFixed(2)}
-                        {s.hasAlert && <span className="ml-1 text-red-500 text-xs">!</span>}
-                      </TableCell>
-                      {showBizCol && <TableCell><BizBadge biz={s.businessType} /></TableCell>}
-                      {showLive && (
-                        <TableCell className="text-xs text-muted-foreground max-w-[68px]">
-                          <TruncatedCell value={s.teamName ?? "—"} />
-                        </TableCell>
+        {dayLoading ? (
+          <div className="h-16 bg-muted animate-pulse rounded-lg" />
+        ) : dayStats.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
+            <BarChart3 className="h-5 w-5 text-muted-foreground/40 mx-auto mb-1.5" />
+            <p className="text-sm text-muted-foreground">当日暂无上报，提交后在此显示</p>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>账户</TableHead>
+                  <TableHead className="w-20 text-right">消耗</TableHead>
+                  <TableHead className="w-24 text-right">余额</TableHead>
+                  <TableHead className="w-20">业务</TableHead>
+                  <TableHead className="w-20">审核状态</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dayStats.map((s) => (
+                  <TableRow key={s.id} className={s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : ""}>
+                    <TableCell className="font-medium text-sm">
+                      <TruncatedCell value={s.accountName ?? `#${s.accountId}`} />
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm text-orange-500 whitespace-nowrap">
+                      ${Number(s.spendAmount).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs whitespace-nowrap">
+                      ${Number(s.realBalance).toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      {s.businessType ? <BizBadge biz={s.businessType} /> : <span className="text-xs text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      {s.fbSynced ? (
+                        <span className="flex items-center gap-1 text-xs text-blue-400 whitespace-nowrap"><Facebook className="h-3 w-3" />FB同步</span>
+                      ) : s.status === "pending" ? (
+                        <span className="flex items-center gap-1 text-xs text-amber-400 whitespace-nowrap"><Clock className="h-3 w-3" />待审核</span>
+                      ) : s.status === "rejected" ? (
+                        <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap" title={s.reviewNote ?? ""}><XCircle className="h-3 w-3" />已驳回</span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-emerald-500 whitespace-nowrap"><CheckCircle className="h-3 w-3" />已通过</span>
                       )}
-                      {showLive && (
-                        <TableCell className="text-right font-mono text-xs">{s.fanCount ?? "—"}</TableCell>
-                      )}
-                      {showLive && (
-                        <TableCell className="text-right font-mono text-xs whitespace-nowrap">
-                          {s.fanCost ? `$${Number(s.fanCost).toFixed(2)}` : "—"}
-                        </TableCell>
-                      )}
-                      {showEcom && (
-                        <TableCell className="text-right font-mono text-xs whitespace-nowrap">
-                          {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
-                        </TableCell>
-                      )}
-                      {showEcom && (
-                        <TableCell className="text-right font-mono text-xs">
-                          {s.roas ? Number(s.roas).toFixed(2) : "—"}
-                        </TableCell>
-                      )}
-                      {showEcom && (
-                        <TableCell className="text-right font-mono text-xs">{s.orderCount ?? "—"}</TableCell>
-                      )}
-                      {showEcom && (
-                        <TableCell className="text-right font-mono text-xs whitespace-nowrap">
-                          {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
-                        </TableCell>
-                      )}
-                      <TableCell className="pr-3">
-                        {s.fbSynced ? (
-                          <span className="text-muted-foreground/30 p-1 block text-center" title="FB同步数据，无法手动编辑">
-                            <Pencil className="h-3.5 w-3.5 mx-auto" />
-                          </span>
-                        ) : s.status === "rejected" ? (
-                          <button
-                            onClick={() => setEditTarget(s)}
-                            className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap"
-                            title={s.reviewNote ?? "已驳回，点击修改"}
-                          >
-                            <Pencil className="h-3 w-3 shrink-0" />修改
+                    </TableCell>
+                    <TableCell className="pr-3">
+                      {!s.fbSynced && (
+                        s.status === "rejected" ? (
+                          <button onClick={() => setEditTarget(s)}
+                            className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
+                            <Pencil className="h-3 w-3" />修改
                           </button>
                         ) : (
-                          <button
-                            onClick={() => setEditTarget(s)}
-                            className="text-muted-foreground hover:text-primary transition-colors p-1 block"
-                            title={s.status === "pending" ? "待审核中，编辑后将重新提交审核" : "编辑"}
-                          >
+                          <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <TablePagination page={histPage} pageSize={PAGE_SIZE} total={allStats.length} onPageChange={setHistPage} />
-            </div>
-          );
-        })()}
+                        )
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       {editTarget && (
