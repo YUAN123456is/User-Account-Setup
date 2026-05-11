@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { isInsideRadixPortal } from "@/lib/radix-overlay-utils"
 
 const Dialog = DialogPrimitive.Root
 
@@ -27,18 +28,6 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-function isInsidePopper(e: Event): boolean {
-  const original = (e as CustomEvent).detail?.originalEvent as PointerEvent | FocusEvent | undefined;
-  const target = (original?.target ?? (e as PointerEvent).target) as Element | null;
-  return !!(
-    target?.closest?.("[data-radix-popper-content-wrapper]") ||
-    target?.closest?.("[data-radix-select-viewport]") ||
-    target?.closest?.("[role='option']") ||
-    target?.closest?.("[role='listbox']") ||
-    document.querySelector("[data-radix-popper-content-wrapper]")
-  );
-}
-
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -52,11 +41,11 @@ const DialogContent = React.forwardRef<
         className
       )}
       onPointerDownOutside={(e) => {
-        if (isInsidePopper(e)) { e.preventDefault(); return; }
+        if (isInsideRadixPortal(e)) { e.preventDefault(); return; }
         onPointerDownOutside?.(e);
       }}
       onInteractOutside={(e) => {
-        if (isInsidePopper(e)) { e.preventDefault(); return; }
+        if (isInsideRadixPortal(e)) { e.preventDefault(); return; }
         onInteractOutside?.(e);
       }}
       {...props}
