@@ -133,23 +133,27 @@ export default function FinancePage() {
         <Table>
           <TableHeader>
             {(() => {
-              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
-                <TableHead
-                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
-                  onClick={() => handleSort(col)}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {label}
-                    {sortKey === col
-                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
-                  </span>
-                </TableHead>
-              );
+              const SortHead = ({ col, label, className, right }: { col: string; label: string; className?: string; right?: boolean }) => {
+                const icon = sortKey === col
+                  ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                  : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
+                return (
+                  <TableHead
+                    className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                    onClick={() => handleSort(col)}
+                  >
+                    <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
+                      {right && icon}
+                      {label}
+                      {!right && icon}
+                    </span>
+                  </TableHead>
+                );
+              };
               return (
                 <TableRow className="bg-muted/40">
                   <SortHead col="accountName" label="账户" />
-                  <SortHead col="amount" label="充值金额" className="text-right" />
+                  <SortHead col="amount" label="充值金额" className="text-right" right />
                   <SortHead col="providerName" label="开户商" />
                   <SortHead col="pitcherName" label="投手" />
                   <SortHead col="status" label="状态" className="w-24" />

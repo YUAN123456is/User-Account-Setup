@@ -191,9 +191,9 @@ export default function PitcherDashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead>日期</TableHead>
+                  <TableHead className="w-24">日期</TableHead>
                   <TableHead>账户</TableHead>
-                  <TableHead>消耗</TableHead>
+                  <TableHead className="text-right">消耗</TableHead>
                   <TableHead>状态</TableHead>
                 </TableRow>
               </TableHeader>
@@ -207,11 +207,11 @@ export default function PitcherDashboardPage() {
                 ) : (
                   recentFive.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="font-mono text-xs">{s.date}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{s.date}</TableCell>
                       <TableCell className="text-sm max-w-[120px] truncate" title={s.accountName}>
                         {s.accountName ?? `账户 #${s.accountId}`}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">${Number(s.spendAmount).toFixed(2)}</TableCell>
+                      <TableCell className="font-mono text-sm text-right whitespace-nowrap">${Number(s.spendAmount).toFixed(2)}</TableCell>
                       <TableCell>
                         {s.hasAlert
                           ? <Badge variant="destructive" className="text-xs gap-1"><AlertTriangle className="h-3 w-3" />预警</Badge>
@@ -238,8 +238,8 @@ export default function PitcherDashboardPage() {
               <TableHeader>
                 <TableRow className="bg-muted/40">
                   <TableHead>账户</TableHead>
-                  <TableHead>金额</TableHead>
-                  <TableHead>申请时间</TableHead>
+                  <TableHead className="text-right">金额</TableHead>
+                  <TableHead className="w-24">申请时间</TableHead>
                   <TableHead>状态</TableHead>
                 </TableRow>
               </TableHeader>
@@ -256,8 +256,8 @@ export default function PitcherDashboardPage() {
                       <TableCell className="text-sm max-w-[120px] truncate" title={o.accountName}>
                         {o.accountName ?? `账户 #${o.id}`}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">${Number(o.amount).toFixed(2)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="font-mono text-sm text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(o.createdAt).toLocaleDateString("zh-CN")}
                       </TableCell>
                       <TableCell><RechargeStatusBadge status={o.status} /></TableCell>

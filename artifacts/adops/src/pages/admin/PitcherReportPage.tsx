@@ -336,29 +336,33 @@ export default function PitcherReportPage() {
         <Table>
           <TableHeader>
             {(() => {
-              const SortHead = ({ col, label, className }: { col: string; label: string; className?: string }) => (
-                <TableHead
-                  className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
-                  onClick={() => handleSort(col)}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {label}
-                    {sortKey === col
-                      ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
-                      : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />}
-                  </span>
-                </TableHead>
-              );
+              const SortHead = ({ col, label, className, right }: { col: string; label: string; className?: string; right?: boolean }) => {
+                const icon = sortKey === col
+                  ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />)
+                  : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-25" />;
+                return (
+                  <TableHead
+                    className={`cursor-pointer select-none whitespace-nowrap hover:bg-muted/60 transition-colors ${className ?? ""}`}
+                    onClick={() => handleSort(col)}
+                  >
+                    <span className={`inline-flex items-center gap-1${right ? " w-full justify-end" : ""}`}>
+                      {right && icon}
+                      {label}
+                      {!right && icon}
+                    </span>
+                  </TableHead>
+                );
+              };
               return (
                 <TableRow className="bg-muted/40">
                   <TableHead className="w-8" />
                   <SortHead col="pitcherName" label="投手名称" />
-                  <SortHead col="yesterdaySpend" label="昨日消耗" className="text-right" />
-                  <SortHead col="totalSpend" label={hasFilter ? "期间消耗" : "累计消耗"} className="text-right" />
-                  <SortHead col="totalBalance" label="余额合计" className="text-right" />
-                  <SortHead col="yesterdayRecharge" label="昨日充值" className="text-right" />
-                  <SortHead col="totalRecharge" label={hasFilter ? "期间充值" : "累计充值"} className="text-right" />
-                  <SortHead col="accountCount" label="账户数" className="text-right w-16" />
+                  <SortHead col="yesterdaySpend" label="昨日消耗" className="text-right" right />
+                  <SortHead col="totalSpend" label={hasFilter ? "期间消耗" : "累计消耗"} className="text-right" right />
+                  <SortHead col="totalBalance" label="余额合计" className="text-right" right />
+                  <SortHead col="yesterdayRecharge" label="昨日充值" className="text-right" right />
+                  <SortHead col="totalRecharge" label={hasFilter ? "期间充值" : "累计充值"} className="text-right" right />
+                  <SortHead col="accountCount" label="账户数" className="text-right w-16" right />
                 </TableRow>
               );
             })()}
