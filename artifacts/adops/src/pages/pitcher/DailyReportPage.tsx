@@ -87,28 +87,31 @@ function BizBadge({ biz, team }: { biz?: string | null; team?: string | null }) 
   return <span className="inline-flex items-center text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded w-fit">独立站</span>;
 }
 
+function MetricItem({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono">{value}</span>
+    </span>
+  );
+}
+
 function BizMetrics({ s }: { s: DailyStat }) {
   if (s.businessType === "liveChat") {
     return (
-      <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5 text-xs items-center">
-        <span className="text-muted-foreground">进粉</span>
-        <span className="font-mono">{s.fanCount ?? "—"}</span>
-        <span className="text-muted-foreground">粉成本</span>
-        <span className="font-mono">{s.fanCost ? `$${s.fanCost}` : "—"}</span>
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <MetricItem label="进粉" value={s.fanCount != null ? String(s.fanCount) : "—"} />
+        <MetricItem label="粉成本" value={s.fanCost ? `$${s.fanCost}` : "—"} />
       </div>
     );
   }
   if (s.businessType === "ecommerce") {
     return (
-      <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-0.5 text-xs items-center">
-        <span className="text-muted-foreground">GMV</span>
-        <span className="font-mono">{s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}</span>
-        <span className="text-muted-foreground">ROAS</span>
-        <span className="font-mono">{s.roas ?? "—"}</span>
-        <span className="text-muted-foreground">订单</span>
-        <span className="font-mono">{s.orderCount ?? "—"}</span>
-        <span className="text-muted-foreground">客单</span>
-        <span className="font-mono">{s.avgOrderValue ? `$${s.avgOrderValue}` : "—"}</span>
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <MetricItem label="GMV" value={s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"} />
+        <MetricItem label="ROAS" value={s.roas ?? "—"} />
+        <MetricItem label="订单" value={s.orderCount != null ? String(s.orderCount) : "—"} />
+        <MetricItem label="客单" value={s.avgOrderValue ? `$${s.avgOrderValue}` : "—"} />
       </div>
     );
   }
