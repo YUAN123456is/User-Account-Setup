@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { initAdminUser } from "./lib/init-admin";
+import { runFbSync, yesterday } from "./routes/meta-tokens";
 
 const rawPort = process.env["PORT"];
 
@@ -20,6 +21,36 @@ initAdminUser().catch((err) => {
   logger.error({ err }, "Failed to initialize admin user");
 });
 
+// Daily auto-sync: run at 02:00 server time every day
+function scheduleDailyFbSync() {
+  function msUntilNextRun() {
+    const now = new Date();
+    const next = new Date();
+    next.setHours(2, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    return next.getTime() - now.getTime();
+  }
+
+  function schedule() {
+    const delay = msUntilNextRun();
+    logger.info({ nextRunIn: `${Math.round(delay / 60000)} min` }, "FB daily sync scheduled");
+    setTimeout(async () => {
+      const date = yesterday();
+      logger.info({ date }, "FB daily auto-sync starting");
+      try {
+        const results = await runFbSync(date, date);
+        const total = results[0];
+        logger.info({ date, matched: total?.matched, unmatched: total?.unmatched, errors: total?.errors }, "FB daily auto-sync complete");
+      } catch (err) {
+        logger.error({ err }, "FB daily auto-sync failed");
+      }
+      schedule();
+    }, delay);
+  }
+
+  schedule();
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -27,4 +58,5 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  scheduleDailyFbSync();
 });

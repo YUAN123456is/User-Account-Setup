@@ -2,15 +2,27 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
 const META_GRAPH = "https://graph.facebook.com/v21.0";
 
-function yesterday() {
+export function yesterday() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+function dateRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(from + "T00:00:00Z");
+  const end = new Date(to + "T00:00:00Z");
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
 }
 
 function normalizeAccountId(id: string) {
@@ -23,15 +35,173 @@ interface MetaAdAccount {
   insights?: { data: Array<{ spend: string; currency: string }> };
 }
 
-async function fetchAdAccountsWithSpend(accessToken: string): Promise<MetaAdAccount[]> {
-  const url = `${META_GRAPH}/me/adaccounts?fields=account_id,name,insights.date_preset(yesterday){spend,currency}&limit=200&access_token=${encodeURIComponent(accessToken)}`;
+async function fetchAdAccountsWithSpendForDate(accessToken: string, date: string): Promise<MetaAdAccount[]> {
+  const timeRange = encodeURIComponent(JSON.stringify({ since: date, until: date }));
+  const fields = `account_id,name,insights.time_range(${timeRange}){spend,currency}`;
+  const url = `${META_GRAPH}/me/adaccounts?fields=${fields}&limit=200&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
   const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string } };
   if (json.error) throw new Error(json.error.message);
   return json.data ?? [];
 }
 
-// GET /api/meta-tokens — list all tokens with pitcher info
+export interface SyncDayResult {
+  date: string;
+  synced: number;
+  matched: number;
+  unmatched: number;
+  errors: string[];
+  accounts: Array<{ fbAccountId: string; fbAccountName: string; spend: string; matched: boolean; systemAccountName?: string }>;
+}
+
+export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncDayResult[]> {
+  const tokens = await db.select().from(metaTokensTable).where(eq(metaTokensTable.isActive, true));
+  const fbAccounts = await db.select().from(accountsTable).where(eq(accountsTable.platform, "FB"));
+  const dates = dateRange(dateFrom, dateTo);
+  const results: SyncDayResult[] = [];
+
+  for (const syncDate of dates) {
+    let totalSynced = 0;
+    let totalMatched = 0;
+    let totalUnmatched = 0;
+    const errors: string[] = [];
+    const accountSummary: SyncDayResult["accounts"] = [];
+
+    for (const token of tokens) {
+      try {
+        const adAccounts = await fetchAdAccountsWithSpendForDate(token.accessToken, syncDate);
+
+        for (const adAcc of adAccounts) {
+          const spend = adAcc.insights?.data?.[0]?.spend ?? "0";
+          const currency = adAcc.insights?.data?.[0]?.currency ?? "USD";
+          const fbId = normalizeAccountId(adAcc.account_id);
+
+          let matchedAccount = fbAccounts.find(
+            (a) => a.platformAccountId && normalizeAccountId(a.platformAccountId) === fbId
+          );
+          if (!matchedAccount) {
+            const nameLower = adAcc.name.trim().toLowerCase();
+            matchedAccount = fbAccounts.find(
+              (a) => a.accountName.trim().toLowerCase() === nameLower
+            );
+          }
+
+          // Upsert facebook_daily_spend staging table
+          await db
+            .insert(facebookDailySpendTable)
+            .values({
+              date: syncDate,
+              fbAccountId: fbId,
+              fbAccountName: adAcc.name,
+              spend,
+              currency,
+              tokenId: token.id,
+              matchedAccountId: matchedAccount?.id ?? null,
+            })
+            .onConflictDoUpdate({
+              target: [facebookDailySpendTable.date, facebookDailySpendTable.fbAccountId],
+              set: {
+                fbAccountName: adAcc.name,
+                spend,
+                currency,
+                tokenId: token.id,
+                matchedAccountId: matchedAccount?.id ?? null,
+                syncedAt: new Date(),
+              },
+            });
+
+          // Write to daily_stats — FB data is always authoritative
+          if (matchedAccount) {
+            const spendNum = parseFloat(spend || "0");
+            const [existing] = await db
+              .select()
+              .from(dailyStatsTable)
+              .where(
+                and(
+                  eq(dailyStatsTable.accountId, matchedAccount.id),
+                  eq(dailyStatsTable.date, syncDate)
+                )
+              );
+
+            if (!existing) {
+              // No record — create auto-approved
+              const currentBal = parseFloat(matchedAccount.currentBalance ?? "0");
+              const newBalance = (currentBal - spendNum).toFixed(2);
+              await db.insert(dailyStatsTable).values({
+                accountId: matchedAccount.id,
+                date: syncDate,
+                spendAmount: spendNum.toFixed(2),
+                realBalance: newBalance,
+                hasAlert: parseFloat(newBalance) < 100,
+                fbSynced: true,
+                status: "approved" as const,
+                ...(matchedAccount.pitcherId != null ? { pitcherId: matchedAccount.pitcherId } : {}),
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              } as any);
+              await db.update(accountsTable).set({
+                currentBalance: newBalance,
+                theoreticalBalance: newBalance,
+                lastReportedAt: new Date(),
+              }).where(eq(accountsTable.id, matchedAccount.id));
+            } else {
+              // Record exists — FB data always wins (overwrite spend, update balance delta)
+              const oldSpend = parseFloat(existing.spendAmount ?? "0");
+              const delta = spendNum - oldSpend;
+              const newBalance = (parseFloat(existing.realBalance ?? "0") - delta).toFixed(2);
+              await db.update(dailyStatsTable).set({
+                spendAmount: spendNum.toFixed(2),
+                realBalance: newBalance,
+                hasAlert: parseFloat(newBalance) < 100,
+                fbSynced: true,
+                status: "approved" as const,
+              }).where(eq(dailyStatsTable.id, existing.id));
+
+              if (delta !== 0) {
+                const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
+                if (acct) {
+                  const newCurrent = (parseFloat(acct.currentBalance ?? "0") - delta).toFixed(2);
+                  const newTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance ?? "0") - delta).toFixed(2);
+                  await db.update(accountsTable).set({
+                    currentBalance: newCurrent,
+                    theoreticalBalance: newTheo,
+                    lastReportedAt: new Date(),
+                  }).where(eq(accountsTable.id, matchedAccount.id));
+                }
+              }
+            }
+
+            totalMatched++;
+            accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: true, systemAccountName: matchedAccount.accountName });
+          } else {
+            totalUnmatched++;
+            accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: false });
+          }
+
+          totalSynced++;
+        }
+
+        await db.update(metaTokensTable)
+          .set({
+            lastSyncAt: new Date(),
+            lastSyncResult: `成功：${syncDate} 拉取 ${adAccounts.length} 个账户`,
+          })
+          .where(eq(metaTokensTable.id, token.id));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`Token「${token.label}」: ${msg}`);
+        await db.update(metaTokensTable)
+          .set({ lastSyncAt: new Date(), lastSyncResult: `失败：${msg}` })
+          .where(eq(metaTokensTable.id, token.id));
+      }
+    }
+
+    results.push({ date: syncDate, synced: totalSynced, matched: totalMatched, unmatched: totalUnmatched, errors, accounts: accountSummary });
+  }
+
+  return results;
+}
+
+// GET /api/meta-tokens
 router.get("/meta-tokens", requireRole("admin"), async (req, res): Promise<void> => {
   const rows = await db
     .select({
@@ -50,7 +220,7 @@ router.get("/meta-tokens", requireRole("admin"), async (req, res): Promise<void>
   res.json(rows);
 });
 
-// POST /api/meta-tokens — create token
+// POST /api/meta-tokens
 router.post("/meta-tokens", requireRole("admin"), async (req, res): Promise<void> => {
   const body = req.body as Record<string, unknown>;
   const pitcherId = typeof body.pitcherId === "number" ? body.pitcherId : null;
@@ -63,7 +233,7 @@ router.post("/meta-tokens", requireRole("admin"), async (req, res): Promise<void
   res.status(201).json(row);
 });
 
-// PUT /api/meta-tokens/:id — update
+// PUT /api/meta-tokens/:id
 router.put("/meta-tokens/:id", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as Record<string, unknown>;
@@ -84,154 +254,22 @@ router.delete("/meta-tokens/:id", requireRole("admin"), async (req, res): Promis
   res.status(204).end();
 });
 
-// POST /api/meta-tokens/sync — pull yesterday's data from all active tokens
+// POST /api/meta-tokens/sync — manual or range sync
 router.post("/meta-tokens/sync", requireRole("admin"), async (req, res): Promise<void> => {
   const body = req.body as Record<string, unknown>;
-  const syncDate = typeof body.date === "string" ? body.date : yesterday();
+  const dateFrom = typeof body.dateFrom === "string" ? body.dateFrom : (typeof body.date === "string" ? body.date : yesterday());
+  const dateTo = typeof body.dateTo === "string" ? body.dateTo : dateFrom;
 
-  const tokens = await db.select().from(metaTokensTable).where(eq(metaTokensTable.isActive, true));
-  if (!tokens.length) { res.json({ synced: 0, matched: 0, unmatched: 0, errors: [] }); return; }
-
-  // Load all FB-platform accounts for matching
-  const fbAccounts = await db.select().from(accountsTable).where(eq(accountsTable.platform, "FB"));
-
-  let totalSynced = 0;
-  let totalMatched = 0;
-  let totalUnmatched = 0;
-  const errors: string[] = [];
-
-  for (const token of tokens) {
-    try {
-      const adAccounts = await fetchAdAccountsWithSpend(token.accessToken);
-      let matched = 0; let unmatched = 0;
-
-      for (const adAcc of adAccounts) {
-        const spend = adAcc.insights?.data?.[0]?.spend ?? "0";
-        const currency = adAcc.insights?.data?.[0]?.currency ?? "USD";
-        const fbId = normalizeAccountId(adAcc.account_id);
-
-        // Match by platformAccountId (strip act_ from both sides)
-        let matchedAccount = fbAccounts.find(
-          (a) => normalizeAccountId(a.platformAccountId) === fbId
-        );
-        // Fallback: match by account name (case-insensitive, trimmed)
-        if (!matchedAccount) {
-          const nameLower = adAcc.name.trim().toLowerCase();
-          matchedAccount = fbAccounts.find(
-            (a) => a.accountName.trim().toLowerCase() === nameLower
-          );
-        }
-
-        if (matchedAccount) matched++; else unmatched++;
-
-        // Upsert into facebook_daily_spend
-        await db
-          .insert(facebookDailySpendTable)
-          .values({
-            date: syncDate,
-            fbAccountId: fbId,
-            fbAccountName: adAcc.name,
-            spend,
-            currency,
-            tokenId: token.id,
-            matchedAccountId: matchedAccount?.id ?? null,
-          })
-          .onConflictDoUpdate({
-            target: [facebookDailySpendTable.date, facebookDailySpendTable.fbAccountId],
-            set: {
-              fbAccountName: adAcc.name,
-              spend,
-              currency,
-              tokenId: token.id,
-              matchedAccountId: matchedAccount?.id ?? null,
-              syncedAt: new Date(),
-            },
-          });
-
-        // Write-back to daily_stats for matched accounts (auto-approved, fb_synced=true)
-        if (matchedAccount) {
-          const spendNum = parseFloat(spend || "0");
-          // Check existing daily_stats for this account+date
-          const [existing] = await db
-            .select()
-            .from(dailyStatsTable)
-            .where(
-              and(
-                eq(dailyStatsTable.accountId, matchedAccount.id),
-                eq(dailyStatsTable.date, syncDate)
-              )
-            );
-
-          if (!existing) {
-            // No record — create one auto-approved
-            const currentBal = parseFloat(matchedAccount.currentBalance);
-            const newBalance = (currentBal - spendNum).toFixed(2);
-            const insertValues = {
-              accountId: matchedAccount.id,
-              date: syncDate,
-              spendAmount: spendNum.toFixed(2),
-              realBalance: newBalance,
-              hasAlert: parseFloat(newBalance) < 100,
-              fbSynced: true,
-              status: "approved" as const,
-              ...(matchedAccount.pitcherId != null ? { pitcherId: matchedAccount.pitcherId } : {}),
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await db.insert(dailyStatsTable).values(insertValues as any);
-            // Update account balance
-            await db.update(accountsTable).set({
-              currentBalance: newBalance,
-              theoreticalBalance: newBalance,
-              lastReportedAt: new Date(),
-            }).where(eq(accountsTable.id, matchedAccount.id));
-          } else if (existing.fbSynced) {
-            // Already a fb-synced record — update spend (balance delta)
-            const oldSpend = parseFloat(existing.spendAmount);
-            const delta = spendNum - oldSpend;
-            const newBalance = (parseFloat(existing.realBalance) - delta).toFixed(2);
-            await db.update(dailyStatsTable).set({
-              spendAmount: spendNum.toFixed(2),
-              realBalance: newBalance,
-              hasAlert: parseFloat(newBalance) < 100,
-              status: "approved" as const,
-            }).where(eq(dailyStatsTable.id, existing.id));
-            if (delta !== 0) {
-              const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
-              if (acct) {
-                const newCurrent = (parseFloat(acct.currentBalance) - delta).toFixed(2);
-                const newTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - delta).toFixed(2);
-                await db.update(accountsTable).set({ currentBalance: newCurrent, theoreticalBalance: newTheo }).where(eq(accountsTable.id, matchedAccount.id));
-              }
-            }
-          }
-          // If existing is manual (fbSynced=false), don't overwrite — pitcher's manual data takes precedence
-        }
-
-        totalSynced++;
-      }
-
-      totalMatched += matched;
-      totalUnmatched += unmatched;
-
-      await db.update(metaTokensTable)
-        .set({
-          lastSyncAt: new Date(),
-          lastSyncResult: `成功：拉取 ${adAccounts.length} 个账户，匹配 ${matched} 个，未匹配 ${unmatched} 个`,
-        })
-        .where(eq(metaTokensTable.id, token.id));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Token「${token.label}」: ${msg}`);
-      await db.update(metaTokensTable)
-        .set({ lastSyncAt: new Date(), lastSyncResult: `失败：${msg}` })
-        .where(eq(metaTokensTable.id, token.id));
-    }
-  }
-
-  res.json({ date: syncDate, synced: totalSynced, matched: totalMatched, unmatched: totalUnmatched, errors });
+  logger.info({ dateFrom, dateTo }, "Manual FB sync triggered");
+  const results = await runFbSync(dateFrom, dateTo);
+  const totals = results.reduce(
+    (acc, r) => ({ synced: acc.synced + r.synced, matched: acc.matched + r.matched, unmatched: acc.unmatched + r.unmatched, errors: [...acc.errors, ...r.errors] }),
+    { synced: 0, matched: 0, unmatched: 0, errors: [] as string[] }
+  );
+  res.json({ dateFrom, dateTo, days: results.length, ...totals, results });
 });
 
-// GET /api/meta-tokens/spend — query synced spend data
+// GET /api/meta-tokens/spend
 router.get("/meta-tokens/spend", requireRole("admin"), async (req, res): Promise<void> => {
   const query = req.query as Record<string, unknown>;
   const date = typeof query.date === "string" ? query.date : yesterday();
