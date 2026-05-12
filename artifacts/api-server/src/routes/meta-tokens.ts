@@ -28,21 +28,54 @@ function normalizeAccountId(id: string) {
   return id.replace(/^act_/, "");
 }
 
+interface FbAction { action_type: string; value: string }
+
 interface MetaAdAccount {
   account_id: string;
   name: string;
   currency?: string;
-  insights?: { data: Array<{ spend: string }> };
+  insights?: { data: Array<{ spend: string; actions?: FbAction[] }> };
 }
 
 async function fetchAdAccountsWithSpendForDate(accessToken: string, date: string): Promise<MetaAdAccount[]> {
   const timeRange = encodeURIComponent(JSON.stringify({ since: date, until: date }));
-  const fields = `account_id,name,currency,insights.time_range(${timeRange}){spend}`;
+  const fields = `account_id,name,currency,insights.time_range(${timeRange}){spend,actions}`;
   const url = `${META_GRAPH}/me/adaccounts?fields=${fields}&limit=200&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url);
   const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string } };
   if (json.error) throw new Error(json.error.message);
   return json.data ?? [];
+}
+
+/** 从 FB actions 数组中取特定 action_type 的整数值，不存在时返回 null */
+function getActionValue(actions: FbAction[], type: string): number | null {
+  const found = actions.find((a) => a.action_type === type);
+  if (!found) return null;
+  const v = parseInt(found.value, 10);
+  return isNaN(v) ? null : v;
+}
+
+/**
+ * 推断业务类型及成效数据：
+ * - 有购买 (offsite_conversion.fb_pixel_purchase) → 独立站，orderCount
+ * - 有发起消息 (onsite_conversion.messaging_conversation_started_7d) → 聊单，fanCount
+ * - 两者都有时购买优先（像素更精确）
+ */
+function parseConversions(actions: FbAction[]): {
+  businessType: "liveChat" | "ecommerce" | null;
+  fanCount: number | null;
+  orderCount: number | null;
+} {
+  const purchases = getActionValue(actions, "offsite_conversion.fb_pixel_purchase");
+  const messages = getActionValue(actions, "onsite_conversion.messaging_conversation_started_7d");
+
+  if (purchases !== null && purchases > 0) {
+    return { businessType: "ecommerce", fanCount: null, orderCount: purchases };
+  }
+  if (messages !== null && messages > 0) {
+    return { businessType: "liveChat", fanCount: messages, orderCount: null };
+  }
+  return { businessType: null, fanCount: null, orderCount: null };
 }
 
 export interface SyncDayResult {
@@ -51,7 +84,7 @@ export interface SyncDayResult {
   matched: number;
   unmatched: number;
   errors: string[];
-  accounts: Array<{ fbAccountId: string; fbAccountName: string; spend: string; matched: boolean; systemAccountName?: string }>;
+  accounts: Array<{ fbAccountId: string; fbAccountName: string; spend: string; matched: boolean; systemAccountName?: string; businessType?: string | null; fanCount?: number | null; orderCount?: number | null }>;
 }
 
 export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncDayResult[]> {
@@ -72,9 +105,12 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
         const adAccounts = await fetchAdAccountsWithSpendForDate(token.accessToken, syncDate);
 
         for (const adAcc of adAccounts) {
-          const spend = adAcc.insights?.data?.[0]?.spend ?? "0";
+          const insightRow = adAcc.insights?.data?.[0];
+          const spend = insightRow?.spend ?? "0";
           const currency = adAcc.currency ?? "USD";
           const fbId = normalizeAccountId(adAcc.account_id);
+          const { businessType: fbBizType, fanCount: fbFanCount, orderCount: fbOrderCount } =
+            parseConversions(insightRow?.actions ?? []);
 
           let matchedAccount = fbAccounts.find(
             (a) => a.platformAccountId && normalizeAccountId(a.platformAccountId) === fbId
@@ -135,6 +171,9 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
                 hasAlert: parseFloat(newBalance) < 100,
                 fbSynced: true,
                 status: "approved" as const,
+                ...(fbBizType != null ? { businessType: fbBizType } : {}),
+                ...(fbFanCount != null ? { fanCount: fbFanCount } : {}),
+                ...(fbOrderCount != null ? { orderCount: fbOrderCount } : {}),
                 ...(matchedAccount.pitcherId != null ? { pitcherId: matchedAccount.pitcherId } : {}),
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               } as any);
@@ -144,7 +183,7 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
                 lastReportedAt: new Date(),
               }).where(eq(accountsTable.id, matchedAccount.id));
             } else {
-              // Record exists — FB data always wins (overwrite spend, update balance delta)
+              // Record exists — FB data always wins (overwrite spend/conversions, update balance delta)
               const oldSpend = parseFloat(existing.spendAmount ?? "0");
               const delta = spendNum - oldSpend;
               const newBalance = (parseFloat(existing.realBalance ?? "0") - delta).toFixed(2);
@@ -154,6 +193,9 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
                 hasAlert: parseFloat(newBalance) < 100,
                 fbSynced: true,
                 status: "approved" as const,
+                ...(fbBizType != null ? { businessType: fbBizType } : {}),
+                ...(fbFanCount != null ? { fanCount: fbFanCount } : { fanCount: null }),
+                ...(fbOrderCount != null ? { orderCount: fbOrderCount } : { orderCount: null }),
               }).where(eq(dailyStatsTable.id, existing.id));
 
               if (delta !== 0) {
@@ -171,7 +213,7 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
             }
 
             totalMatched++;
-            accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: true, systemAccountName: matchedAccount.accountName });
+            accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: true, systemAccountName: matchedAccount.accountName, businessType: fbBizType, fanCount: fbFanCount, orderCount: fbOrderCount });
           } else {
             totalUnmatched++;
             accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: false });
