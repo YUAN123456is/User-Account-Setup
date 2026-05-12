@@ -546,7 +546,7 @@ export default function DailyReportPage() {
                         <TableHead className="min-w-[88px] whitespace-nowrap">日期</TableHead>
                         <TableHead className="min-w-[160px]">账户</TableHead>
                         <TableHead className="min-w-[80px] text-right whitespace-nowrap">消耗</TableHead>
-                        <TableHead className="min-w-[88px] text-right whitespace-nowrap">当日余额快照</TableHead>
+                        <TableHead className="min-w-[88px] text-right whitespace-nowrap">余额</TableHead>
                         {hasBiz && <TableHead className="min-w-[64px]">业务</TableHead>}
                         {hasLive && <TableHead className="min-w-[72px] whitespace-nowrap">团队</TableHead>}
                         {hasLive && <TableHead className="min-w-[56px] text-right whitespace-nowrap">进粉</TableHead>}
@@ -575,7 +575,7 @@ export default function DailyReportPage() {
                             ${Number(s.spendAmount).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                            ${Number(s.realBalance).toFixed(2)}
+                            {(() => { const acct = accounts.find(a => a.id === s.accountId); return acct ? `$${Number(acct.currentBalance).toFixed(2)}` : `$${Number(s.realBalance).toFixed(2)}`; })()}
                           </TableCell>
                           {hasBiz && (
                             <TableCell className="py-3 px-3">
