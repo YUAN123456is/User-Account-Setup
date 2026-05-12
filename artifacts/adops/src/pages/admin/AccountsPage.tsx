@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, useUpdateAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, UserPlus, Search, Trash2, SlidersHorizontal, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { CreditCard, UserPlus, Search, Trash2, SlidersHorizontal, ChevronsUpDown, ChevronUp, ChevronDown, PencilLine, ShieldAlert } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { Label } from "@/components/ui/label";
 
@@ -133,6 +133,100 @@ function AssignDialog({ account, onClose }: { account: Account; onClose: () => v
   );
 }
 
+function BalanceEditDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+  const [newBalance, setNewBalance] = useState(Number(account.currentBalance).toFixed(2));
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [pwError, setPwError] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const handleSave = async () => {
+    const val = parseFloat(newBalance);
+    if (isNaN(val)) { toast({ title: "请输入有效余额", variant: "destructive" }); return; }
+    if (!password) { toast({ title: "请输入操作密码", variant: "destructive" }); return; }
+    setSaving(true);
+    setPwError(false);
+    try {
+      const res = await fetch(`${BASE}/api/accounts/${account.id}/set-balance`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentBalance: val.toFixed(2), password }),
+      });
+      if (res.status === 403) { setPwError(true); setSaving(false); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        toast({ title: err.error ?? "修改失败", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+      toast({ title: "余额已修改", description: `${account.accountName} → $${val.toFixed(2)}` });
+      onClose();
+    } catch {
+      toast({ title: "网络错误，请重试", variant: "destructive" });
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-400" />
+            修改余额
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            此操作将直接覆盖账户余额，请谨慎填写。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-1 space-y-4">
+          <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+            <p className="text-xs text-muted-foreground mb-0.5">账户</p>
+            <p className="font-medium truncate">{account.accountName}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              当前余额：<span className="font-mono text-foreground">${Number(account.currentBalance).toFixed(2)}</span>
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">新余额（美元）<span className="text-destructive">*</span></Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+              <Input
+                type="number"
+                step="0.01"
+                className="pl-6"
+                value={newBalance}
+                onChange={(e) => setNewBalance(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">操作密码<span className="text-destructive">*</span></Label>
+            <Input
+              type="password"
+              placeholder="请输入管理员密码"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setPwError(false); }}
+              className={pwError ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {pwError && <p className="text-xs text-destructive">密码错误，请重试</p>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>取消</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "保存中..." : "确认修改"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const PAGE_SIZE = 20;
 
 export default function AccountsPage() {
@@ -144,6 +238,7 @@ export default function AccountsPage() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [assignAccount, setAssignAccount] = useState<Account | null>(null);
+  const [editBalanceAccount, setEditBalanceAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [sortKey, setSortKey] = useState<string>("createdAt");
@@ -417,6 +512,15 @@ export default function AccountsPage() {
                     <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAssignAccount(a)}>
                       <UserPlus className="h-3.5 w-3.5" /> 分配
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+                      title="修改余额（管理员）"
+                      onClick={() => setEditBalanceAccount(a)}
+                    >
+                      <PencilLine className="h-3.5 w-3.5" />
+                    </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteAccount(a)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -430,6 +534,7 @@ export default function AccountsPage() {
       </div>
 
       {assignAccount && <AssignDialog account={assignAccount} onClose={() => setAssignAccount(null)} />}
+      {editBalanceAccount && <BalanceEditDialog account={editBalanceAccount} onClose={() => setEditBalanceAccount(null)} />}
 
       {deleteAccount && (
         <Dialog open onOpenChange={() => { setDeleteAccount(null); setDeletePassword(""); }}>

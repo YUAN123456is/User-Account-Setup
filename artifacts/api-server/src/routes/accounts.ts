@@ -200,6 +200,36 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(await formatAccount(updated));
 });
 
+// POST /api/accounts/:id/set-balance — admin only, password-gated balance correction
+router.post("/accounts/:id/set-balance", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = req.body as { currentBalance?: string; password?: string; note?: string };
+
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword || body.password !== adminPassword) {
+    res.status(403).json({ error: "密码错误" });
+    return;
+  }
+
+  const newBalance = parseFloat(body.currentBalance ?? "");
+  if (isNaN(newBalance)) {
+    res.status(400).json({ error: "余额格式无效" });
+    return;
+  }
+
+  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, id));
+  if (!account) { res.status(404).json({ error: "Account not found" }); return; }
+
+  const [updated] = await db.update(accountsTable).set({
+    currentBalance: newBalance.toFixed(2),
+    theoreticalBalance: newBalance.toFixed(2),
+  }).where(eq(accountsTable.id, id)).returning();
+
+  res.json(await formatAccount(updated));
+});
+
 router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<void> => {
   const params = DeleteAccountParams.safeParse(req.params);
   if (!params.success) {
