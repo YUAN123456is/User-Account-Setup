@@ -40,11 +40,24 @@ interface MetaAdAccount {
 async function fetchAdAccountsWithSpendForDate(accessToken: string, date: string): Promise<MetaAdAccount[]> {
   const timeRange = encodeURIComponent(JSON.stringify({ since: date, until: date }));
   const fields = `account_id,name,currency,insights.time_range(${timeRange}){spend,actions}`;
-  const url = `${META_GRAPH}/me/adaccounts?fields=${fields}&limit=200&access_token=${encodeURIComponent(accessToken)}`;
-  const res = await fetch(url);
-  const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string } };
-  if (json.error) throw new Error(json.error.message);
-  return json.data ?? [];
+  const firstUrl = `${META_GRAPH}/me/adaccounts?fields=${fields}&limit=500&access_token=${encodeURIComponent(accessToken)}`;
+
+  const all: MetaAdAccount[] = [];
+  let nextUrl: string | null = firstUrl;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl);
+    const json = await res.json() as {
+      data?: MetaAdAccount[];
+      error?: { message: string };
+      paging?: { next?: string };
+    };
+    if (json.error) throw new Error(json.error.message);
+    if (json.data) all.push(...json.data);
+    nextUrl = json.paging?.next ?? null;
+  }
+
+  return all;
 }
 
 /** 从 FB actions 数组中取特定 action_type 的整数值，不存在时返回 null */
