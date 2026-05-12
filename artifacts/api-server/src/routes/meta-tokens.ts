@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, lt, desc } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { logger } from "../lib/logger";
