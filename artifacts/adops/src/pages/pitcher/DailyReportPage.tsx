@@ -39,6 +39,7 @@ interface DailyStat {
   id: number;
   accountId: number;
   accountName?: string | null;
+  accountCurrentBalance?: string | null;
   date: string;
   spendAmount: string | number;
   realBalance: string | number;
@@ -575,7 +576,7 @@ export default function DailyReportPage() {
                             ${Number(s.spendAmount).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                            {(() => { const acct = accounts.find(a => a.id === s.accountId); return acct ? `$${Number(acct.currentBalance).toFixed(2)}` : `$${Number(s.realBalance).toFixed(2)}`; })()}
+                            {s.accountCurrentBalance != null ? `$${Number(s.accountCurrentBalance).toFixed(2)}` : "—"}
                           </TableCell>
                           {hasBiz && (
                             <TableCell className="py-3 px-3">

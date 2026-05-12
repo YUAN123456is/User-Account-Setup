@@ -13,7 +13,7 @@ const router: IRouter = Router();
 
 async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
   const account = stat.accountId
-    ? (await db.select({ accountName: accountsTable.accountName, platformAccountId: accountsTable.platformAccountId }).from(accountsTable).where(eq(accountsTable.id, stat.accountId)))[0]
+    ? (await db.select({ accountName: accountsTable.accountName, platformAccountId: accountsTable.platformAccountId, currentBalance: accountsTable.currentBalance }).from(accountsTable).where(eq(accountsTable.id, stat.accountId)))[0]
     : null;
   const pitcher = stat.pitcherId
     ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
@@ -36,6 +36,7 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     accountId: stat.accountId,
     accountName: account?.accountName ?? null,
     platformAccountId: account?.platformAccountId ?? null,
+    accountCurrentBalance: account?.currentBalance ?? null,
     date: stat.date,
     spendAmount: stat.spendAmount,
     realBalance: stat.realBalance,
