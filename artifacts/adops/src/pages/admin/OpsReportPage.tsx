@@ -1,14 +1,19 @@
 import { useState, useMemo } from "react";
-import { useListDailyStats, useListTeams } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListDailyStats, useListTeams, getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
-import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook, EyeOff } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook, EyeOff, Trash2, Loader2 } from "lucide-react";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +41,8 @@ interface Team { id: number; name: string; businessType: string; }
 
 const PAGE_SIZE = 30;
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export default function OpsReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
   const [teamFilter, setTeamFilter] = useState("all");
@@ -46,6 +53,36 @@ export default function OpsReportPage() {
   const [sortKey, setSortKey] = useState<string>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [hideZero, setHideZero] = useState(true);
+
+  const [deleteTarget, setDeleteTarget] = useState<DailyStat | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${BASE}/api/daily-stats/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        toast({ title: data.error ?? "删除失败", variant: "destructive" });
+        return;
+      }
+      toast({ title: "已删除", description: `${deleteTarget.date} · ${deleteTarget.accountName ?? `#${deleteTarget.accountId}`}` });
+      await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      setDeleteTarget(null);
+      setDeletePassword("");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -133,10 +170,48 @@ export default function OpsReportPage() {
     );
   };
 
-  const colCount = 4 + (hasBizAny ? 1 : 0) + (hasLive ? 3 : 0) + (hasEcom ? 4 : 0);
+  const colCount = 5 + (hasBizAny ? 1 : 0) + (hasLive ? 3 : 0) + (hasEcom ? 4 : 0);
 
   return (
     <div className="space-y-4">
+
+      {/* Delete confirmation dialog */}
+      {deleteTarget && (
+        <Dialog open onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeletePassword(""); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base text-destructive">
+                <Trash2 className="h-4 w-4" /> 删除消耗记录
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1">
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm space-y-0.5">
+                <p className="text-xs text-muted-foreground">{deleteTarget.date}</p>
+                <p className="font-medium truncate">{deleteTarget.accountName ?? `#${deleteTarget.accountId}`}</p>
+                <p className="font-mono text-primary font-semibold">${Number(deleteTarget.spendAmount).toFixed(2)}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">删除后该记录的消耗将从账户余额中还原，此操作不可撤销。</p>
+              <div className="space-y-1.5">
+                <Label className="text-sm">管理员密码</Label>
+                <Input
+                  type="password"
+                  placeholder="请输入密码确认删除"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && deletePassword) confirmDelete(); }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeletePassword(""); }}>取消</Button>
+              <Button variant="destructive" disabled={!deletePassword || deleting} onClick={confirmDelete}>
+                {deleting ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />删除中</> : "确认删除"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative">
@@ -238,6 +313,7 @@ export default function OpsReportPage() {
                 {hasEcom && <SortHead col="roas" label="ROAS" className="min-w-[64px] text-right" right />}
                 {hasEcom && <SortHead col="orderCount" label="订单" className="min-w-[56px] text-right" right />}
                 {hasEcom && <TableHead className="min-w-[80px] text-right">客单</TableHead>}
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -311,6 +387,15 @@ export default function OpsReportPage() {
                       {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
                     </TableCell>
                   )}
+                  <TableCell className="py-3 px-2 text-center">
+                    <button
+                      onClick={() => { setDeleteTarget(s); setDeletePassword(""); }}
+                      className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                      title="删除此记录"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -133,6 +133,39 @@ router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): P
   res.json(await formatStat(stat));
 });
 
+// DELETE /api/daily-stats/:id — admin hard-deletes a record (requires admin password)
+router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = req.body as { password?: string };
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword || body.password !== adminPassword) {
+    res.status(403).json({ error: "密码错误" });
+    return;
+  }
+
+  const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
+
+  // Restore the account balance: add the spend back
+  const spend = parseFloat(existing.spendAmount);
+  if (spend > 0 && existing.accountId) {
+    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+    if (acct) {
+      const restoredCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
+      const restoredTheoretical = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spend).toFixed(2);
+      await db.update(accountsTable).set({
+        currentBalance: restoredCurrent,
+        theoreticalBalance: restoredTheoretical,
+      }).where(eq(accountsTable.id, existing.accountId));
+    }
+  }
+
+  await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  res.json({ ok: true });
+});
+
 router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<void> => {
   const parsed = CreateDailyStatBody.safeParse(req.body);
   if (!parsed.success) {
