@@ -99,7 +99,8 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const wasRejected = stat.status === "rejected";
   const isFbSynced = !!stat.fbSynced;
   const isApproved = stat.status === "approved";
-  const spendChanged = parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
+  // FB-synced records: spend is authoritative from FB, never editable
+  const spendChanged = !isFbSynced && parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
   const willTriggerReview = !isApproved || spendChanged;
 
   const update = useUpdateDailyStat({
@@ -167,7 +168,15 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               <p className="text-xs text-red-400">此条数据已被驳回，请修改后重新提交</p>
             </div>
           )}
-          {isApproved && (
+          {isFbSynced && (
+            <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+              <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-400">
+                此条数据由 FB 自动同步，<span className="font-medium">消耗金额不可修改</span>。可在此补充业务类型、团队等信息，修改后直接生效。
+              </p>
+            </div>
+          )}
+          {!isFbSynced && isApproved && (
             <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
               <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-400">
@@ -177,12 +186,20 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
           )}
           <div className="space-y-1.5">
             <Label className="text-sm">
-              消耗金额（美元）<span className="text-destructive">*</span>
-              {isApproved && spendChanged && (
+              消耗金额（美元）
+              {!isFbSynced && <span className="text-destructive">*</span>}
+              {!isFbSynced && isApproved && spendChanged && (
                 <span className="ml-2 text-xs font-normal text-amber-400">修改后将触发审核</span>
               )}
             </Label>
-            <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
+            {isFbSynced ? (
+              <div className="flex items-center h-9 px-3 rounded-md border bg-muted/50 text-sm font-mono text-muted-foreground">
+                ${Number(stat.spendAmount).toFixed(2)}
+                <span className="ml-2 text-xs text-blue-400/70">FB 数据</span>
+              </div>
+            ) : (
+              <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm">业务类型</Label>
@@ -626,17 +643,15 @@ export default function DailyReportPage() {
                             )}
                           </TableCell>
                           <TableCell className="pr-2 py-3">
-                            {!s.fbSynced && (
-                              s.status === "rejected" ? (
-                                <button onClick={() => setEditTarget(s)}
-                                  className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
-                                  <Pencil className="h-3 w-3" />修改
-                                </button>
-                              ) : (
-                                <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                              )
+                            {s.status === "rejected" ? (
+                              <button onClick={() => setEditTarget(s)}
+                                className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
+                                <Pencil className="h-3 w-3" />修改
+                              </button>
+                            ) : (
+                              <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
                             )}
                           </TableCell>
                         </TableRow>
