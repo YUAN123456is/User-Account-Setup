@@ -191,7 +191,11 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
                 totalUnmatched++;
                 continue;
               }
-              const currentBal = parseFloat(matchedAccount.currentBalance ?? "0");
+              // Re-fetch balance from DB — fbAccounts is loaded once before the loop
+              // so matchedAccount.currentBalance is stale after the first date is processed.
+              const [freshAcct] = await db.select({ currentBalance: accountsTable.currentBalance })
+                .from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
+              const currentBal = parseFloat(freshAcct?.currentBalance ?? matchedAccount.currentBalance ?? "0");
               const newBalance = (currentBal - spendNum).toFixed(2);
               await db.insert(dailyStatsTable).values({
                 accountId: matchedAccount.id,
