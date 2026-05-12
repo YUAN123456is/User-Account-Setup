@@ -40,7 +40,7 @@ export default function CrossReportPage() {
   const pitchers = users.filter((u) => u.role === "pitcher");
   const providers = users.filter((u) => u.role === "provider");
 
-  const filtered = useMemo(() => allRows, [allRows]);
+  const filtered = allRows;
 
   const paged = usePagination(filtered, PAGE_SIZE, page);
 

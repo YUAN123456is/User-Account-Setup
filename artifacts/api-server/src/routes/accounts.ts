@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, isNull, SQL } from "drizzle-orm";
+import { eq, and, or, isNull, asc, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import {
   CreateAccountBody,
@@ -69,8 +69,8 @@ router.get("/accounts", requireAuth, async (req, res): Promise<void> => {
   if (params.data.status) conditions.push(eq(accountsTable.status, params.data.status));
 
   const accounts = conditions.length > 0
-    ? await db.select().from(accountsTable).where(and(...conditions))
-    : await db.select().from(accountsTable);
+    ? await db.select().from(accountsTable).where(and(...conditions)).orderBy(asc(accountsTable.accountName))
+    : await db.select().from(accountsTable).orderBy(asc(accountsTable.accountName));
 
   const formatted = await Promise.all(accounts.map(formatAccount));
   res.json(formatted);

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, inArray, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, desc, SQL } from "drizzle-orm";
 import { db, dailyStatsTable, accountsTable, usersTable, teamsTable } from "@workspace/db";
 import {
   CreateDailyStatBody,
@@ -83,8 +83,8 @@ router.get("/daily-stats", requireAuth, async (req, res): Promise<void> => {
   if (params.data.dateTo) conditions.push(lte(dailyStatsTable.date, params.data.dateTo));
 
   const stats = conditions.length > 0
-    ? await db.select().from(dailyStatsTable).where(and(...conditions))
-    : await db.select().from(dailyStatsTable);
+    ? await db.select().from(dailyStatsTable).where(and(...conditions)).orderBy(desc(dailyStatsTable.date), desc(dailyStatsTable.createdAt))
+    : await db.select().from(dailyStatsTable).orderBy(desc(dailyStatsTable.date), desc(dailyStatsTable.createdAt));
 
   const formatted = await Promise.all(stats.map(formatStat));
   res.json(formatted);

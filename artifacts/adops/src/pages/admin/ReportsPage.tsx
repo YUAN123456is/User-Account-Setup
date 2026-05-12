@@ -19,8 +19,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
+  const d = new Date(Date.now() - 8 * 60 * 60 * 1000);
+  d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 

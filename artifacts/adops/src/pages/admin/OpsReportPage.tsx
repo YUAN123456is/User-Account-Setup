@@ -76,7 +76,7 @@ export default function OpsReportPage() {
     let rows = [...allStats];
     if (bizFilter === "liveChat") rows = rows.filter((s) => s.businessType === "liveChat");
     else if (bizFilter === "ecommerce") rows = rows.filter((s) => s.businessType === "ecommerce");
-    else if (bizFilter === "fb") rows = rows.filter((s) => s.fbSynced && !s.businessType);
+    else if (bizFilter === "fb") rows = rows.filter((s) => s.fbSynced === true);
     if (teamFilter !== "all") rows = rows.filter((s) => String(s.teamId) === teamFilter);
     if (pitcherFilter !== "all") rows = rows.filter((s) => s.pitcherName === pitcherFilter);
     if (search.trim()) {
