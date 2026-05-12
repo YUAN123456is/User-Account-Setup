@@ -13,6 +13,7 @@ import {
 import {
   Key, Plus, Trash2, RefreshCw, CheckCircle, XCircle,
   Link2, Unlink, AlertCircle, ChevronDown, ChevronRight, Pencil,
+  Play, Loader2,
 } from "lucide-react";
 
 interface MetaToken {
@@ -151,6 +152,35 @@ export default function PitcherMetaTokensPage() {
 
   const hasActiveToken = tokens.some((t) => t.isActive);
 
+  // Sync panel state
+  const defaultDate = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
+  const [syncDate, setSyncDate] = useState(defaultDate);
+  const [syncing, setSyncing] = useState(false);
+  interface SyncResult { synced: number; matched: number; unmatched: number; errors: string[]; results: Array<{ date: string; accounts: Array<{ fbAccountId: string; fbAccountName: string; spend: string; matched: boolean; systemAccountName?: string }> }> }
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+
+  async function runSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const data = await api<SyncResult>("/api/pitcher/meta-tokens/sync", {
+        method: "POST",
+        body: JSON.stringify({ date: syncDate }),
+      });
+      setSyncResult(data);
+      if (data.errors.length === 0) {
+        toast({ title: `同步完成：${data.matched} 个账户写入数据` });
+      } else {
+        toast({ title: "同步完成（含错误）", variant: "destructive" });
+      }
+      await loadTokens();
+    } catch (e) {
+      toast({ title: String(e instanceof Error ? e.message : "同步失败"), variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -207,6 +237,79 @@ export default function PitcherMetaTokensPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Sync section */}
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Play className="h-4 w-4 text-muted-foreground" />
+            <span className="font-semibold text-sm">同步消耗数据</span>
+            <span className="text-xs text-muted-foreground">从 Facebook 拉取指定日期的广告消耗写入日报</span>
+          </div>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">同步日期</label>
+              <input
+                type="date"
+                value={syncDate}
+                onChange={(e) => setSyncDate(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="gap-1.5 h-8"
+              disabled={!hasActiveToken || syncing || !syncDate}
+              onClick={runSync}
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              {syncing ? "同步中..." : "立即同步"}
+            </Button>
+            {!hasActiveToken && (
+              <span className="text-xs text-muted-foreground">请先添加并启用 Token</span>
+            )}
+          </div>
+
+          {syncResult && (
+            <div className="rounded-lg border border-border bg-muted/30 divide-y divide-border">
+              <div className="flex items-center gap-6 px-4 py-3 text-sm">
+                <span className="text-muted-foreground text-xs">拉取账户</span>
+                <span className="font-semibold">{syncResult.synced}</span>
+                <span className="text-muted-foreground text-xs">写入日报</span>
+                <span className={`font-semibold ${syncResult.matched > 0 ? "text-emerald-500" : ""}`}>{syncResult.matched}</span>
+                {syncResult.unmatched > 0 && <>
+                  <span className="text-muted-foreground text-xs">未匹配</span>
+                  <span className="font-semibold text-amber-500">{syncResult.unmatched}</span>
+                </>}
+              </div>
+              {syncResult.errors.length > 0 && (
+                <div className="px-4 py-3 space-y-1">
+                  {syncResult.errors.map((e, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-red-400">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />{e}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {syncResult.results[0]?.accounts.filter((a) => a.matched && Number(a.spend) > 0).length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-xs text-muted-foreground mb-2">已写入账户</p>
+                  <div className="space-y-1">
+                    {syncResult.results[0].accounts.filter((a) => a.matched && Number(a.spend) > 0).map((a) => (
+                      <div key={a.fbAccountId} className="flex items-center justify-between text-xs">
+                        <span className="text-foreground truncate max-w-[240px]">{a.systemAccountName ?? a.fbAccountName}</span>
+                        <span className="font-mono text-primary ml-4">${Number(a.spend).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Matching section */}

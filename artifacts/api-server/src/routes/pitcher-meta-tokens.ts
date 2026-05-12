@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, accountsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/require-auth";
+import { runFbSync } from "./meta-tokens";
+import { yesterdayUTC8 } from "../lib/tz";
 
 const router: IRouter = Router();
 
@@ -13,11 +15,16 @@ interface MetaAdAccount {
 }
 
 async function fetchAdAccounts(accessToken: string): Promise<MetaAdAccount[]> {
-  const url = `${META_GRAPH}/me/adaccounts?fields=account_id,name&limit=200&access_token=${encodeURIComponent(accessToken)}`;
-  const res = await fetch(url);
-  const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string } };
-  if (json.error) throw new Error(json.error.message);
-  return json.data ?? [];
+  const all: MetaAdAccount[] = [];
+  let nextUrl: string | null = `${META_GRAPH}/me/adaccounts?fields=account_id,name&limit=500&access_token=${encodeURIComponent(accessToken)}`;
+  while (nextUrl) {
+    const res = await fetch(nextUrl);
+    const json = await res.json() as { data?: MetaAdAccount[]; error?: { message: string }; paging?: { next?: string } };
+    if (json.error) throw new Error(json.error.message);
+    if (json.data) all.push(...json.data);
+    nextUrl = json.paging?.next ?? null;
+  }
+  return all;
 }
 
 function normalizeId(id: string) {
@@ -126,6 +133,22 @@ router.get("/pitcher/meta-tokens/fb-accounts", requireAuth, async (req, res): Pr
   }
 
   res.json({ accounts: result, systemAccounts, errors });
+});
+
+// POST /api/pitcher/meta-tokens/sync
+// Pitcher triggers sync of their own tokens for a given date range
+router.post("/pitcher/meta-tokens/sync", requireAuth, async (req, res): Promise<void> => {
+  const pitcherId = req.session.userId!;
+  const body = req.body as Record<string, unknown>;
+  const dateFrom = typeof body.dateFrom === "string" ? body.dateFrom : (typeof body.date === "string" ? body.date : yesterdayUTC8());
+  const dateTo = typeof body.dateTo === "string" ? body.dateTo : dateFrom;
+
+  const results = await runFbSync(dateFrom, dateTo, pitcherId);
+  const totals = results.reduce(
+    (acc, r) => ({ synced: acc.synced + r.synced, matched: acc.matched + r.matched, unmatched: acc.unmatched + r.unmatched, errors: [...acc.errors, ...r.errors] }),
+    { synced: 0, matched: 0, unmatched: 0, errors: [] as string[] }
+  );
+  res.json({ dateFrom, dateTo, days: results.length, ...totals, results });
 });
 
 // POST /api/pitcher/meta-tokens/match

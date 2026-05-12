@@ -100,8 +100,12 @@ export interface SyncDayResult {
   accounts: Array<{ fbAccountId: string; fbAccountName: string; spend: string; matched: boolean; systemAccountName?: string; businessType?: string | null; fanCount?: number | null; orderCount?: number | null }>;
 }
 
-export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncDayResult[]> {
-  const tokens = await db.select().from(metaTokensTable).where(eq(metaTokensTable.isActive, true));
+export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilter?: number): Promise<SyncDayResult[]> {
+  const tokens = await db.select().from(metaTokensTable).where(
+    pitcherIdFilter != null
+      ? and(eq(metaTokensTable.isActive, true), eq(metaTokensTable.pitcherId, pitcherIdFilter))
+      : eq(metaTokensTable.isActive, true)
+  );
   const fbAccounts = await db.select().from(accountsTable).where(eq(accountsTable.platform, "FB"));
   const dates = dateRange(dateFrom, dateTo);
   const results: SyncDayResult[] = [];
