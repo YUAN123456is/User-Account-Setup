@@ -238,6 +238,7 @@ export default function DailyReportPage() {
   const [histDateRange, setHistDateRange] = useState<DateRange>({ from: "", to: "" });
   const [histAccountFilter, setHistAccountFilter] = useState("all");
   const [histStatusFilter, setHistStatusFilter] = useState("all");
+  const [hideZero, setHideZero] = useState(true);
   const [histPage, setHistPage] = useState(1);
 
   const histApiParams: Record<string, string> = {};
@@ -253,8 +254,9 @@ export default function DailyReportPage() {
     else if (histStatusFilter === "approved") filtered = filtered.filter((s) => (!s.status || s.status === "approved") && !s.fbSynced);
     else if (histStatusFilter === "rejected") filtered = filtered.filter((s) => s.status === "rejected");
     else if (histStatusFilter === "fb") filtered = filtered.filter((s) => s.fbSynced);
+    if (hideZero) filtered = filtered.filter((s) => Number(s.spendAmount) > 0);
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
-  }, [allHistStats, histStatusFilter]);
+  }, [allHistStats, histStatusFilter, hideZero]);
   const histPaged = usePagination(histFiltered, 20, histPage);
   const hasLive = histFiltered.some((s) => s.businessType === "liveChat");
   const hasEcom = histFiltered.some((s) => s.businessType === "ecommerce");
@@ -497,6 +499,12 @@ export default function DailyReportPage() {
                 <SelectItem value="fb">FB同步</SelectItem>
               </SelectContent>
             </Select>
+            <button
+              onClick={() => { setHideZero((v) => !v); setHistPage(1); }}
+              className={["h-8 px-2.5 rounded border text-xs transition-colors whitespace-nowrap", hideZero ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"].join(" ")}
+            >
+              隐藏零消耗
+            </button>
             <QuickDateFilter onChange={(r) => { setHistDateRange(r); setHistPage(1); }} />
           </div>
         </div>
