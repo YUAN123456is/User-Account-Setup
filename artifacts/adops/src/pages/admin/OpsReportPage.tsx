@@ -8,7 +8,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
-import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook } from "lucide-react";
+import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook, EyeOff } from "lucide-react";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,7 @@ export default function OpsReportPage() {
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<string>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [hideZero, setHideZero] = useState(true);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -74,6 +75,7 @@ export default function OpsReportPage() {
 
   const filtered = useMemo(() => {
     let rows = [...allStats];
+    if (hideZero) rows = rows.filter((s) => Number(s.spendAmount) > 0);
     if (bizFilter === "liveChat") rows = rows.filter((s) => s.businessType === "liveChat");
     else if (bizFilter === "ecommerce") rows = rows.filter((s) => s.businessType === "ecommerce");
     else if (bizFilter === "fb") rows = rows.filter((s) => s.fbSynced === true);
@@ -84,7 +86,7 @@ export default function OpsReportPage() {
       rows = rows.filter((s) => (s.accountName ?? "").toLowerCase().includes(q));
     }
     return rows;
-  }, [allStats, bizFilter, teamFilter, pitcherFilter, search]);
+  }, [allStats, hideZero, bizFilter, teamFilter, pitcherFilter, search]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -177,6 +179,19 @@ export default function OpsReportPage() {
             </SelectContent>
           </Select>
         )}
+
+        <button
+          onClick={() => { setHideZero((v) => !v); setPage(1); }}
+          className={cn(
+            "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs transition-colors",
+            hideZero
+              ? "bg-muted border-border text-muted-foreground hover:text-foreground"
+              : "bg-primary/10 border-primary/40 text-primary hover:bg-primary/20",
+          )}
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+          {hideZero ? "已隐藏零消耗" : "显示零消耗"}
+        </button>
 
         {(search || pitcherFilter !== "all" || teamFilter !== "all" || bizFilter !== "all") && (
           <button
