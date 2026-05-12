@@ -129,6 +129,14 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
           const { businessType: fbBizType, fanCount: fbFanCount, orderCount: fbOrderCount } =
             parseConversions(insightRow?.actions ?? []);
 
+          // Zero-spend records carry no useful data — skip everything
+          const spendNum = parseFloat(spend || "0");
+          if (spendNum === 0) {
+            totalSynced++;
+            accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: false, businessType: null, fanCount: null, orderCount: null });
+            continue;
+          }
+
           let matchedAccount = fbAccounts.find(
             (a) => a.platformAccountId && normalizeAccountId(a.platformAccountId) === fbId
           );
@@ -165,16 +173,6 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
 
           // Write to daily_stats — FB data is always authoritative
           if (matchedAccount) {
-            const spendNum = parseFloat(spend || "0");
-
-            // Zero-spend records carry no useful data — skip writing to daily_stats
-            if (spendNum === 0) {
-              totalMatched++;
-              accountSummary.push({ fbAccountId: fbId, fbAccountName: adAcc.name, spend, matched: true, systemAccountName: matchedAccount.accountName, businessType: null, fanCount: null, orderCount: null });
-              totalSynced++;
-              continue;
-            }
-
             const [existing] = await db
               .select()
               .from(dailyStatsTable)
