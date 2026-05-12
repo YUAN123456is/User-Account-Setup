@@ -96,14 +96,18 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const avgOrder = businessType === "ecommerce" && gmvNum > 0 && orderNum > 0 ? (gmvNum / orderNum).toFixed(2) : null;
 
   const wasRejected = stat.status === "rejected";
+  const isFbSynced = !!stat.fbSynced;
+  const spendChanged = parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
+  const willTriggerReview = !isFbSynced || spendChanged;
 
   const update = useUpdateDailyStat({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+        const needsReview = wasRejected || willTriggerReview;
         toast({
-          title: wasRejected ? "已重新提交审核" : "修改成功",
-          description: wasRejected ? "管理员确认后数据将正式生效" : undefined,
+          title: needsReview ? "已提交审核" : "修改成功",
+          description: needsReview ? "管理员确认后数据将正式生效" : undefined,
         });
         onClose();
       },
@@ -115,7 +119,8 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
     const sp = parseFloat(spendAmount);
     if (isNaN(sp) || sp < 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
     update.mutate({ id: stat.id, data: {
-      spendAmount: sp.toFixed(2),
+      // FB-synced records: only include spendAmount if it actually changed (triggers review)
+      ...(isFbSynced && !spendChanged ? {} : { spendAmount: sp.toFixed(2) }),
       businessType: (businessType as "liveChat" | "ecommerce") || null,
       teamId: (businessType === "liveChat" && teamId) ? Number(teamId) : null,
       fanCount: businessType === "liveChat" && fanCount ? parseInt(fanCount) : null,
@@ -160,8 +165,21 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               <p className="text-xs text-red-400">此条数据已被驳回，请修改后重新提交</p>
             </div>
           )}
+          {isFbSynced && !wasRejected && (
+            <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+              <Facebook className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-400">
+                团队、业务类型修改后<span className="font-medium">直接生效</span>，不需审核。修改消耗金额将重新提交审核。
+              </p>
+            </div>
+          )}
           <div className="space-y-1.5">
-            <Label className="text-sm">消耗金额（美元）<span className="text-destructive">*</span></Label>
+            <Label className="text-sm">
+              消耗金额（美元）<span className="text-destructive">*</span>
+              {isFbSynced && spendChanged && (
+                <span className="ml-2 text-xs font-normal text-amber-400">修改后将触发审核</span>
+              )}
+            </Label>
             <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
           </div>
           <div className="space-y-1.5">
@@ -208,7 +226,9 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={handleSave} disabled={update.isPending}>{update.isPending ? "保存中..." : wasRejected ? "修改并重新提交" : "保存"}</Button>
+          <Button onClick={handleSave} disabled={update.isPending}>
+            {update.isPending ? "保存中..." : wasRejected ? "修改并重新提交" : willTriggerReview ? "保存并提交审核" : "保存"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
