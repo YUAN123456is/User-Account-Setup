@@ -161,6 +161,12 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
 
             if (!existing) {
               // No record — create auto-approved
+              const pitcherIdForStat = matchedAccount.pitcherId ?? token.pitcherId;
+              if (pitcherIdForStat == null) {
+                errors.push(`账户「${matchedAccount.accountName}」无归属投手且 Token 无绑定投手，跳过写入`);
+                totalUnmatched++;
+                continue;
+              }
               const currentBal = parseFloat(matchedAccount.currentBalance ?? "0");
               const newBalance = (currentBal - spendNum).toFixed(2);
               await db.insert(dailyStatsTable).values({
@@ -168,15 +174,14 @@ export async function runFbSync(dateFrom: string, dateTo: string): Promise<SyncD
                 date: syncDate,
                 spendAmount: spendNum.toFixed(2),
                 realBalance: newBalance,
+                pitcherId: pitcherIdForStat,
                 hasAlert: parseFloat(newBalance) < 100,
                 fbSynced: true,
                 status: "approved" as const,
                 ...(fbBizType != null ? { businessType: fbBizType } : {}),
                 ...(fbFanCount != null ? { fanCount: fbFanCount } : {}),
                 ...(fbOrderCount != null ? { orderCount: fbOrderCount } : {}),
-                ...(matchedAccount.pitcherId != null ? { pitcherId: matchedAccount.pitcherId } : {}),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              } as any);
+              });
               await db.update(accountsTable).set({
                 currentBalance: newBalance,
                 theoreticalBalance: newBalance,
