@@ -252,11 +252,11 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     updates.hasAlert = parseFloat(newRealBalance) < 100;
   }
 
-  // For non-FB records: any edit triggers review.
-  // For FB-synced records: only a spend change triggers review;
-  // updating team / biz-type / fan-count etc. is free and stays approved.
+  // For already-approved records: only a spend change triggers re-review;
+  // updating team / biz-type / fan-count / order-count stays approved.
+  // For pending / rejected records: any edit resets to pending.
   const spendChanged = parsed.data.spendAmount != null;
-  if (!existing.fbSynced || spendChanged) {
+  if (existing.status !== "approved" || spendChanged) {
     updates.status = "pending";
     updates.reviewNote = null;
   }

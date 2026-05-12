@@ -18,7 +18,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
-  AlertCircle, Clock, XCircle, Facebook,
+  AlertCircle, Clock, XCircle, Facebook, Info,
 } from "lucide-react";
 
 interface Account {
@@ -97,8 +97,9 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
 
   const wasRejected = stat.status === "rejected";
   const isFbSynced = !!stat.fbSynced;
+  const isApproved = stat.status === "approved";
   const spendChanged = parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
-  const willTriggerReview = !isFbSynced || spendChanged;
+  const willTriggerReview = !isApproved || spendChanged;
 
   const update = useUpdateDailyStat({
     mutation: {
@@ -119,8 +120,8 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
     const sp = parseFloat(spendAmount);
     if (isNaN(sp) || sp < 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
     update.mutate({ id: stat.id, data: {
-      // FB-synced records: only include spendAmount if it actually changed (triggers review)
-      ...(isFbSynced && !spendChanged ? {} : { spendAmount: sp.toFixed(2) }),
+      // Approved records: only include spendAmount if it actually changed (triggers review)
+      ...(isApproved && !spendChanged ? {} : { spendAmount: sp.toFixed(2) }),
       businessType: (businessType as "liveChat" | "ecommerce") || null,
       teamId: (businessType === "liveChat" && teamId) ? Number(teamId) : null,
       fanCount: businessType === "liveChat" && fanCount ? parseInt(fanCount) : null,
@@ -165,9 +166,9 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               <p className="text-xs text-red-400">此条数据已被驳回，请修改后重新提交</p>
             </div>
           )}
-          {isFbSynced && !wasRejected && (
+          {isApproved && (
             <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
-              <Facebook className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-400">
                 团队、业务类型修改后<span className="font-medium">直接生效</span>，不需审核。修改消耗金额将重新提交审核。
               </p>
@@ -176,7 +177,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
           <div className="space-y-1.5">
             <Label className="text-sm">
               消耗金额（美元）<span className="text-destructive">*</span>
-              {isFbSynced && spendChanged && (
+              {isApproved && spendChanged && (
                 <span className="ml-2 text-xs font-normal text-amber-400">修改后将触发审核</span>
               )}
             </Label>
