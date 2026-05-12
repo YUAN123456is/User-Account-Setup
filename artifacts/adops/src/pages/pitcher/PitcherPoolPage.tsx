@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useListUsers, useAssignAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useAssignAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,18 +33,21 @@ interface PitcherUser {
 }
 
 const PAGE_SIZE = 20;
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function AssignDialog({ account, onClose }: { account: Account; onClose: () => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [targetId, setTargetId] = useState(String(user?.id ?? ""));
+  const [pitchers, setPitchers] = useState<PitcherUser[]>([]);
 
-  const { data: usersData } = useListUsers({ role: "pitcher" });
-  const pitchers = useMemo(() => {
-    const all = Array.isArray(usersData) ? (usersData as PitcherUser[]) : [];
-    return all.filter((p) => p.role === "pitcher");
-  }, [usersData]);
+  useEffect(() => {
+    fetch(`${BASE}/api/pitchers`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data: unknown) => { if (Array.isArray(data)) setPitchers(data as PitcherUser[]); })
+      .catch(() => {});
+  }, []);
 
   const assign = useAssignAccount({
     mutation: {

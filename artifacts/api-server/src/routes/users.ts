@@ -3,7 +3,7 @@ import { eq, ne, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, usersTable, accountsTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
-import { requireRole } from "../middlewares/require-auth";
+import { requireRole, requireAuth } from "../middlewares/require-auth";
 import { hashPassword } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -22,6 +22,15 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     createdAt: user.createdAt.toISOString(),
   };
 }
+
+// GET /api/pitchers — any authenticated user can fetch the pitcher list (for assignment dropdowns)
+router.get("/pitchers", requireAuth, async (req, res): Promise<void> => {
+  const pitchers = await db
+    .select({ id: usersTable.id, displayName: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.role, "pitcher"));
+  res.json(pitchers);
+});
 
 router.get("/users", requireRole("admin"), async (req, res): Promise<void> => {
   const params = ListUsersQueryParams.safeParse(req.query);
