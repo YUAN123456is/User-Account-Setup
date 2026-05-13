@@ -94,6 +94,7 @@ export function PitcherTickets() {
           { icon: LayoutDashboard, label: "工作台" },
           { icon: User,            label: "我的账户" },
           { icon: BarChart2,       label: "每日上报" },
+          { icon: Settings,        label: "团队反馈" },
           { icon: Settings,        label: "FB 账号配置" },
         ].map(({ icon: Icon, label }) => (
           <div key={label} className="text-sm px-2 py-1.5 rounded-md text-muted-foreground hover:bg-muted cursor-pointer flex items-center gap-2">
