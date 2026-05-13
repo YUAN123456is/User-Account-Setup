@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
-import { LayoutDashboard, CreditCard, BarChart3, Wallet, AlertTriangle, UsersRound, MessageSquare, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, CreditCard, BarChart3, Wallet, AlertTriangle, UsersRound, MessageSquare, ClipboardCheck, TicketIcon } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { useGetLowBalanceAlerts } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { label: "财务管理", href: "/admin/finance", icon: Wallet },
     { label: "余额预警", href: "/admin/alerts", icon: AlertTriangle, badge: alertCount },
     { label: "待审核上报", href: "/admin/pending-approvals", icon: ClipboardCheck, badge: pendingCount },
+    { label: "工单总览", href: "/admin/tickets", icon: TicketIcon },
     { label: "团队反馈", href: "/admin/team-feedback", icon: MessageSquare },
   ];
 

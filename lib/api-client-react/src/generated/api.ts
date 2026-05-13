@@ -20,11 +20,13 @@ import type {
   Account,
   AssignAccountBody,
   BalanceAlert,
+  CompleteTicketBody,
   CreateAccountBody,
   CreateDailyStatBody,
   CreateRechargeOrderBody,
   CreateTeamBody,
   CreateTeamFeedbackBody,
+  CreateTicketBody,
   CreateUserBody,
   CrossReportRow,
   DailyStat,
@@ -46,6 +48,7 @@ import type {
   ListRechargeOrdersParams,
   ListTeamFeedbackParams,
   ListTeamsParams,
+  ListTicketsParams,
   ListUsersParams,
   LoginBody,
   LoginResponse,
@@ -62,6 +65,7 @@ import type {
   Team,
   TeamFeedback,
   TeamPublicInfo,
+  Ticket,
   UpdateAccountBody,
   UpdateDailyStatBody,
   UpdateRechargeOrderBody,
@@ -3801,3 +3805,270 @@ export function useGetProviderAccounts<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List tickets (role-filtered)
+ */
+export const getListTicketsUrl = (params?: ListTicketsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/tickets?${stringifiedParams}`
+    : `/api/tickets`;
+};
+
+export const listTickets = async (
+  params?: ListTicketsParams,
+  options?: RequestInit,
+): Promise<Ticket[]> => {
+  return customFetch<Ticket[]>(getListTicketsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTicketsQueryKey = (params?: ListTicketsParams) => {
+  return [`/api/tickets`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTicketsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTickets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTicketsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTickets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTicketsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTickets>>> = ({
+    signal,
+  }) => listTickets(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTickets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTicketsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTickets>>
+>;
+export type ListTicketsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List tickets (role-filtered)
+ */
+
+export function useListTickets<
+  TData = Awaited<ReturnType<typeof listTickets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTicketsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTickets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTicketsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit a new ticket (pitcher only)
+ */
+export const getCreateTicketUrl = () => {
+  return `/api/tickets`;
+};
+
+export const createTicket = async (
+  createTicketBody: CreateTicketBody,
+  options?: RequestInit,
+): Promise<Ticket> => {
+  return customFetch<Ticket>(getCreateTicketUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTicketBody),
+  });
+};
+
+export const getCreateTicketMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTicket>>,
+    TError,
+    { data: BodyType<CreateTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTicket>>,
+  TError,
+  { data: BodyType<CreateTicketBody> },
+  TContext
+> => {
+  const mutationKey = ["createTicket"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTicket>>,
+    { data: BodyType<CreateTicketBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTicket(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTicketMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTicket>>
+>;
+export type CreateTicketMutationBody = BodyType<CreateTicketBody>;
+export type CreateTicketMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Submit a new ticket (pitcher only)
+ */
+export const useCreateTicket = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTicket>>,
+    TError,
+    { data: BodyType<CreateTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTicket>>,
+  TError,
+  { data: BodyType<CreateTicketBody> },
+  TContext
+> => {
+  return useMutation(getCreateTicketMutationOptions(options));
+};
+
+/**
+ * @summary Mark a ticket as completed (provider only)
+ */
+export const getCompleteTicketUrl = (id: number) => {
+  return `/api/tickets/${id}/complete`;
+};
+
+export const completeTicket = async (
+  id: number,
+  completeTicketBody: CompleteTicketBody,
+  options?: RequestInit,
+): Promise<Ticket> => {
+  return customFetch<Ticket>(getCompleteTicketUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(completeTicketBody),
+  });
+};
+
+export const getCompleteTicketMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeTicket>>,
+    TError,
+    { id: number; data: BodyType<CompleteTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeTicket>>,
+  TError,
+  { id: number; data: BodyType<CompleteTicketBody> },
+  TContext
+> => {
+  const mutationKey = ["completeTicket"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeTicket>>,
+    { id: number; data: BodyType<CompleteTicketBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return completeTicket(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteTicketMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeTicket>>
+>;
+export type CompleteTicketMutationBody = BodyType<CompleteTicketBody>;
+export type CompleteTicketMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a ticket as completed (provider only)
+ */
+export const useCompleteTicket = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeTicket>>,
+    TError,
+    { id: number; data: BodyType<CompleteTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeTicket>>,
+  TError,
+  { id: number; data: BodyType<CompleteTicketBody> },
+  TContext
+> => {
+  return useMutation(getCompleteTicketMutationOptions(options));
+};

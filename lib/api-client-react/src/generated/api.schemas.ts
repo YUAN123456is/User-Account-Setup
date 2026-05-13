@@ -527,6 +527,93 @@ export interface PitcherTeamFeedback {
   submittedAt: string;
 }
 
+export type TicketType = (typeof TicketType)[keyof typeof TicketType];
+
+export const TicketType = {
+  new_account: "new_account",
+  rebind_bm: "rebind_bm",
+} as const;
+
+export type TicketStatus = (typeof TicketStatus)[keyof typeof TicketStatus];
+
+export const TicketStatus = {
+  pending: "pending",
+  completed: "completed",
+} as const;
+
+export interface Ticket {
+  id: number;
+  pitcherId: number;
+  /** @nullable */
+  pitcherName?: string | null;
+  providerId: number;
+  /** @nullable */
+  providerName?: string | null;
+  type: TicketType;
+  status: TicketStatus;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  targetBm?: string | null;
+  /** @nullable */
+  account?: string | null;
+  /** @nullable */
+  remark?: string | null;
+  /** @nullable */
+  completedNote?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateTicketBodyType =
+  (typeof CreateTicketBodyType)[keyof typeof CreateTicketBodyType];
+
+export const CreateTicketBodyType = {
+  new_account: "new_account",
+  rebind_bm: "rebind_bm",
+} as const;
+
+export interface CreateTicketBody {
+  type: CreateTicketBodyType;
+  providerId: number;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  targetBm?: string | null;
+  /** @nullable */
+  account?: string | null;
+  /** @nullable */
+  remark?: string | null;
+}
+
+export interface CompleteTicketBody {
+  /** @nullable */
+  completedNote?: string | null;
+}
+
+export interface ListTicketsQueryParams {
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  pitcherId?: number | null;
+  /** @nullable */
+  providerId?: number | null;
+  /** @nullable */
+  dateFrom?: string | null;
+  /** @nullable */
+  dateTo?: string | null;
+}
+
+export interface CompleteTicketParams {
+  id: number;
+}
+
 export interface RequestUploadUrlBody {
   name: string;
   size: number;
@@ -744,6 +831,29 @@ export type GetPitcherAccountsParams = {
 
 export type GetProviderAccountsParams = {
   providerId: number;
+  /**
+   * @nullable
+   */
+  dateFrom?: string | null;
+  /**
+   * @nullable
+   */
+  dateTo?: string | null;
+};
+
+export type ListTicketsParams = {
+  /**
+   * @nullable
+   */
+  status?: string | null;
+  /**
+   * @nullable
+   */
+  pitcherId?: number | null;
+  /**
+   * @nullable
+   */
+  providerId?: number | null;
   /**
    * @nullable
    */

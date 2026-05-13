@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { CreditCard, Receipt } from "lucide-react";
+import { CreditCard, Receipt, TicketIcon } from "lucide-react";
 import { Sidebar } from "@/components/shared/Sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,6 +8,7 @@ export default function ProviderLayout({ children }: { children: ReactNode }) {
   const items = [
     { label: "我的账户", href: "/provider/accounts", icon: CreditCard },
     { label: "充值订单", href: "/provider/recharge-orders", icon: Receipt },
+    { label: "工单管理", href: "/provider/tickets", icon: TicketIcon },
   ];
   return (
     <div className="flex min-h-screen">

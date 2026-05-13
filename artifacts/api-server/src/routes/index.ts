@@ -11,6 +11,7 @@ import teamFeedbackRouter from "./team-feedback";
 import storageRouter from "./storage";
 import metaTokensRouter from "./meta-tokens";
 import pitcherMetaTokensRouter from "./pitcher-meta-tokens";
+import ticketsRouter from "./tickets";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(teamFeedbackRouter);
 router.use(storageRouter);
 router.use(metaTokensRouter);
 router.use(pitcherMetaTokensRouter);
+router.use(ticketsRouter);
 
 export default router;

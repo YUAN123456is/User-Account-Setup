@@ -875,3 +875,77 @@ export const GetProviderAccountsResponseItem = zod.object({
 export const GetProviderAccountsResponse = zod.array(
   GetProviderAccountsResponseItem,
 );
+
+/**
+ * @summary List tickets (role-filtered)
+ */
+export const ListTicketsQueryParams = zod.object({
+  status: zod.coerce.string().nullish(),
+  pitcherId: zod.coerce.number().nullish(),
+  providerId: zod.coerce.number().nullish(),
+  dateFrom: zod.coerce.string().nullish(),
+  dateTo: zod.coerce.string().nullish(),
+});
+
+export const ListTicketsResponseItem = zod.object({
+  id: zod.number(),
+  pitcherId: zod.number(),
+  pitcherName: zod.string().nullish(),
+  providerId: zod.number(),
+  providerName: zod.string().nullish(),
+  type: zod.enum(["new_account", "rebind_bm"]),
+  status: zod.enum(["pending", "completed"]),
+  platform: zod.string().nullish(),
+  amount: zod.string().nullish(),
+  targetBm: zod.string().nullish(),
+  account: zod.string().nullish(),
+  remark: zod.string().nullish(),
+  completedNote: zod.string().nullish(),
+  completedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListTicketsResponse = zod.array(ListTicketsResponseItem);
+
+/**
+ * @summary Submit a new ticket (pitcher only)
+ */
+export const CreateTicketBody = zod.object({
+  type: zod.enum(["new_account", "rebind_bm"]),
+  providerId: zod.number(),
+  platform: zod.string().nullish(),
+  amount: zod.string().nullish(),
+  targetBm: zod.string().nullish(),
+  account: zod.string().nullish(),
+  remark: zod.string().nullish(),
+});
+
+/**
+ * @summary Mark a ticket as completed (provider only)
+ */
+export const CompleteTicketParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CompleteTicketBody = zod.object({
+  completedNote: zod.string().nullish(),
+});
+
+export const CompleteTicketResponse = zod.object({
+  id: zod.number(),
+  pitcherId: zod.number(),
+  pitcherName: zod.string().nullish(),
+  providerId: zod.number(),
+  providerName: zod.string().nullish(),
+  type: zod.enum(["new_account", "rebind_bm"]),
+  status: zod.enum(["pending", "completed"]),
+  platform: zod.string().nullish(),
+  amount: zod.string().nullish(),
+  targetBm: zod.string().nullish(),
+  account: zod.string().nullish(),
+  remark: zod.string().nullish(),
+  completedNote: zod.string().nullish(),
+  completedAt: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});

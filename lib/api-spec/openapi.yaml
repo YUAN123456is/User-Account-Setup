@@ -983,6 +983,84 @@ paths:
                 items:
                   $ref: "#/components/schemas/ProviderAccountDetail"
 
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      summary: List tickets (role-filtered)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: pitcherId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: providerId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: dateFrom
+          schema:
+            type: ["string", "null"]
+        - in: query
+          name: dateTo
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+    post:
+      operationId: createTicket
+      tags: [tickets]
+      summary: Submit a new ticket (pitcher only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketBody"
+      responses:
+        "201":
+          description: Created ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /tickets/{id}/complete:
+    patch:
+      operationId: completeTicket
+      tags: [tickets]
+      summary: Mark a ticket as completed (provider only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteTicketBody"
+      responses:
+        "200":
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
 components:
   schemas:
     HealthStatus:
@@ -1759,6 +1837,103 @@ components:
         - description
         - images
         - submittedAt
+
+    # ─── Tickets ──────────────────────────────────────────────────────────────
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+        pitcherId:
+          type: integer
+        pitcherName:
+          type: ["string", "null"]
+        providerId:
+          type: integer
+        providerName:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [new_account, rebind_bm]
+        status:
+          type: string
+          enum: [pending, completed]
+        platform:
+          type: ["string", "null"]
+        amount:
+          type: ["string", "null"]
+        targetBm:
+          type: ["string", "null"]
+        account:
+          type: ["string", "null"]
+        remark:
+          type: ["string", "null"]
+        completedNote:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - pitcherId
+        - providerId
+        - type
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateTicketBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [new_account, rebind_bm]
+        providerId:
+          type: integer
+        platform:
+          type: ["string", "null"]
+        amount:
+          type: ["string", "null"]
+        targetBm:
+          type: ["string", "null"]
+        account:
+          type: ["string", "null"]
+        remark:
+          type: ["string", "null"]
+      required:
+        - type
+        - providerId
+
+    CompleteTicketBody:
+      type: object
+      properties:
+        completedNote:
+          type: ["string", "null"]
+
+    ListTicketsQueryParams:
+      type: object
+      properties:
+        status:
+          type: ["string", "null"]
+        pitcherId:
+          type: ["integer", "null"]
+        providerId:
+          type: ["integer", "null"]
+        dateFrom:
+          type: ["string", "null"]
+        dateTo:
+          type: ["string", "null"]
+
+    CompleteTicketParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required:
+        - id
 
     # ─── Storage ──────────────────────────────────────────────────────────────
     RequestUploadUrlBody:

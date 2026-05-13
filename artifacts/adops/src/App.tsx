@@ -30,6 +30,9 @@ import DailyReportPage from "@/pages/pitcher/DailyReportPage";
 import RechargeRequestPage from "@/pages/pitcher/RechargeRequestPage";
 import TeamFeedbackPage from "@/pages/pitcher/TeamFeedbackPage";
 import PitcherMetaTokensPage from "@/pages/pitcher/PitcherMetaTokensPage";
+import PitcherTicketsPage from "@/pages/pitcher/TicketsPage";
+import ProviderTicketsPage from "@/pages/provider/ProviderTicketsPage";
+import AdminTicketsPage from "@/pages/admin/AdminTicketsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,9 +94,11 @@ const AdminFinanceRoute = makeAdminRoute(FinancePage);
 const AdminAlertsRoute = makeAdminRoute(AlertsPage);
 const AdminTeamFeedbackRoute = makeAdminRoute(AdminTeamFeedbackPage);
 const AdminPendingApprovalsRoute = makeAdminRoute(PendingApprovalsPage);
+const AdminTicketsRoute = makeAdminRoute(AdminTicketsPage);
 
 const ProviderAccountsRoute = makeProviderRoute(ProviderAccountsPage);
 const ProviderRechargeOrdersRoute = makeProviderRoute(ProviderRechargeOrdersPage);
+const ProviderTicketsRoute = makeProviderRoute(ProviderTicketsPage);
 
 const PitcherDashboardRoute = makePitcherRoute(PitcherDashboardPage);
 const PitcherAccountsRoute = makePitcherRoute(PitcherAccountsPage);
@@ -102,6 +107,7 @@ const PitcherReportRoute = makePitcherRoute(DailyReportPage);
 const PitcherRechargeRoute = makePitcherRoute(RechargeRequestPage);
 const PitcherTeamFeedbackRoute = makePitcherRoute(TeamFeedbackPage);
 const PitcherMetaTokensRoute = makePitcherRoute(PitcherMetaTokensPage);
+const PitcherTicketsRoute = makePitcherRoute(PitcherTicketsPage);
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -146,6 +152,7 @@ function AppRoutes() {
       <Route path="/admin/alerts" component={AdminAlertsRoute} />
       <Route path="/admin/team-feedback" component={AdminTeamFeedbackRoute} />
       <Route path="/admin/pending-approvals" component={AdminPendingApprovalsRoute} />
+      <Route path="/admin/tickets" component={AdminTicketsRoute} />
       <Route path="/admin/reports/:tab">
         <Redirect to="/admin/reports" />
       </Route>
@@ -161,6 +168,7 @@ function AppRoutes() {
 
       <Route path="/provider/accounts" component={ProviderAccountsRoute} />
       <Route path="/provider/recharge-orders" component={ProviderRechargeOrdersRoute} />
+      <Route path="/provider/tickets" component={ProviderTicketsRoute} />
       <Route path="/provider">
         <Redirect to="/provider/accounts" />
       </Route>
@@ -175,6 +183,7 @@ function AppRoutes() {
       <Route path="/pitcher/recharge" component={PitcherRechargeRoute} />
       <Route path="/pitcher/team-feedback" component={PitcherTeamFeedbackRoute} />
       <Route path="/pitcher/meta-tokens" component={PitcherMetaTokensRoute} />
+      <Route path="/pitcher/tickets" component={PitcherTicketsRoute} />
       <Route path="/pitcher">
         <Redirect to="/pitcher/dashboard" />
       </Route>
