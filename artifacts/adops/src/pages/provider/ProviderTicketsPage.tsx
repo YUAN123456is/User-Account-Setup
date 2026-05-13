@@ -25,7 +25,6 @@ interface Ticket {
   type: "new_account" | "rebind_bm";
   status: "pending" | "completed";
   pitcherId: number;
-  pitcherName?: string | null;
   platform?: string | null;
   amount?: string | null;
   targetBm?: string | null;
@@ -69,7 +68,6 @@ function CompleteDialog({ ticket, onClose }: { ticket: Ticket; onClose: () => vo
           <div className="bg-muted/50 rounded-lg px-3 py-2.5 text-sm space-y-1">
             <div className="flex items-center gap-2">
               <TicketTypeBadge type={ticket.type} />
-              <span className="text-muted-foreground text-xs">来自 {ticket.pitcherName ?? `投手 #${ticket.pitcherId}`}</span>
             </div>
             {ticket.type === "new_account" && (
               <p className="text-xs text-muted-foreground">平台: {ticket.platform} · 金额: ${ticket.amount}</p>
@@ -118,7 +116,6 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
             <TableHeader>
               <TableRow className="bg-muted/20">
                 <TableHead>类型</TableHead>
-                <TableHead>投手</TableHead>
                 <TableHead>详情</TableHead>
                 <TableHead>完成备注</TableHead>
                 <TableHead className="w-24">完成时间</TableHead>
@@ -126,12 +123,11 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
             </TableHeader>
             <TableBody>
               {paged.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">暂无历史工单</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm py-6">暂无历史工单</TableCell></TableRow>
               )}
               {paged.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell><TicketTypeBadge type={t.type} /></TableCell>
-                  <TableCell className="text-sm">{t.pitcherName ?? `#${t.pitcherId}`}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[200px]">
                     {t.type === "new_account"
                       ? <span>{t.platform} · ${t.amount}</span>
@@ -173,7 +169,7 @@ export default function ProviderTicketsPage() {
   const filteredPending = useMemo(() => {
     if (!search.trim()) return pending;
     const q = search.toLowerCase();
-    return pending.filter((t) => (t.pitcherName ?? "").toLowerCase().includes(q) || (t.remark ?? "").toLowerCase().includes(q));
+    return pending.filter((t) => (t.remark ?? "").toLowerCase().includes(q) || (t.platform ?? "").toLowerCase().includes(q) || (t.targetBm ?? "").toLowerCase().includes(q));
   }, [pending, search]);
 
   const pagedPending = usePagination(filteredPending, PAGE_SIZE, page);
@@ -182,7 +178,7 @@ export default function ProviderTicketsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">工单管理</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">处理投手提交的开新户和换绑BM申请</p>
+        <p className="text-sm text-muted-foreground mt-0.5">处理提交的开新户和换绑BM申请</p>
       </div>
 
       <StatsBar items={[
@@ -198,7 +194,7 @@ export default function ProviderTicketsPage() {
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-8 h-8 w-48 text-sm" placeholder="搜索投手名称..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+              <Input className="pl-8 h-8 w-48 text-sm" placeholder="搜索备注或平台..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
             </div>
             <div className="flex items-center gap-1.5">
               <input type="date" value={dateRange.from} onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPage(1); }} className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring" />
@@ -216,7 +212,6 @@ export default function ProviderTicketsPage() {
             <TableHeader>
               <TableRow className="bg-muted/40">
                 <TableHead>类型</TableHead>
-                <TableHead>投手</TableHead>
                 <TableHead>详情</TableHead>
                 <TableHead>备注</TableHead>
                 <TableHead className="w-24">提交时间</TableHead>
@@ -225,19 +220,18 @@ export default function ProviderTicketsPage() {
             </TableHeader>
             <TableBody>
               {isLoading && Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
+                <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
                   <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
                 ))}</TableRow>
               ))}
               {!isLoading && pagedPending.length === 0 && (
-                <TableRow><TableCell colSpan={6}>
-                  <EmptyState icon={TicketIcon} title="暂无待处理工单" description="所有工单均已完成，或投手尚未提交申请。" />
+                <TableRow><TableCell colSpan={5}>
+                  <EmptyState icon={TicketIcon} title="暂无待处理工单" description="所有工单均已完成，或尚未有申请提交。" />
                 </TableCell></TableRow>
               )}
               {!isLoading && pagedPending.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell><TicketTypeBadge type={t.type} /></TableCell>
-                  <TableCell className="text-sm font-medium">{t.pitcherName ?? `#${t.pitcherId}`}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[220px]">
                     {t.type === "new_account" ? (
                       <span>{t.platform} · 初始金额 ${t.amount}</span>
