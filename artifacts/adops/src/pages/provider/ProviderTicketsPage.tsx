@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
 import { StatsBar } from "@/components/shared/StatsBar";
-import { TicketIcon, CheckCircle, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { TicketIcon, CheckCircle, Search, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PAGE_SIZE = 20;
@@ -39,6 +39,72 @@ function TicketTypeBadge({ type }: { type: string }) {
   return type === "new_account"
     ? <Badge variant="outline" className="text-blue-600 border-blue-400 bg-blue-500/10 text-xs">开新户</Badge>
     : <Badge variant="outline" className="text-purple-600 border-purple-400 bg-purple-500/10 text-xs">换绑BM</Badge>;
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium break-all whitespace-pre-wrap">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function TicketDetailDialog({ ticket, onClose, onComplete }: { ticket: Ticket; onClose: () => void; onComplete?: () => void }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <TicketIcon className="h-4 w-4" />
+            工单详情 #{ticket.id}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="flex items-center gap-2">
+            <TicketTypeBadge type={ticket.type} />
+            <Badge variant={ticket.status === "pending" ? "secondary" : "outline"} className={ticket.status === "completed" ? "text-green-600 border-green-400 bg-green-500/10 text-xs" : "text-xs"}>
+              {ticket.status === "pending" ? "待处理" : "已完成"}
+            </Badge>
+          </div>
+
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            {ticket.type === "new_account" ? (
+              <>
+                <DetailRow label="广告平台" value={ticket.platform} />
+                <DetailRow label="初始充值金额（美元）" value={ticket.amount ? `$${ticket.amount}` : null} />
+              </>
+            ) : (
+              <>
+                <DetailRow label="目标 BM ID" value={ticket.targetBm} />
+                <DetailRow label="需换绑的账户" value={ticket.account} />
+              </>
+            )}
+            <DetailRow label="备注" value={ticket.remark} />
+          </div>
+
+          <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
+            <DetailRow label="提交时间" value={new Date(ticket.createdAt).toLocaleString("zh-CN")} />
+            {ticket.status === "completed" && (
+              <>
+                <DetailRow label="完成时间" value={ticket.completedAt ? new Date(ticket.completedAt).toLocaleString("zh-CN") : null} />
+                <DetailRow label="完成备注" value={ticket.completedNote} />
+              </>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>关闭</Button>
+          {ticket.status === "pending" && onComplete && (
+            <Button onClick={() => { onClose(); onComplete(); }} className="bg-green-600 hover:bg-green-700">
+              标记完成
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function CompleteDialog({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
@@ -99,6 +165,7 @@ function CompleteDialog({ ticket, onClose }: { ticket: Ticket; onClose: () => vo
 function HistorySection({ tickets }: { tickets: Ticket[] }) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [viewTarget, setViewTarget] = useState<Ticket | null>(null);
   const paged = usePagination(tickets, PAGE_SIZE, page);
 
   return (
@@ -119,11 +186,12 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
                 <TableHead>详情</TableHead>
                 <TableHead>完成备注</TableHead>
                 <TableHead className="w-24">完成时间</TableHead>
+                <TableHead className="w-16">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paged.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm py-6">暂无历史工单</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-6">暂无历史工单</TableCell></TableRow>
               )}
               {paged.map((t) => (
                 <TableRow key={t.id}>
@@ -139,6 +207,11 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
                   <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                     {t.completedAt ? new Date(t.completedAt).toLocaleDateString("zh-CN") : "—"}
                   </TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setViewTarget(t)}>
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -146,12 +219,14 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
           <TablePagination page={page} pageSize={PAGE_SIZE} total={tickets.length} onPageChange={setPage} />
         </>
       )}
+      {viewTarget && <TicketDetailDialog ticket={viewTarget} onClose={() => setViewTarget(null)} />}
     </div>
   );
 }
 
 export default function ProviderTicketsPage() {
   const [completeTarget, setCompleteTarget] = useState<Ticket | null>(null);
+  const [viewTarget, setViewTarget] = useState<Ticket | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -169,7 +244,11 @@ export default function ProviderTicketsPage() {
   const filteredPending = useMemo(() => {
     if (!search.trim()) return pending;
     const q = search.toLowerCase();
-    return pending.filter((t) => (t.remark ?? "").toLowerCase().includes(q) || (t.platform ?? "").toLowerCase().includes(q) || (t.targetBm ?? "").toLowerCase().includes(q));
+    return pending.filter((t) =>
+      (t.remark ?? "").toLowerCase().includes(q) ||
+      (t.platform ?? "").toLowerCase().includes(q) ||
+      (t.targetBm ?? "").toLowerCase().includes(q)
+    );
   }, [pending, search]);
 
   const pagedPending = usePagination(filteredPending, PAGE_SIZE, page);
@@ -215,7 +294,7 @@ export default function ProviderTicketsPage() {
                 <TableHead>详情</TableHead>
                 <TableHead>备注</TableHead>
                 <TableHead className="w-24">提交时间</TableHead>
-                <TableHead className="w-20">操作</TableHead>
+                <TableHead className="w-28">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -238,16 +317,21 @@ export default function ProviderTicketsPage() {
                     ) : (
                       <>
                         <span className="block">BM: {t.targetBm}</span>
-                        <span className="block whitespace-pre-wrap text-muted-foreground/70">{t.account}</span>
+                        <span className="block whitespace-pre-wrap text-muted-foreground/70 truncate max-w-[180px]">{t.account}</span>
                       </>
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">{t.remark ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString("zh-CN")}</TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-400 hover:bg-green-500/10" onClick={() => setCompleteTarget(t)}>
-                      完成
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setViewTarget(t)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs text-green-600 border-green-400 hover:bg-green-500/10" onClick={() => setCompleteTarget(t)}>
+                        完成
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -260,6 +344,13 @@ export default function ProviderTicketsPage() {
       {/* History */}
       <HistorySection tickets={completed} />
 
+      {viewTarget && (
+        <TicketDetailDialog
+          ticket={viewTarget}
+          onClose={() => setViewTarget(null)}
+          onComplete={viewTarget.status === "pending" ? () => { setCompleteTarget(viewTarget); setViewTarget(null); } : undefined}
+        />
+      )}
       {completeTarget && <CompleteDialog ticket={completeTarget} onClose={() => setCompleteTarget(null)} />}
     </div>
   );
