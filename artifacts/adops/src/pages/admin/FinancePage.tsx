@@ -231,7 +231,9 @@ export default function FinancePage() {
 
   const totalAmount = filtered.reduce((s, o) => s + Number(o.amount), 0);
   const pendingCount = filtered.filter((o) => o.status === "pending").length;
-  const completedAmount = filtered.filter((o) => o.status === "completed").reduce((s, o) => s + Number(o.actualAmount ?? o.amount), 0);
+  const completedOrders = filtered.filter((o) => o.status === "completed");
+  const approvedAmount = completedOrders.reduce((s, o) => s + Number(o.amount), 0);
+  const completedAmount = completedOrders.reduce((s, o) => s + Number(o.actualAmount ?? o.amount), 0);
   const rejectedCount = filtered.filter((o) => o.status === "rejected").length;
 
   return (
@@ -273,6 +275,7 @@ export default function FinancePage() {
 
       <StatsBar items={[
         { label: "充值总额（当前筛选）", value: `$${totalAmount.toFixed(2)}`, color: "blue" },
+        { label: "已通过充值金额", value: `$${approvedAmount.toFixed(2)}`, color: "green" },
         { label: "实际到账（已完成）", value: `$${completedAmount.toFixed(2)}`, color: "green" },
         { label: "待审核笔数", value: pendingCount, color: pendingCount > 0 ? "amber" : "default" },
         { label: "已拒绝笔数", value: rejectedCount, color: rejectedCount > 0 ? "red" : "default" },
