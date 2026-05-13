@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTickets,
   useCreateTicket,
+  useListProviders,
   getListTicketsQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,6 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { TicketIcon, Plus, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useListUsers } from "@workspace/api-client-react";
 
 const PAGE_SIZE = 20;
 
@@ -53,8 +53,10 @@ function TicketStatusBadge({ status }: { status: string }) {
 function SubmitDialog({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: usersData } = useListUsers({ role: "provider" });
-  const providers = Array.isArray(usersData) ? (usersData as { id: number; displayName: string; isActive: boolean }[]).filter(u => u.isActive) : [];
+  const { data: providersData } = useListProviders();
+  const providers = Array.isArray(providersData)
+    ? (providersData as { id: number; displayName: string }[])
+    : [];
 
   const [type, setType] = useState<"new_account" | "rebind_bm">("new_account");
   const [providerId, setProviderId] = useState("");
@@ -79,10 +81,7 @@ function SubmitDialog({ onClose }: { onClose: () => void }) {
   });
 
   const handleSubmit = () => {
-    if (!providerId) {
-      toast({ title: "请选择开户商", variant: "destructive" });
-      return;
-    }
+    if (!providerId) { toast({ title: "请选择开户商", variant: "destructive" }); return; }
     if (type === "new_account") {
       if (!platform) { toast({ title: "请选择投放平台", variant: "destructive" }); return; }
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) { toast({ title: "请输入有效的初始金额", variant: "destructive" }); return; }
@@ -112,11 +111,8 @@ function SubmitDialog({ onClose }: { onClose: () => void }) {
             <Label>工单类型 <span className="text-destructive">*</span></Label>
             <div className="flex gap-2">
               {(["new_account", "rebind_bm"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setType(t)}
-                  className={[
-                    "flex-1 py-2 rounded-md border text-sm font-medium transition-colors",
+                <button key={t} onClick={() => setType(t)}
+                  className={["flex-1 py-2 rounded-md border text-sm font-medium transition-colors",
                     type === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:bg-muted",
                   ].join(" ")}
                 >
@@ -245,10 +241,9 @@ function HistorySection({ tickets }: { tickets: Ticket[] }) {
 
 export default function TicketsPage() {
   const [showSubmit, setShowSubmit] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [page, setPage] = useState(1);
+  const [pendingPage, setPendingPage] = useState(1);
 
   const apiParams: Record<string, string> = {};
   if (dateRange.from) apiParams.dateFrom = dateRange.from;
@@ -260,19 +255,29 @@ export default function TicketsPage() {
   const pending = allTickets.filter((t) => t.status === "pending");
   const completed = allTickets.filter((t) => t.status === "completed");
 
-  const filtered = useMemo(() => {
-    let rows = statusFilter === "pending" ? pending : statusFilter === "completed" ? completed : allTickets;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      rows = rows.filter((t) => (t.providerName ?? "").toLowerCase().includes(q) || (t.remark ?? "").toLowerCase().includes(q));
-    }
-    return rows;
-  }, [allTickets, pending, completed, statusFilter, search]);
+  const filteredPending = useMemo(() => {
+    if (!search.trim()) return pending;
+    const q = search.toLowerCase();
+    return pending.filter((t) =>
+      (t.providerName ?? "").toLowerCase().includes(q) ||
+      (t.remark ?? "").toLowerCase().includes(q) ||
+      (t.targetBm ?? "").toLowerCase().includes(q) ||
+      (t.platform ?? "").toLowerCase().includes(q)
+    );
+  }, [pending, search]);
 
-  const activePending = pending.slice(0, 5);
-  const historyTickets = completed;
+  const filteredCompleted = useMemo(() => {
+    if (!search.trim()) return completed;
+    const q = search.toLowerCase();
+    return completed.filter((t) =>
+      (t.providerName ?? "").toLowerCase().includes(q) ||
+      (t.remark ?? "").toLowerCase().includes(q) ||
+      (t.targetBm ?? "").toLowerCase().includes(q) ||
+      (t.platform ?? "").toLowerCase().includes(q)
+    );
+  }, [completed, search]);
 
-  const paged = usePagination(filtered, PAGE_SIZE, page);
+  const pagedPending = usePagination(filteredPending, PAGE_SIZE, pendingPage);
 
   return (
     <div className="space-y-5">
@@ -292,70 +297,87 @@ export default function TicketsPage() {
         { label: "已完成", value: completed.length, color: "green" },
       ]} />
 
-      {/* Pending tickets */}
-      {activePending.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">处理中的工单</h2>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>类型</TableHead>
-                  <TableHead>开户商</TableHead>
-                  <TableHead>详情</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead className="w-24">提交时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading && Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
-                    <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
-                  ))}</TableRow>
-                ))}
-                {!isLoading && activePending.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell><TicketTypeBadge type={t.type} /></TableCell>
-                    <TableCell className="text-sm">{t.providerName ?? `#${t.providerId}`}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[220px]">
-                      {t.type === "new_account"
-                        ? <span>{t.platform} · ${t.amount}</span>
-                        : <span className="truncate block">BM: {t.targetBm}</span>
-                      }
-                      {t.remark && <span className="block text-muted-foreground/70 truncate">备注: {t.remark}</span>}
-                    </TableCell>
-                    <TableCell><TicketStatusBadge status={t.status} /></TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString("zh-CN")}</TableCell>
-                  </TableRow>
-                ))}
-                {!isLoading && activePending.length === 0 && (
-                  <TableRow><TableCell colSpan={5}><EmptyState icon={TicketIcon} title="暂无处理中的工单" /></TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8 h-8 w-48 text-sm"
+            placeholder="搜索开户商/备注..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPendingPage(1); }}
+          />
         </div>
-      )}
-
-      {/* History */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8 h-8 w-48 text-sm" placeholder="搜索开户商..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">提交时间</span>
-            <input type="date" value={dateRange.from} onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPage(1); }} className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring" />
-            <span className="text-xs text-muted-foreground">—</span>
-            <input type="date" value={dateRange.to} onChange={(e) => { setDateRange((r) => ({ ...r, to: e.target.value })); setPage(1); }} className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring" />
-            {(dateRange.from || dateRange.to) && (
-              <button onClick={() => { setDateRange({ from: "", to: "" }); setPage(1); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors">清除</button>
-            )}
-          </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">提交时间</span>
+          <input type="date" value={dateRange.from}
+            onChange={(e) => { setDateRange((r) => ({ ...r, from: e.target.value })); setPendingPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <span className="text-xs text-muted-foreground">—</span>
+          <input type="date" value={dateRange.to}
+            onChange={(e) => { setDateRange((r) => ({ ...r, to: e.target.value })); setPendingPage(1); }}
+            className="h-8 text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {(dateRange.from || dateRange.to || search) && (
+            <button
+              onClick={() => { setDateRange({ from: "", to: "" }); setSearch(""); setPendingPage(1); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              清除
+            </button>
+          )}
         </div>
-        <HistorySection tickets={historyTickets} />
       </div>
+
+      {/* Pending tickets */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">处理中的工单</h2>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead>类型</TableHead>
+                <TableHead>开户商</TableHead>
+                <TableHead>详情</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="w-24">提交时间</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => (
+                  <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded w-20" /></TableCell>
+                ))}</TableRow>
+              ))}
+              {!isLoading && pagedPending.length === 0 && (
+                <TableRow><TableCell colSpan={5}>
+                  <EmptyState icon={TicketIcon} title="暂无处理中的工单" description="点击右上角【提交工单】创建新申请。" />
+                </TableCell></TableRow>
+              )}
+              {!isLoading && pagedPending.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell><TicketTypeBadge type={t.type} /></TableCell>
+                  <TableCell className="text-sm">{t.providerName ?? `#${t.providerId}`}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-[220px]">
+                    {t.type === "new_account"
+                      ? <span>{t.platform} · 初始金额 ${t.amount}</span>
+                      : <span className="truncate block">BM: {t.targetBm}</span>
+                    }
+                    {t.remark && <span className="block text-muted-foreground/70 truncate">备注: {t.remark}</span>}
+                  </TableCell>
+                  <TableCell><TicketStatusBadge status={t.status} /></TableCell>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{new Date(t.createdAt).toLocaleDateString("zh-CN")}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <TablePagination page={pendingPage} pageSize={PAGE_SIZE} total={filteredPending.length} onPageChange={setPendingPage} />
+        </div>
+      </div>
+
+      {/* History (completed, collapsed by default) */}
+      <HistorySection tickets={filteredCompleted} />
 
       {showSubmit && <SubmitDialog onClose={() => setShowSubmit(false)} />}
     </div>

@@ -32,6 +32,15 @@ router.get("/pitchers", requireAuth, async (req, res): Promise<void> => {
   res.json(pitchers);
 });
 
+// GET /api/providers — any authenticated user can fetch the active provider list (for ticket submission)
+router.get("/providers", requireAuth, async (req, res): Promise<void> => {
+  const providers = await db
+    .select({ id: usersTable.id, displayName: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.role, "provider"));
+  res.json(providers);
+});
+
 router.get("/users", requireRole("admin"), async (req, res): Promise<void> => {
   const params = ListUsersQueryParams.safeParse(req.query);
   if (!params.success) {

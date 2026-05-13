@@ -58,6 +58,15 @@ export const GetMeResponse = zod.object({
 });
 
 /**
+ * @summary List all providers (any authenticated user)
+ */
+export const ListProvidersResponseItem = zod.object({
+  id: zod.number(),
+  displayName: zod.string(),
+});
+export const ListProvidersResponse = zod.array(ListProvidersResponseItem);
+
+/**
  * @summary List all users (admin)
  */
 export const ListUsersQueryParams = zod.object({

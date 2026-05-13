@@ -97,6 +97,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ─── Public user lists (any authenticated role) ───────────────────────────
+  /providers:
+    get:
+      operationId: listProviders
+      tags: [users]
+      summary: List all providers (any authenticated user)
+      responses:
+        "200":
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SimpleUser"
+
   # ─── Users (Admin only) ───────────────────────────────────────────────────
   /users:
     get:
@@ -1078,6 +1094,18 @@ components:
           type: string
       required:
         - error
+
+    # ─── Shared ───────────────────────────────────────────────────────────
+    SimpleUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        displayName:
+          type: string
+      required:
+        - id
+        - displayName
 
     # ─── Auth ─────────────────────────────────────────────────────────────
     LoginBody:

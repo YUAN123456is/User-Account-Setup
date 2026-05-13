@@ -13,6 +13,11 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface SimpleUser {
+  id: number;
+  displayName: string;
+}
+
 export interface LoginBody {
   username: string;
   password: string;
