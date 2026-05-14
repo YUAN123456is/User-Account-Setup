@@ -270,23 +270,35 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     ? theoreticalBal.toFixed(2)
     : (theoreticalBal - spend).toFixed(2);
 
-  const [stat] = await db.insert(dailyStatsTable).values({
-    accountId: parsed.data.accountId,
-    date: parsed.data.date,
-    spendAmount: spend.toFixed(2),
-    realBalance: newBalance,
-    pitcherId: req.session.userId!,
-    hasAlert: parseFloat(newBalance) < 100,
-    businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
-    teamId: parsed.data.teamId ?? null,
-    fanCount: parsed.data.fanCount ?? null,
-    gmv: parsed.data.gmv ?? null,
-    orderCount: parsed.data.orderCount ?? null,
-    // Team attribution records are auto-approved: they carry no spend and need no financial review.
-    // Only main records (teamId=null) go through the normal pending → approved flow.
-    status: isTeamSplitRecord ? "approved" : "pending",
-    fbSynced: false,
-  }).returning();
+  let stat: typeof dailyStatsTable.$inferSelect;
+  try {
+    const [inserted] = await db.insert(dailyStatsTable).values({
+      accountId: parsed.data.accountId,
+      date: parsed.data.date,
+      spendAmount: spend.toFixed(2),
+      realBalance: newBalance,
+      pitcherId: req.session.userId!,
+      hasAlert: parseFloat(newBalance) < 100,
+      businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
+      teamId: parsed.data.teamId ?? null,
+      fanCount: parsed.data.fanCount ?? null,
+      gmv: parsed.data.gmv ?? null,
+      orderCount: parsed.data.orderCount ?? null,
+      // Team attribution records are auto-approved: they carry no spend and need no financial review.
+      // Only main records (teamId=null) go through the normal pending → approved flow.
+      status: isTeamSplitRecord ? "approved" : "pending",
+      fbSynced: false,
+    }).returning();
+    stat = inserted;
+  } catch (err: unknown) {
+    // PostgreSQL unique constraint violation (code 23505) — duplicate submission
+    const pgErr = err as { code?: string };
+    if (pgErr?.code === "23505") {
+      res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
+      return;
+    }
+    throw err;
+  }
 
   // Only update account balance for the main record (no teamId)
   if (!isTeamSplitRecord) {

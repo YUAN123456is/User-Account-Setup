@@ -1,4 +1,5 @@
-import { pgTable, serial, timestamp, integer, decimal, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, integer, decimal, text, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { accountsTable } from "./accounts";
@@ -23,7 +24,12 @@ export const dailyStatsTable = pgTable("daily_stats", {
   reviewNote: text("review_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  // Prevent duplicate main records: one per (account, date) where teamId IS NULL
+  uniqueIndex("daily_stats_main_unique").on(t.accountId, t.date).where(sql`${t.teamId} IS NULL`),
+  // Prevent duplicate team attribution records: one per (account, date, team)
+  uniqueIndex("daily_stats_team_unique").on(t.accountId, t.date, t.teamId).where(sql`${t.teamId} IS NOT NULL`),
+]);
 
 export const insertDailyStatSchema = createInsertSchema(dailyStatsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDailyStat = z.infer<typeof insertDailyStatSchema>;
