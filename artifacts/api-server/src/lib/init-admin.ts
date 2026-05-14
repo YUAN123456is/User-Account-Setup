@@ -1,4 +1,4 @@
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { db, usersTable, dailyStatsTable, accountsTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
@@ -12,6 +12,26 @@ import { logger } from "./logger";
  * This function finds any such records, restores the account balance, and zeros the spend.
  * After running it becomes a no-op (no more fb_synced team records with spend > 0).
  */
+/**
+ * Idempotent: ensures the DB-level CHECK constraint exists that prevents team attribution
+ * records from ever having non-zero spend. Safe to call on every startup — it no-ops if
+ * the constraint is already in place.
+ */
+export async function ensureDbConstraints(): Promise<void> {
+  // pg_constraint is the authoritative system catalog; safer than information_schema.
+  const existing = await db.execute(sql`
+    SELECT 1 FROM pg_constraint WHERE conname = 'team_records_zero_spend'
+  `);
+  if (existing.rows.length > 0) return;
+
+  await db.execute(sql`
+    ALTER TABLE daily_stats
+    ADD CONSTRAINT team_records_zero_spend
+    CHECK (team_id IS NULL OR spend_amount = 0)
+  `);
+  logger.info("DB constraint team_records_zero_spend added");
+}
+
 export async function fixTeamRecordSpend(): Promise<void> {
   const candidates = await db.select().from(dailyStatsTable).where(
     and(eq(dailyStatsTable.fbSynced, true), ne(dailyStatsTable.spendAmount, "0.00"))
