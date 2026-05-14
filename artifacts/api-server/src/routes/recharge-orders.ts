@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, SQL } from "drizzle-orm";
 import { db, rechargeOrdersTable, accountsTable, usersTable } from "@workspace/db";
+import { syncAccountBalance } from "../lib/balance";
 import {
   CreateRechargeOrderBody,
   UpdateRechargeOrderBody,
@@ -210,27 +211,30 @@ router.patch("/recharge-orders/:id", requireAuth, async (req, res): Promise<void
     }
   }
 
-  const [updated] = await db.update(rechargeOrdersTable).set({
-    status: parsed.data.status,
-    actualAmount: actualAmountVal,
-    note: parsed.data.note !== undefined ? parsed.data.note : order.note,
-  }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+  let updated: typeof rechargeOrdersTable.$inferSelect;
 
   if (parsed.data.status === "completed") {
-    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, order.accountId));
-    if (acct) {
-      // Use actualAmount for balance credit if available, otherwise fall back to amount
-      const creditAmount = actualAmountVal ? parseFloat(actualAmountVal) : parseFloat(order.amount);
-      const newBal = parseFloat(acct.currentBalance) + creditAmount;
-      const newTheoretical = parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + creditAmount;
-      await db.update(accountsTable).set({
-        currentBalance: newBal.toFixed(2),
-        theoreticalBalance: newTheoretical.toFixed(2),
-      }).where(eq(accountsTable.id, order.accountId));
-    }
+    // Mark the order completed first, then recalculate balance from source of truth.
+    // Both happen inside a transaction so the balance is always consistent with the orders table.
+    await db.transaction(async (tx) => {
+      const [u] = await tx.update(rechargeOrdersTable).set({
+        status: parsed.data.status,
+        actualAmount: actualAmountVal,
+        note: parsed.data.note !== undefined ? parsed.data.note : order.note,
+      }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+      updated = u;
+      await syncAccountBalance(order.accountId, tx);
+    });
+  } else {
+    const [u] = await db.update(rechargeOrdersTable).set({
+      status: parsed.data.status,
+      actualAmount: actualAmountVal,
+      note: parsed.data.note !== undefined ? parsed.data.note : order.note,
+    }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+    updated = u;
   }
 
-  res.json(await formatOrder(updated));
+  res.json(await formatOrder(updated!));
 });
 
 export default router;

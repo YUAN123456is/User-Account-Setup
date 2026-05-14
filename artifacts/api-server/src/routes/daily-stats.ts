@@ -8,6 +8,7 @@ import {
   UpdateDailyStatParams,
 } from "@workspace/api-zod";
 import { requireAuth, requireRole } from "../middlewares/require-auth";
+import { recalculateBalance, syncAccountBalance } from "../lib/balance";
 
 const router: IRouter = Router();
 
@@ -102,7 +103,7 @@ router.get("/daily-stats/pending", requireRole("admin"), async (req, res): Promi
   res.json(formatted);
 });
 
-// POST /api/daily-stats/:id/approve — admin approves
+// POST /api/daily-stats/:id/approve — admin approves (balance unchanged: pending already counted)
 router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
@@ -116,20 +117,22 @@ router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): 
 });
 
 // POST /api/daily-stats/:id/reject — admin rejects
+// Rejected records are excluded from the balance sum, so balance auto-restores via recalculate.
 router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  // Balance is NOT restored on rejection — the pitcher will edit and resubmit,
-  // at which point the spend delta will naturally correct the balance.
-  // Restoring here then resubmitting would cause double-addition.
   const [stat] = await db
     .update(dailyStatsTable)
     .set({ status: "rejected", reviewNote: body.note ?? null })
     .where(eq(dailyStatsTable.id, id))
     .returning();
+
+  if (existing.accountId && existing.teamId == null) {
+    await syncAccountBalance(existing.accountId);
+  }
 
   res.json(await formatStat(stat));
 });
@@ -149,56 +152,41 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
 
-  // Restore the account balance: add the spend back.
-  // Team split records (teamId != null) never touched the balance, so nothing to restore.
-  const spend = parseFloat(existing.spendAmount);
-  if (spend > 0 && existing.accountId && existing.teamId == null) {
-    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-    if (acct) {
-      const restoredCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
-      const restoredTheoretical = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spend).toFixed(2);
-      await db.update(accountsTable).set({
-        currentBalance: restoredCurrent,
-        theoreticalBalance: restoredTheoretical,
-      }).where(eq(accountsTable.id, existing.accountId));
-    }
-  }
+  const accountId = existing.accountId;
+  const isMainRecord = existing.teamId == null;
 
-  // If deleting the main record, cascade-delete all team attribution records for same account+date.
-  // If deleting a team record with no main record (orphaned group), also cascade all siblings.
-  if (existing.teamId == null && existing.accountId && existing.date) {
-    await db.delete(dailyStatsTable).where(
-      and(
-        eq(dailyStatsTable.accountId, existing.accountId),
-        eq(dailyStatsTable.date, existing.date),
-      )
-    );
-  } else if (existing.accountId && existing.date) {
-    const [mainRecord] = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
-      and(
-        eq(dailyStatsTable.accountId, existing.accountId),
-        eq(dailyStatsTable.date, existing.date),
-        isNull(dailyStatsTable.teamId),
-      )
-    );
-    if (!mainRecord) {
-      // Orphaned team records — cascade-delete entire group
-      await db.delete(dailyStatsTable).where(
-        and(
-          eq(dailyStatsTable.accountId, existing.accountId),
-          eq(dailyStatsTable.date, existing.date),
-        )
+  await db.transaction(async (tx) => {
+    // Cascade delete: main record → all records for same account+date;
+    // team record with no main sibling → all siblings; otherwise just this record.
+    if (isMainRecord && accountId && existing.date) {
+      await tx.delete(dailyStatsTable).where(
+        and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date))
       );
+    } else if (accountId && existing.date) {
+      const [mainRecord] = await tx.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
+        and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date), isNull(dailyStatsTable.teamId))
+      );
+      if (!mainRecord) {
+        await tx.delete(dailyStatsTable).where(
+          and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date))
+        );
+      } else {
+        await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+      }
     } else {
-      await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+      await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
     }
-  } else {
-    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
-  }
+
+    // Deleted records are no longer in the table, so recalculate auto-corrects the balance.
+    if (isMainRecord && accountId) {
+      await syncAccountBalance(accountId, tx);
+    }
+  });
+
   res.json({ ok: true });
 });
 
-// DELETE /api/daily-stats/:id/self — pitcher deletes their own rejected record (no admin password needed)
+// DELETE /api/daily-stats/:id/self — pitcher deletes their own rejected record
 router.delete("/daily-stats/:id/self", requireRole("pitcher"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -206,40 +194,34 @@ router.delete("/daily-stats/:id/self", requireRole("pitcher"), async (req, res):
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
 
-  // Only the submitting pitcher can self-delete
   if (existing.pitcherId !== req.session.userId) {
     res.status(403).json({ error: "无权限删除此记录" }); return;
   }
-  // Only rejected, non-FB-synced records can be self-deleted
   if (existing.status !== "rejected" || existing.fbSynced) {
     res.status(400).json({ error: "只能删除已驳回且未FB同步的记录" }); return;
   }
 
-  // Restore balance (main records only — team attribution records never touched balance)
-  const spend = parseFloat(existing.spendAmount);
-  if (spend > 0 && existing.accountId && existing.teamId == null) {
-    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-    if (acct) {
-      const restoredCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
-      const restoredTheoretical = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spend).toFixed(2);
-      await db.update(accountsTable)
-        .set({ currentBalance: restoredCurrent, theoreticalBalance: restoredTheoretical })
-        .where(eq(accountsTable.id, existing.accountId));
-    }
-  }
+  const accountId = existing.accountId;
+  const isMainRecord = existing.teamId == null;
 
-  // If this is a main record, also clean up its team attribution records for the same account+date
-  if (existing.teamId == null && existing.accountId && existing.date) {
-    await db.delete(dailyStatsTable).where(
-      and(
-        eq(dailyStatsTable.accountId, existing.accountId),
-        eq(dailyStatsTable.date, existing.date),
-        eq(dailyStatsTable.pitcherId, existing.pitcherId!),
-      )
-    );
-  } else {
-    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
-  }
+  await db.transaction(async (tx) => {
+    if (isMainRecord && accountId && existing.date) {
+      await tx.delete(dailyStatsTable).where(
+        and(
+          eq(dailyStatsTable.accountId, accountId),
+          eq(dailyStatsTable.date, existing.date),
+          eq(dailyStatsTable.pitcherId, existing.pitcherId!),
+        )
+      );
+    } else {
+      await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+    }
+    // Record was already rejected (excluded from balance sum), so this delete is a no-op for balance.
+    // Still sync for correctness in case of data drift.
+    if (isMainRecord && accountId) {
+      await syncAccountBalance(accountId, tx);
+    }
+  });
 
   res.json({ ok: true });
 });
@@ -259,75 +241,59 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
-  // When a teamId is provided (multi-team split), uniqueness is (accountId, date, teamId).
-  // When no teamId, uniqueness is (accountId, date) with no teamId — prevents plain duplicates.
+  // Team split records (teamId != null) are attribution-only: spend=0, no balance effect.
+  // Main records (teamId=null) carry the actual spend and deduct the balance.
+  const isTeamSplitRecord = parsed.data.teamId != null;
+  const rawSpend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
+  const spend = isTeamSplitRecord ? 0 : rawSpend;
+
   const dupConditions = parsed.data.teamId != null
-    ? and(
-        eq(dailyStatsTable.accountId, parsed.data.accountId),
-        eq(dailyStatsTable.date, parsed.data.date),
-        eq(dailyStatsTable.teamId, parsed.data.teamId)
-      )
-    : and(
-        eq(dailyStatsTable.accountId, parsed.data.accountId),
-        eq(dailyStatsTable.date, parsed.data.date),
-        isNull(dailyStatsTable.teamId)
-      );
+    ? and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date), eq(dailyStatsTable.teamId, parsed.data.teamId))
+    : and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date), isNull(dailyStatsTable.teamId));
   const existing = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(dupConditions);
   if (existing.length > 0) {
     res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
     return;
   }
 
-  // Team split records (teamId != null) represent service attribution only — they do NOT
-  // deduct from account balance (the main record with teamId=null carries the actual spend).
-  const isTeamSplitRecord = parsed.data.teamId != null;
-
-  const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
-  const rawSpend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
-  // Team attribution records MUST have spend=0 — they are attribution-only.
-  // The main record (teamId=null) is the sole source of truth for spend and balance.
-  const spend = isTeamSplitRecord ? 0 : rawSpend;
-  const newBalance = isTeamSplitRecord
-    ? theoreticalBal.toFixed(2)
-    : (theoreticalBal - spend).toFixed(2);
-
-  let stat: typeof dailyStatsTable.$inferSelect;
+  let stat!: typeof dailyStatsTable.$inferSelect;
   try {
-    const [inserted] = await db.insert(dailyStatsTable).values({
-      accountId: parsed.data.accountId,
-      date: parsed.data.date,
-      spendAmount: spend.toFixed(2),
-      realBalance: newBalance,
-      pitcherId: req.session.userId!,
-      hasAlert: parseFloat(newBalance) < 100,
-      businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
-      teamId: parsed.data.teamId ?? null,
-      fanCount: parsed.data.fanCount ?? null,
-      gmv: parsed.data.gmv ?? null,
-      orderCount: parsed.data.orderCount ?? null,
-      // Team attribution records are auto-approved: they carry no spend and need no financial review.
-      // Only main records (teamId=null) go through the normal pending → approved flow.
-      status: isTeamSplitRecord ? "approved" : "pending",
-      fbSynced: false,
-    }).returning();
-    stat = inserted;
+    await db.transaction(async (tx) => {
+      // Recalculate balance before insert so realBalance snapshot is accurate.
+      // preBalance = balance before this spend; realBalance = balance after.
+      const preBalance = await recalculateBalance(parsed.data.accountId, tx);
+      const realBalance = isTeamSplitRecord
+        ? preBalance
+        : (parseFloat(preBalance) - spend).toFixed(2);
+
+      const [inserted] = await tx.insert(dailyStatsTable).values({
+        accountId: parsed.data.accountId,
+        date: parsed.data.date,
+        spendAmount: spend.toFixed(2),
+        realBalance,
+        pitcherId: req.session.userId!,
+        hasAlert: !isTeamSplitRecord && parseFloat(realBalance) < 100,
+        businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
+        teamId: parsed.data.teamId ?? null,
+        fanCount: parsed.data.fanCount ?? null,
+        gmv: parsed.data.gmv ?? null,
+        orderCount: parsed.data.orderCount ?? null,
+        status: isTeamSplitRecord ? "approved" : "pending",
+        fbSynced: false,
+      }).returning();
+      stat = inserted;
+
+      if (!isTeamSplitRecord) {
+        await syncAccountBalance(parsed.data.accountId, tx);
+      }
+    });
   } catch (err: unknown) {
-    // PostgreSQL unique constraint violation (code 23505) — duplicate submission
     const pgErr = err as { code?: string };
     if (pgErr?.code === "23505") {
       res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
       return;
     }
     throw err;
-  }
-
-  // Only update account balance for the main record (no teamId)
-  if (!isTeamSplitRecord) {
-    await db.update(accountsTable).set({
-      currentBalance: newBalance,
-      theoreticalBalance: newBalance,
-      lastReportedAt: new Date(),
-    }).where(eq(accountsTable.id, parsed.data.accountId));
   }
 
   res.status(201).json(await formatStat(stat));
@@ -343,58 +309,60 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (!existing) { res.status(404).json({ error: "Stat not found" }); return; }
   if (existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
   const isTeamRecord = existing.teamId != null;
+  // teamId is immutable after creation — changing it would corrupt balance accounting.
+  const spendChanged = parsed.data.spendAmount != null && !isTeamRecord;
 
+  const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
   if (parsed.data.businessType !== undefined) updates.businessType = (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null;
-  // teamId is immutable after creation — changing it would convert a main record to a team
-  // record (or vice versa), which would corrupt balance accounting.
   if (parsed.data.fanCount !== undefined) updates.fanCount = parsed.data.fanCount ?? null;
   if (parsed.data.gmv !== undefined) updates.gmv = parsed.data.gmv ?? null;
   if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
-
-  // Team attribution records must always have spend=0 — block any spend edits.
-  const spendChanged = parsed.data.spendAmount != null && !isTeamRecord;
+  if (spendChanged) updates.spendAmount = parsed.data.spendAmount!;
 
   if (!spendChanged && Object.keys(updates).length === 0) {
     res.json(await formatStat(existing)); return;
   }
 
-  let newRealBalance = existing.realBalance;
-  let spendDelta = 0;
-  if (spendChanged) {
-    const oldSpend = parseFloat(existing.spendAmount);
-    const newSpend = parseFloat(parsed.data.spendAmount!);
-    spendDelta = newSpend - oldSpend;
-    newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
-    updates.spendAmount = parsed.data.spendAmount!;
-    updates.realBalance = newRealBalance;
-    updates.hasAlert = parseFloat(newRealBalance) < 100;
-  }
-
   if (isTeamRecord) {
     // Team records: no spend changes allowed, metadata edits stay approved.
   } else {
-    // Main records: spend change triggers re-review; metadata changes stay approved.
     if (existing.status !== "approved" || spendChanged) {
       updates.status = "pending";
       updates.reviewNote = null;
     }
   }
 
-  const [stat] = await db.update(dailyStatsTable).set(updates).where(eq(dailyStatsTable.id, params.data.id)).returning();
+  let stat: typeof dailyStatsTable.$inferSelect;
 
-  // Team split records never touched balance — don't update it on edit either.
-  if (spendDelta !== 0 && !isTeamRecord) {
-    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
-    if (acct) {
-      const newCurrentBal = (parseFloat(acct.currentBalance) - spendDelta).toFixed(2);
-      const newTheoreticalBal = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - spendDelta).toFixed(2);
-      await db.update(accountsTable).set({ currentBalance: newCurrentBal, theoreticalBalance: newTheoreticalBal }).where(eq(accountsTable.id, existing.accountId));
-    }
+  if (spendChanged && existing.accountId) {
+    await db.transaction(async (tx) => {
+      // Compute new realBalance from source of truth before the DB update.
+      // preBalance already includes existing.spendAmount in the sum, so:
+      //   newBalance = preBalance - newSpend + oldSpend
+      const preBalance = await recalculateBalance(existing.accountId!, tx);
+      const oldSpend = parseFloat(existing.spendAmount);
+      const newSpend = parseFloat(parsed.data.spendAmount!);
+      const newBalance = (parseFloat(preBalance) - newSpend + oldSpend).toFixed(2);
+
+      updates.realBalance = newBalance;
+      updates.hasAlert = parseFloat(newBalance) < 100;
+
+      const [updated] = await tx
+        .update(dailyStatsTable)
+        .set(updates)
+        .where(eq(dailyStatsTable.id, params.data.id))
+        .returning();
+      stat = updated;
+
+      await syncAccountBalance(existing.accountId!, tx);
+    });
+  } else {
+    const [updated] = await db.update(dailyStatsTable).set(updates).where(eq(dailyStatsTable.id, params.data.id)).returning();
+    stat = updated;
   }
 
-  res.json(await formatStat(stat));
+  res.json(await formatStat(stat!));
 });
 
 export default router;

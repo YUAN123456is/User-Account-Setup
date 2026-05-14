@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { initAdminUser, restoreZeroedTeamSpend } from "./lib/init-admin";
+import { initAdminUser } from "./lib/init-admin";
 import { runFbSync, yesterday } from "./routes/meta-tokens";
 import { msUntilHourUTC8 } from "./lib/tz";
 
@@ -21,11 +21,6 @@ if (Number.isNaN(port) || port <= 0) {
 initAdminUser().catch((err) => {
   logger.error({ err }, "Failed to initialize admin user");
 });
-
-restoreZeroedTeamSpend().catch((err) => {
-  logger.error({ err }, "Failed to restore zeroed team spend records");
-});
-
 
 // Daily auto-sync: run at 02:00 UTC-8 every day
 function scheduleDailyFbSync() {

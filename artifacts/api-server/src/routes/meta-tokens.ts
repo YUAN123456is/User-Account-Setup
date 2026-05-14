@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull } from "drizzle-orm";
 import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
+import { recalculateBalance, syncAccountBalance } from "../lib/balance";
 import { requireRole } from "../middlewares/require-auth";
 import { logger } from "../lib/logger";
 import { yesterdayUTC8 } from "../lib/tz";
@@ -187,65 +188,53 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
               );
 
             if (!existing) {
-              // No record — create auto-approved
+              // No record — create auto-approved, balance derived from source of truth
               const pitcherIdForStat = matchedAccount.pitcherId ?? token.pitcherId;
               if (pitcherIdForStat == null) {
                 errors.push(`账户「${matchedAccount.accountName}」无归属投手且 Token 无绑定投手，跳过写入`);
                 totalUnmatched++;
                 continue;
               }
-              // Re-fetch balance from DB — fbAccounts is loaded once before the loop
-              // so matchedAccount.currentBalance is stale after the first date is processed.
-              const [freshAcct] = await db.select({ currentBalance: accountsTable.currentBalance })
-                .from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
-              const currentBal = parseFloat(freshAcct?.currentBalance ?? matchedAccount.currentBalance ?? "0");
-              const newBalance = (currentBal - spendNum).toFixed(2);
-              await db.insert(dailyStatsTable).values({
-                accountId: matchedAccount.id,
-                date: syncDate,
-                spendAmount: spendNum.toFixed(2),
-                realBalance: newBalance,
-                pitcherId: pitcherIdForStat,
-                hasAlert: parseFloat(newBalance) < 100,
-                fbSynced: true,
-                status: "approved" as const,
-                ...(fbBizType != null ? { businessType: fbBizType } : {}),
-                ...(fbFanCount != null ? { fanCount: fbFanCount } : {}),
-                ...(fbOrderCount != null ? { orderCount: fbOrderCount } : {}),
+              await db.transaction(async (tx) => {
+                const preBalance = await recalculateBalance(matchedAccount.id, tx);
+                const newBalance = (parseFloat(preBalance) - spendNum).toFixed(2);
+                await tx.insert(dailyStatsTable).values({
+                  accountId: matchedAccount.id,
+                  date: syncDate,
+                  spendAmount: spendNum.toFixed(2),
+                  realBalance: newBalance,
+                  pitcherId: pitcherIdForStat,
+                  hasAlert: parseFloat(newBalance) < 100,
+                  fbSynced: true,
+                  status: "approved" as const,
+                  ...(fbBizType != null ? { businessType: fbBizType } : {}),
+                  ...(fbFanCount != null ? { fanCount: fbFanCount } : {}),
+                  ...(fbOrderCount != null ? { orderCount: fbOrderCount } : {}),
+                });
+                await syncAccountBalance(matchedAccount.id, tx);
+                await tx.update(accountsTable)
+                  .set({ lastReportedAt: new Date() })
+                  .where(eq(accountsTable.id, matchedAccount.id));
               });
-              await db.update(accountsTable).set({
-                currentBalance: newBalance,
-                theoreticalBalance: newBalance,
-                lastReportedAt: new Date(),
-              }).where(eq(accountsTable.id, matchedAccount.id));
             } else {
-              // Record exists — FB data always wins (overwrite spend/conversions, update balance delta)
-              const oldSpend = parseFloat(existing.spendAmount ?? "0");
-              const delta = spendNum - oldSpend;
-              const newBalance = (parseFloat(existing.realBalance ?? "0") - delta).toFixed(2);
-              await db.update(dailyStatsTable).set({
-                spendAmount: spendNum.toFixed(2),
-                realBalance: newBalance,
-                hasAlert: parseFloat(newBalance) < 100,
-                fbSynced: true,
-                status: "approved" as const,
-                ...(fbBizType != null ? { businessType: fbBizType } : {}),
-                ...(fbFanCount != null ? { fanCount: fbFanCount } : { fanCount: null }),
-                ...(fbOrderCount != null ? { orderCount: fbOrderCount } : { orderCount: null }),
-              }).where(eq(dailyStatsTable.id, existing.id));
-
-              if (delta !== 0) {
-                const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, matchedAccount.id));
-                if (acct) {
-                  const newCurrent = (parseFloat(acct.currentBalance ?? "0") - delta).toFixed(2);
-                  const newTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance ?? "0") - delta).toFixed(2);
-                  await db.update(accountsTable).set({
-                    currentBalance: newCurrent,
-                    theoreticalBalance: newTheo,
-                    lastReportedAt: new Date(),
-                  }).where(eq(accountsTable.id, matchedAccount.id));
-                }
-              }
+              // Record exists — FB data always wins; recalculate balance from source of truth
+              await db.transaction(async (tx) => {
+                await tx.update(dailyStatsTable).set({
+                  spendAmount: spendNum.toFixed(2),
+                  fbSynced: true,
+                  status: "approved" as const,
+                  ...(fbBizType != null ? { businessType: fbBizType } : {}),
+                  ...(fbFanCount != null ? { fanCount: fbFanCount } : { fanCount: null }),
+                  ...(fbOrderCount != null ? { orderCount: fbOrderCount } : { orderCount: null }),
+                }).where(eq(dailyStatsTable.id, existing.id));
+                const newBalance = await syncAccountBalance(matchedAccount.id, tx);
+                await tx.update(dailyStatsTable)
+                  .set({ realBalance: newBalance, hasAlert: parseFloat(newBalance) < 100 })
+                  .where(eq(dailyStatsTable.id, existing.id));
+                await tx.update(accountsTable)
+                  .set({ lastReportedAt: new Date() })
+                  .where(eq(accountsTable.id, matchedAccount.id));
+              });
             }
 
             totalMatched++;
