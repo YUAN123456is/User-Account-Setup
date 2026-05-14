@@ -433,7 +433,7 @@ router.get("/dashboard/balance-alerts", requireRole("admin"), async (_req, res):
   const result = await Promise.all([...unique.values()].map(async (stat) => {
     const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, stat.accountId));
     const pitcher = stat.pitcherId
-      ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
+      ? (await db.select({ displayName: usersTable.displayName, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
       : null;
     const theoretical = parseFloat(account?.theoreticalBalance ?? "0");
     const reported = parseFloat(stat.realBalance);
@@ -443,7 +443,7 @@ router.get("/dashboard/balance-alerts", requireRole("admin"), async (_req, res):
       accountName: account?.accountName ?? "Unknown",
       platformAccountId: account?.platformAccountId ?? "",
       pitcherId: stat.pitcherId ?? null,
-      pitcherName: pitcher?.displayName ?? null,
+      pitcherName: pitcher?.displayName ?? pitcher?.username ?? null,
       theoreticalBalance: theoretical.toFixed(2),
       reportedBalance: reported.toFixed(2),
       discrepancyPct: Math.round(discrepancyPct * 100) / 100,

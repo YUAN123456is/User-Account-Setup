@@ -20,7 +20,7 @@ async function formatOrder(order: typeof rechargeOrdersTable.$inferSelect) {
     ? (await db.select({ displayName: usersTable.displayName, feeRate: usersTable.feeRate }).from(usersTable).where(eq(usersTable.id, order.providerId)))[0]
     : null;
   const pitcher = order.pitcherId
-    ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, order.pitcherId)))[0]
+    ? (await db.select({ displayName: usersTable.displayName, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, order.pitcherId)))[0]
     : null;
 
   return {
@@ -35,7 +35,7 @@ async function formatOrder(order: typeof rechargeOrdersTable.$inferSelect) {
     providerId: order.providerId,
     providerName: provider?.displayName ?? null,
     pitcherId: order.pitcherId ?? null,
-    pitcherName: pitcher?.displayName ?? null,
+    pitcherName: pitcher?.displayName ?? pitcher?.username ?? null,
     note: order.note ?? null,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),

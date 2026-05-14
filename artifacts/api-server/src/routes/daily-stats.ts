@@ -16,7 +16,7 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     ? (await db.select({ accountName: accountsTable.accountName, platformAccountId: accountsTable.platformAccountId, currentBalance: accountsTable.currentBalance }).from(accountsTable).where(eq(accountsTable.id, stat.accountId)))[0]
     : null;
   const pitcher = stat.pitcherId
-    ? (await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
+    ? (await db.select({ displayName: usersTable.displayName, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
     : null;
   const team = stat.teamId
     ? (await db.select({ name: teamsTable.name }).from(teamsTable).where(eq(teamsTable.id, stat.teamId)))[0]
@@ -41,7 +41,7 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     spendAmount: stat.spendAmount,
     realBalance: stat.realBalance,
     pitcherId: stat.pitcherId,
-    pitcherName: pitcher?.displayName ?? null,
+    pitcherName: pitcher?.displayName ?? pitcher?.username ?? null,
     hasAlert: stat.hasAlert,
     businessType: stat.businessType ?? null,
     teamId: stat.teamId ?? null,
