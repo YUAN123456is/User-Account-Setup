@@ -535,8 +535,6 @@ export default function OpsReportPage() {
 
                     {/* ── Team sub-rows (expanded) ── */}
                     {isExpanded && g.visibleTeams.map((t) => {
-                      const teamFanCost = g.displaySpend > 0 && (t.fanCount ?? 0) > 0
-                        ? (g.displaySpend / t.fanCount!).toFixed(4) : null;
                       return (
                         <TableRow key={`team-${t.id}`} className="bg-primary/[0.03] border-l-2 border-l-primary/20">
                           <TableCell className="py-2 px-1" />
@@ -546,19 +544,15 @@ export default function OpsReportPage() {
                           </TableCell>
                           {/* spend: team records have no independent spend */}
                           <TableCell className="py-2 px-4 text-right text-xs text-muted-foreground/30">—</TableCell>
-                          <TableCell className="py-2 px-4">
-                            {t.status === "pending"
-                              ? <span className="inline-flex items-center gap-1 text-[10px] text-amber-400"><Clock className="h-2.5 w-2.5" />待审</span>
-                              : t.status === "approved"
-                                ? <span className="inline-flex items-center gap-1 text-[10px] text-green-600"><CheckCircle className="h-2.5 w-2.5" />已审</span>
-                                : null}
-                          </TableCell>
+                          {/* status: team attribution records don't have meaningful review status */}
+                          <TableCell className="py-2 px-4" />
                           {hasBizAny && <TableCell className="py-2 px-4" />}
                           {hasLive && <TableCell className="py-2 px-4 text-xs text-muted-foreground">{t.teamName ?? "—"}</TableCell>}
                           {hasLive && <TableCell className="py-2 px-4 text-right font-mono text-xs">{t.fanCount ?? "—"}</TableCell>}
                           {hasLive && (
                             <TableCell className="py-2 px-4 text-right font-mono text-xs whitespace-nowrap text-muted-foreground">
-                              {teamFanCost ? `$${teamFanCost}` : "—"}
+                              {/* fan cost per team is indeterminate — spend is not split per team */}
+                              —
                             </TableCell>
                           )}
                           {hasEcom && <TableCell className="py-2 px-4" />}

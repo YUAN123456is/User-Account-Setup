@@ -965,8 +965,6 @@ export default function DailyReportPage() {
 
                         {/* ── Team sub-rows (expanded) ── */}
                         {isExpanded && g.teamRecords.map((t) => {
-                          const teamFanCost = g.displaySpend > 0 && (t.fanCount ?? 0) > 0
-                            ? (g.displaySpend / t.fanCount!).toFixed(4) : null;
                           return (
                             <TableRow key={`team-${t.id}`} className="bg-primary/[0.03] border-l-2 border-l-primary/20">
                               <TableCell className="py-2 px-1" />
@@ -974,7 +972,7 @@ export default function DailyReportPage() {
                               <TableCell className="py-2 px-3" colSpan={1}>
                                 <span className="text-xs text-muted-foreground">{t.teamName ?? `团队 #${t.teamId}`}</span>
                               </TableCell>
-                              {/* spend placeholder — team records have no independent spend */}
+                              {/* spend: team records have no independent spend */}
                               <TableCell className="py-2 px-3 text-right text-xs text-muted-foreground/40">—</TableCell>
                               <TableCell className="py-2 px-3" />
                               {hasBiz && <TableCell className="py-2 px-3" />}
@@ -982,20 +980,16 @@ export default function DailyReportPage() {
                               {hasLive && <TableCell className="py-2 px-3 text-right font-mono text-xs">{t.fanCount ?? "—"}</TableCell>}
                               {hasLive && (
                                 <TableCell className="py-2 px-3 text-right font-mono text-xs whitespace-nowrap text-muted-foreground">
-                                  {teamFanCost ? `$${teamFanCost}` : "—"}
+                                  {/* fan cost per team is indeterminate — spend is not split per team */}
+                                  —
                                 </TableCell>
                               )}
                               {hasEcom && <TableCell className="py-2 px-3" />}
                               {hasEcom && <TableCell className="py-2 px-3" />}
                               {hasEcom && <TableCell className="py-2 px-3" />}
                               {hasEcom && <TableCell className="py-2 px-3" />}
-                              <TableCell className="py-2 px-3">
-                                {t.status === "pending" ? (
-                                  <span className="flex items-center gap-1 text-[10px] text-amber-400"><Clock className="h-2.5 w-2.5" />待审</span>
-                                ) : t.status === "approved" ? (
-                                  <span className="flex items-center gap-1 text-[10px] text-emerald-500"><CheckCircle className="h-2.5 w-2.5" />通过</span>
-                                ) : null}
-                              </TableCell>
+                              {/* status: team attribution records have no meaningful review status */}
+                              <TableCell className="py-2 px-3" />
                               <TableCell className="py-2 pr-2">
                                 <button onClick={() => setEditTarget(t)} className="text-muted-foreground/50 hover:text-primary p-1 transition-colors block">
                                   <Pencil className="h-3 w-3" />
