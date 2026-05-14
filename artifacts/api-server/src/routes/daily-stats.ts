@@ -283,8 +283,10 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
   const isTeamSplitRecord = parsed.data.teamId != null;
 
   const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
-  const spend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
-  // For team split records, realBalance stays the same as the current balance (no deduction).
+  const rawSpend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
+  // Team attribution records MUST have spend=0 — they are attribution-only.
+  // The main record (teamId=null) is the sole source of truth for spend and balance.
+  const spend = isTeamSplitRecord ? 0 : rawSpend;
   const newBalance = isTeamSplitRecord
     ? theoreticalBal.toFixed(2)
     : (theoreticalBal - spend).toFixed(2);
@@ -342,6 +344,7 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
+  const isTeamRecord = existing.teamId != null;
 
   if (parsed.data.businessType !== undefined) updates.businessType = (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null;
   if (parsed.data.teamId !== undefined) updates.teamId = parsed.data.teamId ?? null;
@@ -349,29 +352,27 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (parsed.data.gmv !== undefined) updates.gmv = parsed.data.gmv ?? null;
   if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
 
-  if (parsed.data.spendAmount == null && Object.keys(updates).length === 0) {
+  // Team attribution records must always have spend=0 — block any spend edits.
+  const spendChanged = parsed.data.spendAmount != null && !isTeamRecord;
+
+  if (!spendChanged && Object.keys(updates).length === 0) {
     res.json(await formatStat(existing)); return;
   }
 
   let newRealBalance = existing.realBalance;
   let spendDelta = 0;
-  if (parsed.data.spendAmount != null) {
+  if (spendChanged) {
     const oldSpend = parseFloat(existing.spendAmount);
-    const newSpend = parseFloat(parsed.data.spendAmount);
+    const newSpend = parseFloat(parsed.data.spendAmount!);
     spendDelta = newSpend - oldSpend;
     newRealBalance = (parseFloat(existing.realBalance) - spendDelta).toFixed(2);
-    updates.spendAmount = parsed.data.spendAmount;
+    updates.spendAmount = parsed.data.spendAmount!;
     updates.realBalance = newRealBalance;
     updates.hasAlert = parseFloat(newRealBalance) < 100;
   }
 
-  const spendChanged = parsed.data.spendAmount != null;
-  const isTeamRecord = existing.teamId != null;
-
   if (isTeamRecord) {
-    // Team split records are attribution-only — fanCount/team edits never need re-review.
-    // Only a spend change (unusual) would trigger it, matching the "reference spend" intent.
-    if (spendChanged) { updates.status = "pending"; updates.reviewNote = null; }
+    // Team records: no spend changes allowed, metadata edits stay approved.
   } else {
     // Main records: spend change triggers re-review; metadata changes stay approved.
     if (existing.status !== "approved" || spendChanged) {

@@ -1,7 +1,47 @@
-import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { eq, and, ne } from "drizzle-orm";
+import { db, usersTable, dailyStatsTable, accountsTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
+
+/**
+ * One-time idempotent fix: team attribution records (teamId != null) should always
+ * have spend_amount = 0. An older version of the sync code incorrectly created team
+ * records with non-zero spend AND deducted the balance — causing double-deduction when
+ * the main record was later created by the auto-sync.
+ *
+ * This function finds any such records, restores the account balance, and zeros the spend.
+ * After running it becomes a no-op (no more fb_synced team records with spend > 0).
+ */
+export async function fixTeamRecordSpend(): Promise<void> {
+  const candidates = await db.select().from(dailyStatsTable).where(
+    and(eq(dailyStatsTable.fbSynced, true), ne(dailyStatsTable.spendAmount, "0.00"))
+  );
+  const teamRecords = candidates.filter((r) => r.teamId != null && parseFloat(r.spendAmount) > 0);
+  if (teamRecords.length === 0) return;
+
+  logger.warn({ count: teamRecords.length }, "Detected team attribution records with non-zero spend — applying balance fix");
+
+  for (const record of teamRecords) {
+    const spend = parseFloat(record.spendAmount);
+    if (!record.accountId || spend <= 0) continue;
+
+    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, record.accountId));
+    if (!acct) continue;
+
+    const newCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
+    const newTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spend).toFixed(2);
+
+    await db.update(accountsTable)
+      .set({ currentBalance: newCurrent, theoreticalBalance: newTheo })
+      .where(eq(accountsTable.id, record.accountId));
+
+    await db.update(dailyStatsTable)
+      .set({ spendAmount: "0.00" })
+      .where(eq(dailyStatsTable.id, record.id));
+
+    logger.info({ recordId: record.id, accountId: record.accountId, restoredSpend: spend, newBalance: newCurrent }, "Team record spend zeroed, balance restored");
+  }
+}
 
 export async function initAdminUser(): Promise<void> {
   const username = process.env["ADMIN_USERNAME"];
