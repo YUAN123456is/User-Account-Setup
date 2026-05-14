@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, integer, decimal, text, boolean, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, integer, decimal, text, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -29,10 +29,10 @@ export const dailyStatsTable = pgTable("daily_stats", {
   uniqueIndex("daily_stats_main_unique").on(t.accountId, t.date).where(sql`${t.teamId} IS NULL`),
   // Prevent duplicate team attribution records: one per (account, date, team)
   uniqueIndex("daily_stats_team_unique").on(t.accountId, t.date, t.teamId).where(sql`${t.teamId} IS NOT NULL`),
-  // Team attribution records (teamId != null) MUST have spend_amount = 0.
-  // Spend is owned exclusively by the main record (teamId IS NULL).
-  // This DB-level constraint prevents double-deduction regardless of which code path writes the data.
-  check("team_records_zero_spend", sql`${t.teamId} IS NULL OR ${t.spendAmount} = 0`),
+  // NOTE: The CHECK constraint "team_records_zero_spend" is NOT declared here.
+  // It is added at runtime by ensureDbConstraints() in init-admin.ts, after fixTeamRecordSpend()
+  // has already zeroed any legacy rows that would violate it. Declaring it here would cause
+  // Drizzle to emit it as a migration, which fails on production if dirty data still exists.
 ]);
 
 export const insertDailyStatSchema = createInsertSchema(dailyStatsTable).omit({ id: true, createdAt: true, updatedAt: true });
