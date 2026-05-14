@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, gte, lte, isNotNull, SQL } from "drizzle-orm";
+import { eq, sql, and, or, gte, lte, isNotNull, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { yesterdayUTC8, nowUTC8 } from "../lib/tz";
@@ -23,7 +23,12 @@ router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promis
 
   const [todaySpend] = await db.select({
     total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text`,
-  }).from(dailyStatsTable).where(eq(dailyStatsTable.date, yesterdayStr()));
+  }).from(dailyStatsTable).where(
+    and(
+      eq(dailyStatsTable.date, yesterdayStr()),
+      or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
+    )
+  );
 
   const [todayRecharge] = await db.select({
     total: sql<string>`coalesce(sum(${rechargeOrdersTable.amount}), 0)::text`,
@@ -77,13 +82,15 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
 
     const yesterdayConds: SQL[] = [eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, yesterdayStr())];
 
+    const approvedCond = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(...dateConds));
+      .where(and(...dateConds, approvedCond));
 
     const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(...yesterdayConds));
+      .where(and(...yesterdayConds, approvedCond));
 
     const rechargeConds: SQL[] = [
       eq(accountsTable.providerId, row.providerId),
@@ -146,12 +153,14 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
+    const approvedCond2 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+
     const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
-      .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, yesterdayStr())));
+      .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, yesterdayStr()), approvedCond2));
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds));
+      .from(dailyStatsTable).where(and(...dateConds, approvedCond2));
 
     // Use rechargeOrdersTable.pitcherId (the pitcher who submitted the order)
     // NOT accountsTable.pitcherId (which reflects current assignment and breaks after reassignment)
@@ -205,11 +214,13 @@ router.get("/dashboard/pitcher-accounts", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
+    const approvedCond3 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr())));
+      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond3));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds));
+      .from(dailyStatsTable).where(and(...dateConds, approvedCond3));
 
     return {
       accountId: acc.id,
@@ -243,11 +254,13 @@ router.get("/dashboard/provider-accounts", requireRole("admin"), async (req, res
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
+    const approvedCond4 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr())));
+      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond4));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds));
+      .from(dailyStatsTable).where(and(...dateConds, approvedCond4));
 
     return {
       accountId: acc.id,

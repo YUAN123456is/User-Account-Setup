@@ -15,6 +15,7 @@ import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
+import { StatsBar } from "@/components/shared/StatsBar";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
@@ -400,6 +401,7 @@ export default function DailyReportPage() {
   const [histDateRange, setHistDateRange] = useState<DateRange>({ from: "", to: "" });
   const [histAccountFilter, setHistAccountFilter] = useState("all");
   const [histStatusFilter, setHistStatusFilter] = useState("all");
+  const [histBizFilter, setHistBizFilter] = useState("all");
   const [hideZero, setHideZero] = useState(true);
   const [histPage, setHistPage] = useState(1);
   const [deletingGroupKey, setDeletingGroupKey] = useState<string | null>(null);
@@ -478,17 +480,19 @@ export default function DailyReportPage() {
     return groups.sort((a, b) => b.date.localeCompare(a.date));
   }, [allHistStats]);
 
-  // Filter groups by status and hideZero
+  // Filter groups by status, biz type, and hideZero
   const filteredGroups = useMemo(() => {
     let groups = [...histGroups];
     if (histStatusFilter === "pending") groups = groups.filter((g) => g.displayStatus === "pending" && !g.fbSynced);
     else if (histStatusFilter === "approved") groups = groups.filter((g) => g.displayStatus === "approved" && !g.fbSynced);
     else if (histStatusFilter === "rejected") groups = groups.filter((g) => g.displayStatus === "rejected");
     else if (histStatusFilter === "fb") groups = groups.filter((g) => g.fbSynced);
+    if (histBizFilter === "liveChat") groups = groups.filter((g) => g.businessType === "liveChat");
+    else if (histBizFilter === "ecommerce") groups = groups.filter((g) => g.businessType === "ecommerce");
     // hideZero: hide groups with no spend AND no team records (pure zero entries)
     if (hideZero) groups = groups.filter((g) => g.displaySpend > 0 || g.teamRecords.length > 0);
     return groups;
-  }, [histGroups, histStatusFilter, hideZero]);
+  }, [histGroups, histStatusFilter, histBizFilter, hideZero]);
 
   const pagedGroups = usePagination(filteredGroups, 20, histPage);
   const hasLive = filteredGroups.some((g) => g.businessType === "liveChat");
@@ -784,6 +788,28 @@ export default function DailyReportPage() {
 
       {/* ── 上报记录 ── */}
       <div className="space-y-3">
+        {/* Stats bar — approved & FB-synced totals only */}
+        {(() => {
+          const approvedGroups = filteredGroups.filter((g) => g.displayStatus === "approved" || g.fbSynced);
+          const liveApproved = approvedGroups.filter((g) => g.businessType === "liveChat");
+          const ecomApproved = approvedGroups.filter((g) => g.businessType === "ecommerce");
+          const totalSpend = approvedGroups.reduce((s, g) => s + g.displaySpend, 0);
+          const totalFans = liveApproved.reduce((s, g) => s + g.displayFans, 0);
+          const totalGmv = ecomApproved.reduce((s, g) => s + Number(g.main?.gmv ?? 0), 0);
+          const avgFanCost = totalFans > 0 && totalSpend > 0 ? totalSpend / totalFans : 0;
+          const pendingCount = filteredGroups.filter((g) => g.displayStatus === "pending" && !g.fbSynced).length;
+          const items = [
+            { label: "已通过消耗", value: `$${totalSpend.toFixed(2)}` },
+            { label: "待审核", value: `${pendingCount} 条` },
+            ...(totalFans > 0 ? [{ label: "累计进粉", value: String(totalFans) }] : []),
+            ...(avgFanCost > 0 ? [{ label: "均粉成本", value: `$${avgFanCost.toFixed(4)}` }] : []),
+            ...(totalGmv > 0 ? [{ label: "累计GMV", value: `$${totalGmv.toFixed(2)}` }] : []),
+          ];
+          return approvedGroups.length > 0 || pendingCount > 0
+            ? <StatsBar items={items} />
+            : null;
+        })()}
+
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <h2 className="text-sm font-semibold">上报记录</h2>
           <div className="flex flex-wrap gap-2 items-center">
@@ -802,6 +828,14 @@ export default function DailyReportPage() {
                 <SelectItem value="approved">已通过</SelectItem>
                 <SelectItem value="rejected">已驳回</SelectItem>
                 <SelectItem value="fb">FB同步</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={histBizFilter} onValueChange={(v) => { setHistBizFilter(v); setHistPage(1); }}>
+              <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部业务</SelectItem>
+                <SelectItem value="liveChat">聊单</SelectItem>
+                <SelectItem value="ecommerce">独立站</SelectItem>
               </SelectContent>
             </Select>
             <button
