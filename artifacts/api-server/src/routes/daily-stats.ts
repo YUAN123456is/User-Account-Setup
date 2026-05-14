@@ -267,6 +267,10 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     res.status(403).json({ error: "Account not assigned to you" });
     return;
   }
+  if (account.status === "banned") {
+    res.status(403).json({ error: "该广告账户已封禁，无法提交数据" });
+    return;
+  }
 
   // Team split records (teamId != null) are attribution-only: spend=0, no balance effect.
   // Main records (teamId=null) carry the actual spend and deduct the balance.

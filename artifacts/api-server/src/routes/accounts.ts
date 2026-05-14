@@ -301,6 +301,16 @@ router.post("/accounts/:id/assign", requireRole("admin", "pitcher"), async (req,
     return;
   }
 
+  // Always read current account first — needed for pitcher check and to preserve "banned" status.
+  const [existingAccount] = await db
+    .select({ pitcherId: accountsTable.pitcherId, status: accountsTable.status })
+    .from(accountsTable)
+    .where(eq(accountsTable.id, params.data.id));
+  if (!existingAccount) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
   // Pitchers with canAssignAccounts can only assign idle (unassigned) accounts; no transfers
   const { role, userId } = req.session as { role?: string; userId?: number };
   if (role === "pitcher") {
@@ -310,19 +320,19 @@ router.post("/accounts/:id/assign", requireRole("admin", "pitcher"), async (req,
       res.status(403).json({ error: "无账户分配权限" });
       return;
     }
-    const [existing] = await db.select({ pitcherId: accountsTable.pitcherId })
-      .from(accountsTable).where(eq(accountsTable.id, params.data.id));
-    if (!existing) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-    if (existing.pitcherId != null) {
+    if (existingAccount.pitcherId != null) {
       res.status(403).json({ error: "已分配账户只有管理员可转移" });
       return;
     }
   }
 
-  const newStatus = parsed.data.pitcherId != null ? "active" : "idle";
+  // Preserve "banned" status — banning requires an explicit admin action to undo.
+  // Only switch between "idle" and "active" for non-banned accounts.
+  const newStatus: "idle" | "active" | "banned" =
+    existingAccount.status === "banned"
+      ? "banned"
+      : parsed.data.pitcherId != null ? "active" : "idle";
+
   const [account] = await db.update(accountsTable)
     .set({ pitcherId: parsed.data.pitcherId, status: newStatus })
     .where(eq(accountsTable.id, params.data.id))

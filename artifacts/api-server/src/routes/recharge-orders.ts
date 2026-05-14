@@ -216,21 +216,44 @@ router.patch("/recharge-orders/:id", requireAuth, async (req, res): Promise<void
   if (parsed.data.status === "completed") {
     // Mark the order completed first, then recalculate balance from source of truth.
     // Both happen inside a transaction so the balance is always consistent with the orders table.
+    // The WHERE clause includes status='pending' to guard against a double-completion race:
+    // if two requests concurrently pass the pending check above, only one will match the UPDATE
+    // and succeed — the other gets 0 rows back and is treated as already-processed.
+    let alreadyProcessed = false;
     await db.transaction(async (tx) => {
       const [u] = await tx.update(rechargeOrdersTable).set({
         status: parsed.data.status,
         actualAmount: actualAmountVal,
         note: parsed.data.note !== undefined ? parsed.data.note : order.note,
-      }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+      }).where(and(
+        eq(rechargeOrdersTable.id, params.data.id),
+        eq(rechargeOrdersTable.status, "pending"),
+      )).returning();
+      if (!u) {
+        alreadyProcessed = true;
+        return; // no-op — other request won the race; transaction commits cleanly
+      }
       updated = u;
       await syncAccountBalance(order.accountId, tx);
     });
+    if (alreadyProcessed) {
+      res.status(409).json({ error: "该订单已处理，无法重复操作" });
+      return;
+    }
   } else {
+    // Rejected path: also guard against race condition with status check in WHERE clause.
     const [u] = await db.update(rechargeOrdersTable).set({
       status: parsed.data.status,
       actualAmount: actualAmountVal,
       note: parsed.data.note !== undefined ? parsed.data.note : order.note,
-    }).where(eq(rechargeOrdersTable.id, params.data.id)).returning();
+    }).where(and(
+      eq(rechargeOrdersTable.id, params.data.id),
+      eq(rechargeOrdersTable.status, "pending"),
+    )).returning();
+    if (!u) {
+      res.status(409).json({ error: "该订单已处理，无法重复操作" });
+      return;
+    }
     updated = u;
   }
 

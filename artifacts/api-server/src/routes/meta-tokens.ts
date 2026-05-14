@@ -223,9 +223,12 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
                   spendAmount: spendNum.toFixed(2),
                   fbSynced: true,
                   status: "approved" as const,
-                  ...(fbBizType != null ? { businessType: fbBizType } : {}),
-                  ...(fbFanCount != null ? { fanCount: fbFanCount } : { fanCount: null }),
-                  ...(fbOrderCount != null ? { orderCount: fbOrderCount } : { orderCount: null }),
+                  // Reset all conversion fields from FB; null when FB reports no data.
+                  // businessType uses the same reset semantics as fanCount/orderCount so
+                  // a record cannot be left with businessType="liveChat" but fanCount=null.
+                  businessType: fbBizType ?? null,
+                  fanCount: fbFanCount ?? null,
+                  orderCount: fbOrderCount ?? null,
                 }).where(eq(dailyStatsTable.id, existing.id));
                 const newBalance = await syncAccountBalance(matchedAccount.id, tx);
                 await tx.update(dailyStatsTable)

@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, inArray } from "drizzle-orm";
+import { eq, ne, and, inArray, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, usersTable, accountsTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
 import { requireRole, requireAuth } from "../middlewares/require-auth";
 import { hashPassword } from "../lib/auth";
+import { syncAccountBalance } from "../lib/balance";
 
 const router: IRouter = Router();
 
@@ -23,21 +24,21 @@ function formatUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
-// GET /api/pitchers — any authenticated user can fetch the pitcher list (for assignment dropdowns)
+// GET /api/pitchers — active pitchers only (for assignment dropdowns)
 router.get("/pitchers", requireAuth, async (req, res): Promise<void> => {
   const pitchers = await db
     .select({ id: usersTable.id, displayName: usersTable.displayName })
     .from(usersTable)
-    .where(eq(usersTable.role, "pitcher"));
+    .where(and(eq(usersTable.role, "pitcher"), eq(usersTable.isActive, true)));
   res.json(pitchers);
 });
 
-// GET /api/providers — any authenticated user can fetch the active provider list (for ticket submission)
+// GET /api/providers — active providers only (for ticket submission)
 router.get("/providers", requireAuth, async (req, res): Promise<void> => {
   const providers = await db
     .select({ id: usersTable.id, displayName: usersTable.displayName })
     .from(usersTable)
-    .where(eq(usersTable.role, "provider"));
+    .where(and(eq(usersTable.role, "provider"), eq(usersTable.isActive, true)));
   res.json(providers);
 });
 
@@ -113,6 +114,18 @@ router.patch("/users/:id", requireRole("admin"), async (req, res): Promise<void>
     return;
   }
 
+  // Check portalSlug uniqueness when updating (creation already checks, but update didn't).
+  if (parsed.data.portalSlug != null) {
+    const [slugConflict] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.portalSlug, parsed.data.portalSlug), ne(usersTable.id, params.data.id)));
+    if (slugConflict) {
+      res.status(400).json({ error: "门户路径已被占用" });
+      return;
+    }
+  }
+
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (parsed.data.displayName != null) updates.displayName = parsed.data.displayName;
   if (parsed.data.isActive != null) updates.isActive = parsed.data.isActive;
@@ -154,21 +167,66 @@ router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void
   }
 
   if (user.role === "provider") {
-    const providerAccounts = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.providerId, params.data.id));
+    // Collect account IDs for this provider before deletion.
+    const providerAccounts = await db
+      .select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(eq(accountsTable.providerId, params.data.id));
     const accountIds = providerAccounts.map((a) => a.id);
-    if (accountIds.length > 0) {
-      await db.delete(dailyStatsTable).where(inArray(dailyStatsTable.accountId, accountIds));
-      await db.delete(rechargeOrdersTable).where(inArray(rechargeOrdersTable.accountId, accountIds));
-      await db.delete(accountsTable).where(eq(accountsTable.providerId, params.data.id));
-    }
-    await db.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.providerId, params.data.id));
+
+    // All deletes in one transaction — crash cannot leave partial data.
+    await db.transaction(async (tx) => {
+      if (accountIds.length > 0) {
+        await tx.delete(dailyStatsTable).where(inArray(dailyStatsTable.accountId, accountIds));
+        await tx.delete(rechargeOrdersTable).where(inArray(rechargeOrdersTable.accountId, accountIds));
+        await tx.delete(accountsTable).where(eq(accountsTable.providerId, params.data.id));
+      }
+      // Also clear any recharge orders submitted BY this provider that aren't account-linked.
+      await tx.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.providerId, params.data.id));
+      await tx.delete(usersTable).where(eq(usersTable.id, params.data.id));
+    });
+
   } else if (user.role === "pitcher") {
-    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.pitcherId, params.data.id));
-    await db.update(accountsTable).set({ pitcherId: null, status: "idle" }).where(eq(accountsTable.pitcherId, params.data.id));
-    await db.update(rechargeOrdersTable).set({ pitcherId: null }).where(eq(rechargeOrdersTable.pitcherId, params.data.id));
+    // Collect the account IDs where this pitcher had pending/approved main records.
+    // Deleting those stats will make the balance formula return a higher value,
+    // so we must sync those accounts within the same transaction.
+    const activeStats = await db
+      .select({ accountId: dailyStatsTable.accountId })
+      .from(dailyStatsTable)
+      .where(and(
+        eq(dailyStatsTable.pitcherId, params.data.id),
+        inArray(dailyStatsTable.status, ["pending", "approved"]),
+        isNull(dailyStatsTable.teamId), // only main records affect balance
+      ));
+    const balanceAffectedIds = [
+      ...new Set(activeStats.filter((s) => s.accountId != null).map((s) => s.accountId!)),
+    ];
+
+    await db.transaction(async (tx) => {
+      await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.pitcherId, params.data.id));
+      // Nullify pitcher reference; preserve "banned" status for banned accounts.
+      // accounts with pitcherId = this pitcher that are NOT banned → set to idle.
+      await tx.update(accountsTable)
+        .set({ pitcherId: null, status: "idle" })
+        .where(and(eq(accountsTable.pitcherId, params.data.id), ne(accountsTable.status, "banned")));
+      await tx.update(accountsTable)
+        .set({ pitcherId: null })
+        .where(and(eq(accountsTable.pitcherId, params.data.id), eq(accountsTable.status, "banned")));
+      await tx.update(rechargeOrdersTable)
+        .set({ pitcherId: null })
+        .where(eq(rechargeOrdersTable.pitcherId, params.data.id));
+      await tx.delete(usersTable).where(eq(usersTable.id, params.data.id));
+
+      // Sync balances for accounts whose pending/approved stats were just deleted.
+      for (const accountId of balanceAffectedIds) {
+        await syncAccountBalance(accountId, tx);
+      }
+    });
+
+  } else {
+    await db.delete(usersTable).where(eq(usersTable.id, params.data.id));
   }
 
-  await db.delete(usersTable).where(eq(usersTable.id, params.data.id));
   res.sendStatus(204);
 });
 
