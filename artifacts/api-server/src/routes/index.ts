@@ -12,6 +12,7 @@ import storageRouter from "./storage";
 import metaTokensRouter from "./meta-tokens";
 import pitcherMetaTokensRouter from "./pitcher-meta-tokens";
 import ticketsRouter from "./tickets";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(storageRouter);
 router.use(metaTokensRouter);
 router.use(pitcherMetaTokensRouter);
 router.use(ticketsRouter);
+router.use(adminRouter);
 
 export default router;
