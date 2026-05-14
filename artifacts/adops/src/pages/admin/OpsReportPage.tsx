@@ -231,7 +231,9 @@ export default function OpsReportPage() {
   const ecomApproved = approvedGroups.filter((g) => g.businessType === "ecommerce");
   const totalSpend = approvedGroups.reduce((s, g) => s + g.displaySpend, 0);
   const totalFans = liveChatApproved.reduce((s, g) => s + g.displayFans, 0);
-  const avgFanCost = totalFans > 0 ? totalSpend / totalFans : 0;
+  // Fan cost must divide by liveChat-only spend, not totalSpend (which may include ecommerce)
+  const liveChatSpend = liveChatApproved.reduce((s, g) => s + g.displaySpend, 0);
+  const avgFanCost = totalFans > 0 ? liveChatSpend / totalFans : 0;
   const totalGmv = ecomApproved.reduce((s, g) => s + Number(g.main?.gmv ?? 0), 0);
   const totalOrders = ecomApproved.reduce((s, g) => s + (g.main?.orderCount ?? 0), 0);
   const ecomSpend = ecomApproved.reduce((s, g) => s + g.displaySpend, 0);

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, or, gte, lte, isNotNull, SQL } from "drizzle-orm";
+import { eq, sql, and, or, gte, lte, isNotNull, isNull, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { yesterdayUTC8, nowUTC8 } from "../lib/tz";
@@ -25,6 +25,7 @@ router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promis
     total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text`,
   }).from(dailyStatsTable).where(
     and(
+      isNull(dailyStatsTable.teamId),
       eq(dailyStatsTable.date, yesterdayStr()),
       or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
     )
@@ -86,11 +87,11 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(...dateConds, approvedCond));
+      .where(and(isNull(dailyStatsTable.teamId), ...dateConds, approvedCond));
 
     const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
-      .where(and(...yesterdayConds, approvedCond));
+      .where(and(isNull(dailyStatsTable.teamId), ...yesterdayConds, approvedCond));
 
     const rechargeConds: SQL[] = [
       eq(accountsTable.providerId, row.providerId),
@@ -157,10 +158,10 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
 
     const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
-      .where(and(eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, yesterdayStr()), approvedCond2));
+      .where(and(isNull(dailyStatsTable.teamId), eq(dailyStatsTable.pitcherId, row.pitcherId), eq(dailyStatsTable.date, yesterdayStr()), approvedCond2));
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds, approvedCond2));
+      .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), ...dateConds, approvedCond2));
 
     // Use rechargeOrdersTable.pitcherId (the pitcher who submitted the order)
     // NOT accountsTable.pitcherId (which reflects current assignment and breaks after reassignment)
@@ -217,10 +218,10 @@ router.get("/dashboard/pitcher-accounts", requireRole("admin"), async (req, res)
     const approvedCond3 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
 
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond3));
+      .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond3));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds, approvedCond3));
+      .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), ...dateConds, approvedCond3));
 
     return {
       accountId: acc.id,
@@ -257,10 +258,10 @@ router.get("/dashboard/provider-accounts", requireRole("admin"), async (req, res
     const approvedCond4 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
 
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond4));
+      .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond4));
 
     const [range] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
-      .from(dailyStatsTable).where(and(...dateConds, approvedCond4));
+      .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), ...dateConds, approvedCond4));
 
     return {
       accountId: acc.id,
@@ -358,6 +359,7 @@ router.get("/dashboard/daily-trend", requireRole("admin"), async (req, res): Pro
   })
     .from(dailyStatsTable)
     .where(and(
+      isNull(dailyStatsTable.teamId),
       gte(dailyStatsTable.date, cutoffStr),
       or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
     ))
@@ -386,7 +388,9 @@ router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Pr
   if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
   const approvedCond = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
-  const crossWhere = dateConds.length > 0 ? and(...dateConds, approvedCond) : approvedCond;
+  // Always filter to main records only (teamId IS NULL) — team attribution records carry spend=0
+  // but excluding them explicitly makes the query correct regardless of data integrity.
+  const crossWhere = and(isNull(dailyStatsTable.teamId), ...(dateConds.length > 0 ? dateConds : []), approvedCond);
 
   const rows = await db
     .select({

@@ -347,7 +347,8 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   const isTeamRecord = existing.teamId != null;
 
   if (parsed.data.businessType !== undefined) updates.businessType = (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null;
-  if (parsed.data.teamId !== undefined) updates.teamId = parsed.data.teamId ?? null;
+  // teamId is immutable after creation — changing it would convert a main record to a team
+  // record (or vice versa), which would corrupt balance accounting.
   if (parsed.data.fanCount !== undefined) updates.fanCount = parsed.data.fanCount ?? null;
   if (parsed.data.gmv !== undefined) updates.gmv = parsed.data.gmv ?? null;
   if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
