@@ -357,7 +357,10 @@ router.get("/dashboard/daily-trend", requireRole("admin"), async (req, res): Pro
     totalSpend: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text`,
   })
     .from(dailyStatsTable)
-    .where(gte(dailyStatsTable.date, cutoffStr))
+    .where(and(
+      gte(dailyStatsTable.date, cutoffStr),
+      or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
+    ))
     .groupBy(dailyStatsTable.date)
     .orderBy(dailyStatsTable.date);
 
@@ -382,6 +385,9 @@ router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Pr
   if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
   if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
+  const approvedCond = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+  const crossWhere = dateConds.length > 0 ? and(...dateConds, approvedCond) : approvedCond;
+
   const rows = await db
     .select({
       pitcherId: dailyStatsTable.pitcherId,
@@ -393,7 +399,7 @@ router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Pr
     .from(dailyStatsTable)
     .leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
     .leftJoin(usersTable, eq(dailyStatsTable.pitcherId, usersTable.id))
-    .where(dateConds.length > 0 ? and(...dateConds) : undefined)
+    .where(crossWhere)
     .groupBy(dailyStatsTable.pitcherId, usersTable.displayName, accountsTable.providerId);
 
   const providers = await db.select({ id: usersTable.id, displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.role, "provider"));
