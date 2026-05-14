@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, inArray, desc, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, desc, SQL, isNull } from "drizzle-orm";
 import { db, dailyStatsTable, accountsTable, usersTable, teamsTable } from "@workspace/db";
 import {
   CreateDailyStatBody,
@@ -182,11 +182,22 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
-  const existing = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
-    and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date))
-  );
+  // When a teamId is provided (multi-team split), uniqueness is (accountId, date, teamId).
+  // When no teamId, uniqueness is (accountId, date) with no teamId — prevents plain duplicates.
+  const dupConditions = parsed.data.teamId != null
+    ? and(
+        eq(dailyStatsTable.accountId, parsed.data.accountId),
+        eq(dailyStatsTable.date, parsed.data.date),
+        eq(dailyStatsTable.teamId, parsed.data.teamId)
+      )
+    : and(
+        eq(dailyStatsTable.accountId, parsed.data.accountId),
+        eq(dailyStatsTable.date, parsed.data.date),
+        isNull(dailyStatsTable.teamId)
+      );
+  const existing = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(dupConditions);
   if (existing.length > 0) {
-    res.status(409).json({ error: "该账户今日数据已上报，如需修改请使用编辑功能" });
+    res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
     return;
   }
 
