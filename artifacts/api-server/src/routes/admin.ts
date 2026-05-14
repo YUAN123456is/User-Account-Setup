@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, sql } from "drizzle-orm";
 import { db, dailyStatsTable, accountsTable, facebookDailySpendTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { logger } from "../lib/logger";
@@ -9,31 +9,37 @@ const router: IRouter = Router();
 /**
  * POST /api/admin/restore-zeroed-spends
  *
- * One-time recovery: `fixTeamRecordSpend` incorrectly zeroed spend_amount on
- * legacy team records (teamId IS NOT NULL, fbSynced=true). This endpoint:
+ * One-time recovery: a previous startup function (`fixTeamRecordSpend`) incorrectly
+ * zeroed spend_amount on legacy team attribution records (teamId IS NOT NULL, fbSynced=true).
+ * This endpoint:
  *  1. Finds those zeroed records
- *  2. Restores spend_amount from facebook_daily_spend staging table
- *  3. For accounts with NO main record (teamId IS NULL) on those dates,
- *     corrects the over-inflated account balance by deducting restored spend.
+ *  2. Restores spend_amount from the facebook_daily_spend staging table
+ *  3. For accounts with NO main record (teamId IS NULL) on that date, corrects the
+ *     over-inflated account balance by deducting the restored spend.
  */
 router.post("/admin/restore-zeroed-spends", requireRole("admin"), async (req, res): Promise<void> => {
-  // Step 1: find all zeroed legacy team records
-  const candidates = await db
-    .select()
-    .from(dailyStatsTable)
-    .where(
-      and(
-        eq(dailyStatsTable.fbSynced, true),
-        isNotNull(dailyStatsTable.teamId),
-        eq(dailyStatsTable.spendAmount, "0.00"),
-      ),
-    );
+  // Use raw SQL for the initial filter to avoid Drizzle decimal comparison quirks
+  const candidateRows = await db.execute<{
+    id: number;
+    account_id: number;
+    date: string;
+    team_id: number;
+    spend_amount: string;
+    real_balance: string;
+  }>(sql`
+    SELECT id, account_id, date, team_id, spend_amount, real_balance
+    FROM daily_stats
+    WHERE fb_synced = true
+      AND team_id IS NOT NULL
+      AND spend_amount = 0
+  `);
+
+  const candidates = candidateRows.rows;
 
   type ReportRow = {
     recordId: number;
-    accountId: number | null;
+    accountId: number;
     date: string;
-    stagingSpend: string;
     restoredSpend: string;
     balanceAdjusted: boolean;
     skipped: boolean;
@@ -41,12 +47,12 @@ router.post("/admin/restore-zeroed-spends", requireRole("admin"), async (req, re
   };
   const report: ReportRow[] = [];
 
-  // Accumulate how much to deduct per account (only for accounts with no main record)
+  // Accumulate balance deductions per account (only for accounts with no main record)
   const balanceDeltas = new Map<number, number>();
 
   for (const rec of candidates) {
-    if (!rec.accountId || !rec.date) {
-      report.push({ recordId: rec.id, accountId: rec.accountId, date: rec.date ?? "", stagingSpend: "0", restoredSpend: "0", balanceAdjusted: false, skipped: true, reason: "Missing accountId or date" });
+    if (!rec.account_id || !rec.date) {
+      report.push({ recordId: rec.id, accountId: rec.account_id, date: rec.date, restoredSpend: "0", balanceAdjusted: false, skipped: true, reason: "Missing accountId or date" });
       continue;
     }
 
@@ -56,14 +62,14 @@ router.post("/admin/restore-zeroed-spends", requireRole("admin"), async (req, re
       .from(facebookDailySpendTable)
       .where(
         and(
-          eq(facebookDailySpendTable.matchedAccountId, rec.accountId),
+          eq(facebookDailySpendTable.matchedAccountId, rec.account_id),
           eq(facebookDailySpendTable.date, rec.date),
         ),
       );
 
     const stagingSpend = staging ? parseFloat(staging.spend ?? "0") : 0;
     if (stagingSpend <= 0) {
-      report.push({ recordId: rec.id, accountId: rec.accountId, date: rec.date, stagingSpend: String(stagingSpend), restoredSpend: "0", balanceAdjusted: false, skipped: true, reason: "No FB staging data or spend=0" });
+      report.push({ recordId: rec.id, accountId: rec.account_id, date: rec.date, restoredSpend: "0", balanceAdjusted: false, skipped: true, reason: "No FB staging data or spend=0" });
       continue;
     }
 
@@ -79,7 +85,7 @@ router.post("/admin/restore-zeroed-spends", requireRole("admin"), async (req, re
       .from(dailyStatsTable)
       .where(
         and(
-          eq(dailyStatsTable.accountId, rec.accountId),
+          eq(dailyStatsTable.accountId, rec.account_id),
           eq(dailyStatsTable.date, rec.date),
           isNull(dailyStatsTable.teamId),
         ),
@@ -89,45 +95,38 @@ router.post("/admin/restore-zeroed-spends", requireRole("admin"), async (req, re
     if (!mainRecord) {
       // No main record — fixTeamRecordSpend wrongly inflated this account's balance.
       // Accumulate deduction to undo that inflation.
-      balanceDeltas.set(rec.accountId, (balanceDeltas.get(rec.accountId) ?? 0) + stagingSpend);
+      balanceDeltas.set(rec.account_id, (balanceDeltas.get(rec.account_id) ?? 0) + stagingSpend);
       balanceAdjusted = true;
     }
 
     report.push({
       recordId: rec.id,
-      accountId: rec.accountId,
+      accountId: rec.account_id,
       date: rec.date,
-      stagingSpend: stagingSpend.toFixed(2),
       restoredSpend: stagingSpend.toFixed(2),
       balanceAdjusted,
       skipped: false,
     });
   }
 
-  // Step 3: apply balance corrections for accounts that had no main records
+  // Apply balance corrections for accounts that had no main records
   for (const [accountId, totalDeduction] of balanceDeltas) {
     if (totalDeduction <= 0) continue;
-
     const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, accountId));
     if (!acct) continue;
 
     const newBalance = (parseFloat(acct.currentBalance) - totalDeduction).toFixed(2);
-
     await db
       .update(accountsTable)
       .set({ currentBalance: newBalance, theoreticalBalance: newBalance })
       .where(eq(accountsTable.id, accountId));
 
-    logger.info(
-      { accountId, oldBalance: acct.currentBalance, newBalance, totalDeduction },
-      "Account balance corrected after spend restoration",
-    );
+    logger.info({ accountId, oldBalance: acct.currentBalance, newBalance, totalDeduction }, "Account balance corrected");
   }
 
   const restored = report.filter((r) => !r.skipped).length;
   const skipped = report.filter((r) => r.skipped).length;
   logger.info({ restored, skipped }, "restore-zeroed-spends complete");
-
   res.json({ ok: true, restored, skipped, report });
 });
 
