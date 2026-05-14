@@ -271,7 +271,9 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     fanCount: parsed.data.fanCount ?? null,
     gmv: parsed.data.gmv ?? null,
     orderCount: parsed.data.orderCount ?? null,
-    status: "pending",
+    // Team attribution records are auto-approved: they carry no spend and need no financial review.
+    // Only main records (teamId=null) go through the normal pending → approved flow.
+    status: isTeamSplitRecord ? "approved" : "pending",
     fbSynced: false,
   }).returning();
 

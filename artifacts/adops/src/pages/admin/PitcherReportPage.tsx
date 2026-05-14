@@ -54,7 +54,19 @@ function AccountHistoryDialog({
     account ? { accountId: account.accountId } : undefined,
   );
 
-  const rows = Array.isArray(data) ? [...data].sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const allRows = Array.isArray(data) ? (data as Array<typeof data extends (infer T)[] ? T : never>) : [];
+  // Deduplicate by date: prefer main record (teamId=null), fallback to first team record (legacy data).
+  // This prevents $0 team attribution rows from inflating the count.
+  const rows = (() => {
+    const byDate = new Map<string, typeof allRows[number]>();
+    for (const r of allRows) {
+      const existing = byDate.get(r.date);
+      if (!existing || (r as { teamId?: number | null }).teamId == null) {
+        byDate.set(r.date, r);
+      }
+    }
+    return [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
+  })();
   const totalSpend = rows.reduce((s, r) => s + Number(r.spendAmount), 0);
 
   return (
