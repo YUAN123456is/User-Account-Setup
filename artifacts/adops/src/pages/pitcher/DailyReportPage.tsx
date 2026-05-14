@@ -19,8 +19,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
   AlertCircle, Clock, XCircle, Facebook, Info, UserPlus, PlusCircle,
-  ChevronDown, ChevronRight, Users,
+  ChevronDown, ChevronRight, Users, Trash2, Loader2,
 } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Account {
   id: number;
@@ -400,6 +402,24 @@ export default function DailyReportPage() {
   const [histStatusFilter, setHistStatusFilter] = useState("all");
   const [hideZero, setHideZero] = useState(true);
   const [histPage, setHistPage] = useState(1);
+  const [deletingGroupKey, setDeletingGroupKey] = useState<string | null>(null);
+  const selfDeleteGroup = async (g: StatGroup) => {
+    if (!g.main || g.displayStatus !== "rejected" || g.fbSynced) return;
+    setDeletingGroupKey(g.groupKey);
+    try {
+      const res = await fetch(`${BASE}/api/daily-stats/${g.main.id}/self`, {
+        method: "DELETE", credentials: "include",
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) { toast({ title: data.error ?? "删除失败", variant: "destructive" }); return; }
+      toast({ title: "已删除", description: `${g.date} · ${g.accountName ?? ""}` });
+      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+    } finally {
+      setDeletingGroupKey(null);
+    }
+  };
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (key: string) => setExpandedGroups((prev) => {
     const next = new Set(prev);
@@ -911,16 +931,28 @@ export default function DailyReportPage() {
                             )}
                           </TableCell>
                           <TableCell className="pr-2 py-3">
-                            {editStat && (g.displayStatus === "rejected" ? (
-                              <button onClick={() => setEditTarget(editStat)}
-                                className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
-                                <Pencil className="h-3 w-3" />修改
-                              </button>
-                            ) : (
+                            {editStat && g.displayStatus === "rejected" && !g.fbSynced ? (
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setEditTarget(editStat)}
+                                  className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
+                                  <Pencil className="h-3 w-3" />修改
+                                </button>
+                                <button
+                                  onClick={() => selfDeleteGroup(g)}
+                                  disabled={deletingGroupKey === g.groupKey}
+                                  className="flex items-center gap-1 text-[11px] text-red-500 hover:text-red-400 border border-red-600/30 hover:border-red-500/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap disabled:opacity-50"
+                                  title="删除此驳回记录（余额将还原）">
+                                  {deletingGroupKey === g.groupKey
+                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                    : <Trash2 className="h-3 w-3" />}
+                                  删除
+                                </button>
+                              </div>
+                            ) : editStat ? (
                               <button onClick={() => setEditTarget(editStat)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-                            ))}
+                            ) : null}
                           </TableCell>
                         </TableRow>
 

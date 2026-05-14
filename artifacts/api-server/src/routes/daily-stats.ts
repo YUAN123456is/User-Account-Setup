@@ -168,6 +168,52 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
   res.json({ ok: true });
 });
 
+// DELETE /api/daily-stats/:id/self — pitcher deletes their own rejected record (no admin password needed)
+router.delete("/daily-stats/:id/self", requireRole("pitcher"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
+
+  // Only the submitting pitcher can self-delete
+  if (existing.pitcherId !== req.session.userId) {
+    res.status(403).json({ error: "无权限删除此记录" }); return;
+  }
+  // Only rejected, non-FB-synced records can be self-deleted
+  if (existing.status !== "rejected" || existing.fbSynced) {
+    res.status(400).json({ error: "只能删除已驳回且未FB同步的记录" }); return;
+  }
+
+  // Restore balance (main records only — team attribution records never touched balance)
+  const spend = parseFloat(existing.spendAmount);
+  if (spend > 0 && existing.accountId && existing.teamId == null) {
+    const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
+    if (acct) {
+      const restoredCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
+      const restoredTheoretical = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) + spend).toFixed(2);
+      await db.update(accountsTable)
+        .set({ currentBalance: restoredCurrent, theoreticalBalance: restoredTheoretical })
+        .where(eq(accountsTable.id, existing.accountId));
+    }
+  }
+
+  // If this is a main record, also clean up its team attribution records for the same account+date
+  if (existing.teamId == null && existing.accountId && existing.date) {
+    await db.delete(dailyStatsTable).where(
+      and(
+        eq(dailyStatsTable.accountId, existing.accountId),
+        eq(dailyStatsTable.date, existing.date),
+        eq(dailyStatsTable.pitcherId, existing.pitcherId!),
+      )
+    );
+  } else {
+    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  }
+
+  res.json({ ok: true });
+});
+
 router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<void> => {
   const parsed = CreateDailyStatBody.safeParse(req.body);
   if (!parsed.success) {
