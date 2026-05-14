@@ -18,7 +18,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
-  AlertCircle, Clock, XCircle, Facebook, Info,
+  AlertCircle, Clock, XCircle, Facebook, Info, UserPlus,
 } from "lucide-react";
 
 interface Account {
@@ -58,23 +58,31 @@ interface DailyStat {
   reviewNote?: string | null;
 }
 
+interface TeamSubRow {
+  key: string;
+  teamId: string;
+  fanCount: string;
+}
+
 interface ReportRow {
   key: string;
   accountId: string;
   spendAmount: string;
   businessType: string;
-  teamId: string;
-  fanCount: string;
+  teamRows: TeamSubRow[];
   gmv: string;
   orderCount: string;
-  expanded: boolean;
 }
 
 const yesterday = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
 const today = (() => { const d = new Date(Date.now() - 8 * 60 * 60 * 1000); return d.toISOString().slice(0, 10); })();
 
+function newTeamSubRow(): TeamSubRow {
+  return { key: Math.random().toString(36).slice(2), teamId: "", fanCount: "" };
+}
+
 function newRow(): ReportRow {
-  return { key: Math.random().toString(36).slice(2), accountId: "", spendAmount: "", businessType: "", teamId: "", fanCount: "", gmv: "", orderCount: "", expanded: false };
+  return { key: Math.random().toString(36).slice(2), accountId: "", spendAmount: "", businessType: "", teamRows: [newTeamSubRow()], gmv: "", orderCount: "" };
 }
 
 function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accounts: Account[]; teams: Team[]; onClose: () => void }) {
@@ -303,16 +311,28 @@ export default function DailyReportPage() {
 
   const createMutation = useCreateDailyStat({});
 
-  const updateRow = (key: string, field: keyof ReportRow, value: string | boolean) => {
+  const updateRow = (key: string, field: keyof Omit<ReportRow, "teamRows">, value: string) => {
     setRows((prev) => prev.map((r) => {
       if (r.key !== key) return r;
       const next = { ...r, [field]: value };
       if (field === "businessType") {
-        next.teamId = ""; next.fanCount = ""; next.gmv = ""; next.orderCount = "";
-        next.expanded = !!(value);
+        next.teamRows = [newTeamSubRow()];
+        next.gmv = ""; next.orderCount = "";
       }
       return next;
     }));
+  };
+  const updateTeamRow = (rowKey: string, subKey: string, field: keyof TeamSubRow, value: string) => {
+    setRows((prev) => prev.map((r) => {
+      if (r.key !== rowKey) return r;
+      return { ...r, teamRows: r.teamRows.map((t) => t.key === subKey ? { ...t, [field]: value } : t) };
+    }));
+  };
+  const addTeamRow = (rowKey: string) => {
+    setRows((prev) => prev.map((r) => r.key !== rowKey ? r : { ...r, teamRows: [...r.teamRows, newTeamSubRow()] }));
+  };
+  const removeTeamRow = (rowKey: string, subKey: string) => {
+    setRows((prev) => prev.map((r) => r.key !== rowKey ? r : { ...r, teamRows: r.teamRows.filter((t) => t.key !== subKey) }));
   };
   const removeRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
   const addRow = () => setRows((prev) => [...prev, newRow()]);
@@ -331,24 +351,43 @@ export default function DailyReportPage() {
     setSubmitting(true);
     let failed = 0; let succeeded = 0; let duplicates = 0;
     for (const r of rows) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          createMutation.mutate({ data: {
+      const totalSpend = parseFloat(r.spendAmount);
+      // For liveChat with multiple teams, split into one record per team
+      const isLive = r.businessType === "liveChat";
+      const validTeamRows = isLive ? r.teamRows.filter((t) => t.teamId) : [];
+      const submitEntries = isLive && validTeamRows.length > 0
+        ? validTeamRows.map((t) => ({
             accountId: Number(r.accountId),
             date: sharedDate,
-            spendAmount: parseFloat(r.spendAmount).toFixed(2),
+            spendAmount: (totalSpend / validTeamRows.length).toFixed(2),
+            businessType: "liveChat" as const,
+            teamId: Number(t.teamId),
+            fanCount: t.fanCount ? parseInt(t.fanCount) : null,
+            gmv: null,
+            orderCount: null,
+          }))
+        : [{
+            accountId: Number(r.accountId),
+            date: sharedDate,
+            spendAmount: totalSpend.toFixed(2),
             businessType: (r.businessType as "liveChat" | "ecommerce") || null,
-            teamId: (r.businessType === "liveChat" && r.teamId) ? Number(r.teamId) : null,
-            fanCount: (r.businessType === "liveChat" && r.fanCount) ? parseInt(r.fanCount) : null,
+            teamId: null,
+            fanCount: null,
             gmv: (r.businessType === "ecommerce" && r.gmv) ? parseFloat(r.gmv).toFixed(2) : null,
             orderCount: (r.businessType === "ecommerce" && r.orderCount) ? parseInt(r.orderCount) : null,
-          }}, { onSuccess: () => resolve(), onError: (e) => reject(e) });
-        });
-        succeeded++;
-      } catch (e: unknown) {
-        const msg = (e as { data?: { error?: string } })?.data?.error ?? "";
-        if (msg.includes("已上报")) { duplicates++; toast({ title: "重复上报", description: msg, variant: "destructive" }); }
-        else { failed++; }
+          }];
+
+      for (const entry of submitEntries) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            createMutation.mutate({ data: entry }, { onSuccess: () => resolve(), onError: (e) => reject(e) });
+          });
+          succeeded++;
+        } catch (e: unknown) {
+          const msg = (e as { data?: { error?: string } })?.data?.error ?? "";
+          if (msg.includes("已上报")) { duplicates++; toast({ title: "重复上报", description: msg, variant: "destructive" }); }
+          else { failed++; }
+        }
       }
     }
     queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
@@ -393,10 +432,8 @@ export default function DailyReportPage() {
             const bal = parseFloat(selAcc?.theoreticalBalance ?? selAcc?.currentBalance ?? "0");
             const spend = parseFloat(row.spendAmount) || 0;
             const previewBal = selAcc && row.spendAmount ? (bal - spend).toFixed(2) : null;
-            const fanNum = parseInt(row.fanCount) || 0;
             const gmvNum = parseFloat(row.gmv) || 0;
             const orderNum = parseInt(row.orderCount) || 0;
-            const fanCost = row.businessType === "liveChat" && fanNum > 0 && spend > 0 ? (spend / fanNum).toFixed(4) : null;
             const roas = row.businessType === "ecommerce" && gmvNum > 0 && spend > 0 ? (gmvNum / spend).toFixed(2) : null;
             const avgOrder = row.businessType === "ecommerce" && gmvNum > 0 && orderNum > 0 ? (gmvNum / orderNum).toFixed(2) : null;
             const alreadyReported = row.accountId && reportedIds.has(Number(row.accountId));
@@ -460,28 +497,55 @@ export default function DailyReportPage() {
                   </div>
                 )}
 
-                {/* 选业务类型后自动展开，无需额外点击 */}
+                {/* 业务类型展开区 */}
                 {hasOps && (
-                  <div className="pl-6 grid grid-cols-2 gap-2.5 pt-0.5">
-                    {row.businessType === "liveChat" && (
-                      <>
-                        <div className="space-y-1">
-                          <Label className="text-xs">服务团队</Label>
-                          <Select value={row.teamId} onValueChange={(v) => updateRow(row.key, "teamId", v)}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="选择团队..." /></SelectTrigger>
-                            <SelectContent>{liveTeams.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">进粉数量</Label>
-                          <Input type="number" min="0" placeholder="0" className="h-7 text-xs"
-                            value={row.fanCount} onChange={(e) => updateRow(row.key, "fanCount", e.target.value)} />
-                          {fanCost && <p className="text-xs text-muted-foreground">粉成本 <span className="font-mono text-green-600">${fanCost}</span></p>}
-                        </div>
-                      </>
-                    )}
+                  <div className="pl-6 pt-0.5 space-y-1.5">
+                    {row.businessType === "liveChat" && (() => {
+                      const n = row.teamRows.length;
+                      const splitSpend = spend > 0 && n > 1 ? (spend / n).toFixed(2) : null;
+                      return (
+                        <>
+                          {row.teamRows.map((sub, si) => {
+                            const fanNum = parseInt(sub.fanCount) || 0;
+                            const subSpend = splitSpend ? parseFloat(splitSpend) : spend;
+                            const subFanCost = fanNum > 0 && subSpend > 0 ? (subSpend / fanNum).toFixed(4) : null;
+                            return (
+                              <div key={sub.key} className="flex items-center gap-2">
+                                {n > 1 && <span className="text-xs text-muted-foreground w-4 shrink-0">{si + 1}.</span>}
+                                <Select value={sub.teamId} onValueChange={(v) => updateTeamRow(row.key, sub.key, "teamId", v)}>
+                                  <SelectTrigger className="h-7 text-xs flex-1 min-w-0"><SelectValue placeholder="选择团队..." /></SelectTrigger>
+                                  <SelectContent>{liveTeams.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <div className="relative w-24 shrink-0">
+                                  <Input type="number" min="0" placeholder="进粉" className="h-7 text-xs pr-6"
+                                    value={sub.fanCount} onChange={(e) => updateTeamRow(row.key, sub.key, "fanCount", e.target.value)} />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none">粉</span>
+                                </div>
+                                {subFanCost && <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">≈${subFanCost}/粉</span>}
+                                {n > 1 && (
+                                  <button onClick={() => removeTeamRow(row.key, sub.key)} className="text-muted-foreground hover:text-destructive shrink-0 transition-colors">
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => addTeamRow(row.key)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <UserPlus className="h-3 w-3" /> 添加团队
+                            </button>
+                            {splitSpend && (
+                              <span className="text-[10px] text-amber-500">消耗将均摊：每团队 ${splitSpend}</span>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                     {row.businessType === "ecommerce" && (
-                      <>
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div className="space-y-1">
                           <Label className="text-xs">GMV（美元）</Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00" className="h-7 text-xs"
@@ -494,7 +558,7 @@ export default function DailyReportPage() {
                             value={row.orderCount} onChange={(e) => updateRow(row.key, "orderCount", e.target.value)} />
                           {avgOrder && <p className="text-xs text-muted-foreground">客单价 <span className="font-mono text-green-600">${avgOrder}</span></p>}
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
