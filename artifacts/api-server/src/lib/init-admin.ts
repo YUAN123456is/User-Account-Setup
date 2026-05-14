@@ -1,5 +1,5 @@
-import { eq, and, ne, sql } from "drizzle-orm";
-import { db, usersTable, dailyStatsTable, accountsTable } from "@workspace/db";
+import { eq, and, ne, isNotNull, isNull, sql } from "drizzle-orm";
+import { db, usersTable, dailyStatsTable, accountsTable, facebookDailySpendTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 
@@ -61,6 +61,99 @@ export async function fixTeamRecordSpend(): Promise<void> {
 
     logger.info({ recordId: record.id, accountId: record.accountId, restoredSpend: spend, newBalance: newCurrent }, "Team record spend zeroed, balance restored");
   }
+}
+
+/**
+ * One-time idempotent fix: a previous startup function (fixTeamRecordSpend)
+ * incorrectly zeroed spend_amount on team attribution records (fb_synced=true,
+ * team_id IS NOT NULL). This restores the correct values from the FB staging
+ * table and, for accounts that had no main record (which is the source-of-truth
+ * for balance deductions), also corrects the inflated account balance.
+ *
+ * Safe to call on every startup — becomes a no-op once all zeroed records are fixed.
+ */
+export async function restoreZeroedTeamSpend(): Promise<void> {
+  // Find all zeroed team attribution records that have FB staging data
+  const zeroed = await db
+    .select({
+      id: dailyStatsTable.id,
+      accountId: dailyStatsTable.accountId,
+      date: dailyStatsTable.date,
+    })
+    .from(dailyStatsTable)
+    .where(
+      and(
+        eq(dailyStatsTable.fbSynced, true),
+        isNotNull(dailyStatsTable.teamId),
+        sql`${dailyStatsTable.spendAmount} = 0`,
+      ),
+    );
+
+  if (zeroed.length === 0) return;
+
+  logger.info({ count: zeroed.length }, "restoreZeroedTeamSpend: found zeroed records, restoring");
+
+  for (const rec of zeroed) {
+    if (!rec.accountId || !rec.date) continue;
+
+    // Look up the correct spend from FB staging
+    const [staging] = await db
+      .select({ spend: facebookDailySpendTable.spend })
+      .from(facebookDailySpendTable)
+      .where(
+        and(
+          eq(facebookDailySpendTable.matchedAccountId, rec.accountId),
+          eq(facebookDailySpendTable.date, rec.date),
+        ),
+      );
+
+    const spendVal = parseFloat(staging?.spend ?? "0");
+    if (spendVal <= 0) {
+      logger.warn({ recordId: rec.id, accountId: rec.accountId, date: rec.date }, "restoreZeroedTeamSpend: no FB staging data, skipping");
+      continue;
+    }
+
+    // Restore spend_amount on the team record
+    await db
+      .update(dailyStatsTable)
+      .set({ spendAmount: spendVal.toFixed(2) })
+      .where(eq(dailyStatsTable.id, rec.id));
+
+    // Check whether a main record (team_id IS NULL) exists for this account+date.
+    // Main records are the source of truth for balance deductions. If none exists,
+    // fixTeamRecordSpend incorrectly added the spend back to the balance → deduct it.
+    const [mainRecord] = await db
+      .select({ id: dailyStatsTable.id })
+      .from(dailyStatsTable)
+      .where(
+        and(
+          eq(dailyStatsTable.accountId, rec.accountId),
+          eq(dailyStatsTable.date, rec.date),
+          isNull(dailyStatsTable.teamId),
+        ),
+      );
+
+    if (!mainRecord) {
+      const [acct] = await db
+        .select({ currentBalance: accountsTable.currentBalance, theoreticalBalance: accountsTable.theoreticalBalance })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, rec.accountId));
+
+      if (acct) {
+        const correctedBalance = (parseFloat(acct.currentBalance) - spendVal).toFixed(2);
+        const correctedTheo = (parseFloat(acct.theoreticalBalance ?? acct.currentBalance) - spendVal).toFixed(2);
+        await db
+          .update(accountsTable)
+          .set({ currentBalance: correctedBalance, theoreticalBalance: correctedTheo })
+          .where(eq(accountsTable.id, rec.accountId));
+        logger.info({ recordId: rec.id, accountId: rec.accountId, date: rec.date, spendVal, correctedBalance }, "restoreZeroedTeamSpend: restored spend + corrected balance (no main record)");
+      }
+    } else {
+      logger.info({ recordId: rec.id, accountId: rec.accountId, date: rec.date, spendVal }, "restoreZeroedTeamSpend: restored spend (main record exists, balance unchanged)");
+    }
+  }
+
+  logger.info({ count: zeroed.length }, "restoreZeroedTeamSpend: complete");
 }
 
 export async function initAdminUser(): Promise<void> {
