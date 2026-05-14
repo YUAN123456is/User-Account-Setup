@@ -448,7 +448,11 @@ export default function DailyReportPage() {
     for (const [groupKey, { main, teams }] of map) {
       const anchor = main ?? teams[0];
       if (!anchor) continue;
-      const displaySpend = main ? Number(main.spendAmount) : 0;
+      // Legacy compat: old submissions stored spend on team records directly (no main record).
+      // New submissions always have a main record (teamId=null) that owns the spend.
+      const displaySpend = main
+        ? Number(main.spendAmount)
+        : teams.reduce((s, t) => s + Number(t.spendAmount), 0);
       const totalFans = teams.length > 0
         ? teams.reduce((s, t) => s + (t.fanCount ?? 0), 0)
         : (main?.fanCount ?? 0);

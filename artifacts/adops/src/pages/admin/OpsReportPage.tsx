@@ -140,7 +140,10 @@ export default function OpsReportPage() {
     }
     return Array.from(map.entries()).map(([groupKey, { main, teams }]) => {
       const anchor = main ?? teams[0]!;
-      const displaySpend = main ? Number(main.spendAmount) : 0;
+      // Legacy compat: old submissions stored spend on team records directly (no main record).
+      const displaySpend = main
+        ? Number(main.spendAmount)
+        : teams.reduce((s, t) => s + Number(t.spendAmount), 0);
       const totalFans = teams.length > 0
         ? teams.reduce((s, t) => s + (t.fanCount ?? 0), 0)
         : (main?.fanCount ?? 0);
