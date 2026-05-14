@@ -164,7 +164,18 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
     }
   }
 
-  await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  // If deleting the main record, also cascade-delete all team attribution records
+  // for the same account+date to avoid orphaned ghost groups.
+  if (existing.teamId == null && existing.accountId && existing.date) {
+    await db.delete(dailyStatsTable).where(
+      and(
+        eq(dailyStatsTable.accountId, existing.accountId),
+        eq(dailyStatsTable.date, existing.date),
+      )
+    );
+  } else {
+    await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  }
   res.json({ ok: true });
 });
 

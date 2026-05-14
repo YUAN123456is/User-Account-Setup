@@ -95,6 +95,8 @@ export default function OpsReportPage() {
         return;
       }
       toast({ title: "已删除", description: `${deleteTarget.date} · ${deleteTarget.accountName ?? `#${deleteTarget.accountId}`}` });
+      // Invalidate both the current filtered query and the unfiltered base query
+      await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey(apiParams) });
       await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
       setDeleteTarget(null);
       setDeletePassword("");
@@ -153,7 +155,7 @@ export default function OpsReportPage() {
         date: anchor.date,
         accountId: anchor.accountId,
         accountName: anchor.accountName ?? null,
-        pitcherName: main?.pitcherName ?? null,
+        pitcherName: main?.pitcherName ?? teams[0]?.pitcherName ?? null,
         main,
         teamRecords: teams,
         visibleTeams: teams, // filtered below
