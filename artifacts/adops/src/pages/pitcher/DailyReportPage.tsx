@@ -134,13 +134,13 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const addTeamCreate = useCreateDailyStat({});
 
   const handleAddTeam = () => {
-    const sp = parseFloat(addSpend);
+    const sp = addSpend ? parseFloat(addSpend) : 0;
     if (!addTeamId) { toast({ title: "请选择服务团队", variant: "destructive" }); return; }
-    if (isNaN(sp) || sp <= 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
+    if (addSpend && (isNaN(sp) || sp < 0)) { toast({ title: "消耗金额格式不正确", variant: "destructive" }); return; }
     addTeamCreate.mutate({ data: {
       accountId: stat.accountId,
       date: stat.date,
-      spendAmount: sp.toFixed(2),
+      spendAmount: sp > 0 ? sp.toFixed(2) : "0",
       businessType: "liveChat",
       teamId: Number(addTeamId),
       fanCount: addFanCount ? parseInt(addFanCount) : null,
@@ -314,7 +314,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">消耗金额（美元）<span className="text-destructive">*</span></Label>
+                    <Label className="text-xs">消耗金额（可选，仅作参考）</Label>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"

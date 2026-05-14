@@ -201,14 +201,21 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
+  // Team split records (teamId != null) represent service attribution only — they do NOT
+  // deduct from account balance (the main record with teamId=null carries the actual spend).
+  const isTeamSplitRecord = parsed.data.teamId != null;
+
   const theoreticalBal = parseFloat(account.theoreticalBalance ?? account.currentBalance);
-  const spend = parseFloat(parsed.data.spendAmount);
-  const newBalance = (theoreticalBal - spend).toFixed(2);
+  const spend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
+  // For team split records, realBalance stays the same as the current balance (no deduction).
+  const newBalance = isTeamSplitRecord
+    ? theoreticalBal.toFixed(2)
+    : (theoreticalBal - spend).toFixed(2);
 
   const [stat] = await db.insert(dailyStatsTable).values({
     accountId: parsed.data.accountId,
     date: parsed.data.date,
-    spendAmount: parsed.data.spendAmount,
+    spendAmount: spend.toFixed(2),
     realBalance: newBalance,
     pitcherId: req.session.userId!,
     hasAlert: parseFloat(newBalance) < 100,
@@ -221,11 +228,14 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     fbSynced: false,
   }).returning();
 
-  await db.update(accountsTable).set({
-    currentBalance: newBalance,
-    theoreticalBalance: newBalance,
-    lastReportedAt: new Date(),
-  }).where(eq(accountsTable.id, parsed.data.accountId));
+  // Only update account balance for the main record (no teamId)
+  if (!isTeamSplitRecord) {
+    await db.update(accountsTable).set({
+      currentBalance: newBalance,
+      theoreticalBalance: newBalance,
+      lastReportedAt: new Date(),
+    }).where(eq(accountsTable.id, parsed.data.accountId));
+  }
 
   res.status(201).json(await formatStat(stat));
 });
