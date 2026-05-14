@@ -13,7 +13,7 @@ import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook, EyeOff, Trash2, Loader2 } from "lucide-react";
+import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, Facebook, EyeOff, Trash2, Loader2, Clock, XCircle, CheckCircle } from "lucide-react";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,7 @@ export default function OpsReportPage() {
   const [sortKey, setSortKey] = useState<string>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [hideZero, setHideZero] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
 
   const [deleteTarget, setDeleteTarget] = useState<DailyStat | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
@@ -112,6 +113,11 @@ export default function OpsReportPage() {
 
   const filtered = useMemo(() => {
     let rows = [...allStats];
+    // Status filter — rejected records are hidden by default (admin must explicitly choose to view them)
+    if (statusFilter === "approved") rows = rows.filter((s) => s.status === "approved" || s.fbSynced);
+    else if (statusFilter === "pending") rows = rows.filter((s) => s.status === "pending" && !s.fbSynced);
+    else if (statusFilter === "rejected") rows = rows.filter((s) => s.status === "rejected");
+    else rows = rows.filter((s) => s.status !== "rejected"); // "all" still hides rejected
     if (hideZero) rows = rows.filter((s) => Number(s.spendAmount) > 0);
     if (bizFilter === "liveChat") rows = rows.filter((s) => s.businessType === "liveChat");
     else if (bizFilter === "ecommerce") rows = rows.filter((s) => s.businessType === "ecommerce");
@@ -123,7 +129,13 @@ export default function OpsReportPage() {
       rows = rows.filter((s) => (s.accountName ?? "").toLowerCase().includes(q));
     }
     return rows;
-  }, [allStats, hideZero, bizFilter, teamFilter, pitcherFilter, search]);
+  }, [allStats, hideZero, bizFilter, teamFilter, pitcherFilter, search, statusFilter]);
+
+  // Totals are computed only from approved/fb-synced rows — pending records must not skew the numbers
+  const approvedRows = useMemo(
+    () => filtered.filter((s) => s.status === "approved" || s.fbSynced),
+    [filtered]
+  );
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -140,9 +152,9 @@ export default function OpsReportPage() {
 
   const paged = usePagination(sorted, PAGE_SIZE, page);
 
-  const liveChatRows = filtered.filter((s) => s.businessType === "liveChat");
-  const ecomRows = filtered.filter((s) => s.businessType === "ecommerce");
-  const totalSpend = filtered.reduce((s, r) => s + Number(r.spendAmount), 0);
+  const liveChatRows = approvedRows.filter((s) => s.businessType === "liveChat");
+  const ecomRows = approvedRows.filter((s) => s.businessType === "ecommerce");
+  const totalSpend = approvedRows.reduce((s, r) => s + Number(r.spendAmount), 0);
   const totalFans = liveChatRows.reduce((s, r) => s + (r.fanCount ?? 0), 0);
   const avgFanCost = totalFans > 0 ? liveChatRows.reduce((s, r) => s + Number(r.spendAmount), 0) / totalFans : 0;
   const totalGmv = ecomRows.reduce((s, r) => s + Number(r.gmv ?? 0), 0);
@@ -170,7 +182,7 @@ export default function OpsReportPage() {
     );
   };
 
-  const colCount = 5 + (hasBizAny ? 1 : 0) + (hasLive ? 3 : 0) + (hasEcom ? 4 : 0);
+  const colCount = 6 + (hasBizAny ? 1 : 0) + (hasLive ? 3 : 0) + (hasEcom ? 4 : 0);
 
   return (
     <div className="space-y-4">
@@ -255,6 +267,16 @@ export default function OpsReportPage() {
           </Select>
         )}
 
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as typeof statusFilter); setPage(1); }}>
+          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部状态</SelectItem>
+            <SelectItem value="approved">已审核</SelectItem>
+            <SelectItem value="pending">待审核</SelectItem>
+            <SelectItem value="rejected">已驳回</SelectItem>
+          </SelectContent>
+        </Select>
+
         <button
           onClick={() => { setHideZero((v) => !v); setPage(1); }}
           className={cn(
@@ -268,9 +290,9 @@ export default function OpsReportPage() {
           {hideZero ? "已隐藏零消耗" : "显示零消耗"}
         </button>
 
-        {(search || pitcherFilter !== "all" || teamFilter !== "all" || bizFilter !== "all") && (
+        {(search || pitcherFilter !== "all" || teamFilter !== "all" || bizFilter !== "all" || statusFilter !== "all") && (
           <button
-            onClick={() => { setSearch(""); setPitcherFilter("all"); setTeamFilter("all"); setBizFilter("all"); setPage(1); }}
+            onClick={() => { setSearch(""); setPitcherFilter("all"); setTeamFilter("all"); setBizFilter("all"); setStatusFilter("all"); setPage(1); }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
           >
             清除筛选
@@ -284,7 +306,7 @@ export default function OpsReportPage() {
 
       <StatsBar items={[
         { label: "记录条数", value: filtered.length },
-        { label: "总消耗", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
+        { label: "已审核消耗", value: `$${totalSpend.toFixed(2)}`, color: "blue" },
         ...(liveChatRows.length > 0 ? [
           { label: "聊单进粉", value: totalFans, color: "purple" as const },
           { label: "平均粉成本", value: totalFans > 0 ? `$${avgFanCost.toFixed(4)}` : "—", color: "amber" as const },
@@ -305,6 +327,7 @@ export default function OpsReportPage() {
                 <SortHead col="accountName" label="账户" className="min-w-[160px]" />
                 <SortHead col="pitcherName" label="投手" className="min-w-[80px]" />
                 <SortHead col="spendAmount" label="消耗" className="min-w-[90px] text-right" right />
+                <TableHead className="min-w-[72px] whitespace-nowrap">状态</TableHead>
                 {hasBizAny && <TableHead className="min-w-[68px]">业务</TableHead>}
                 {hasLive && <TableHead className="min-w-[80px]">团队</TableHead>}
                 {hasLive && <SortHead col="fanCount" label="进粉" className="min-w-[60px] text-right" right />}
@@ -337,7 +360,10 @@ export default function OpsReportPage() {
                 </TableRow>
               )}
               {!isLoading && paged.map((s, idx) => (
-                <TableRow key={s.id} className={cn(idx % 2 === 1 && "bg-muted/20")}>
+                <TableRow key={s.id} className={cn(
+                  idx % 2 === 1 && "bg-muted/20",
+                  s.status === "rejected" && "opacity-50",
+                )}>
                   <TableCell className="font-mono text-xs whitespace-nowrap py-3 px-4">{s.date}</TableCell>
                   <TableCell className="py-3 px-4">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -350,6 +376,25 @@ export default function OpsReportPage() {
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold whitespace-nowrap text-sm py-3 px-4">
                     ${Number(s.spendAmount).toFixed(2)}
+                  </TableCell>
+                  <TableCell className="py-3 px-4">
+                    {s.fbSynced ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-blue-500 font-medium">
+                        <Facebook className="h-3 w-3" />FB
+                      </span>
+                    ) : s.status === "approved" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-green-600 font-medium">
+                        <CheckCircle className="h-3 w-3" />已审核
+                      </span>
+                    ) : s.status === "rejected" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-destructive font-medium">
+                        <XCircle className="h-3 w-3" />已驳回
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 font-medium">
+                        <Clock className="h-3 w-3" />待审核
+                      </span>
+                    )}
                   </TableCell>
                   {hasBizAny && (
                     <TableCell className="py-3 px-4">
