@@ -131,25 +131,12 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
     },
   });
 
-  const addTeamCreate = useCreateDailyStat({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
-        toast({ title: "团队记录已添加", description: "新记录已提交审核。" });
-        setShowAddTeam(false);
-        setAddTeamId(""); setAddFanCount(""); setAddSpend("");
-      },
-      onError: (err: unknown) => {
-        const msg = (err as { data?: { error?: string } })?.data?.error ?? "添加失败";
-        toast({ title: msg, variant: "destructive" });
-      },
-    },
-  });
+  const addTeamCreate = useCreateDailyStat({});
 
   const handleAddTeam = () => {
     const sp = parseFloat(addSpend);
     if (!addTeamId) { toast({ title: "请选择服务团队", variant: "destructive" }); return; }
-    if (isNaN(sp) || sp < 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
+    if (isNaN(sp) || sp <= 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
     addTeamCreate.mutate({ data: {
       accountId: stat.accountId,
       date: stat.date,
@@ -159,7 +146,19 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
       fanCount: addFanCount ? parseInt(addFanCount) : null,
       gmv: null,
       orderCount: null,
-    }});
+    }}, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["listDailyStats"] });
+        queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
+        toast({ title: "团队记录已添加", description: "新记录已提交审核。" });
+        setShowAddTeam(false);
+        setAddTeamId(""); setAddFanCount(""); setAddSpend("");
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "添加失败";
+        toast({ title: msg, variant: "destructive" });
+      },
+    });
   };
 
   const addFanNum = parseInt(addFanCount) || 0;
@@ -338,7 +337,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
                     {addFanCost && <p className="text-xs text-muted-foreground">粉成本 <span className="font-mono text-primary">${addFanCost}</span></p>}
                   </div>
                 </div>
-                <Button size="sm" className="h-7 text-xs w-full" onClick={handleAddTeam} disabled={addTeamCreate.isPending}>
+                <Button type="button" size="sm" className="h-7 text-xs w-full" onClick={handleAddTeam} disabled={addTeamCreate.isPending}>
                   {addTeamCreate.isPending ? "提交中..." : "添加团队记录"}
                 </Button>
               </div>
