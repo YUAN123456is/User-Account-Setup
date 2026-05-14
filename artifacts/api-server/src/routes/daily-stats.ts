@@ -149,9 +149,10 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
 
-  // Restore the account balance: add the spend back
+  // Restore the account balance: add the spend back.
+  // Team split records (teamId != null) never touched the balance, so nothing to restore.
   const spend = parseFloat(existing.spendAmount);
-  if (spend > 0 && existing.accountId) {
+  if (spend > 0 && existing.accountId && existing.teamId == null) {
     const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
     if (acct) {
       const restoredCurrent = (parseFloat(acct.currentBalance) + spend).toFixed(2);
@@ -274,18 +275,25 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
     updates.hasAlert = parseFloat(newRealBalance) < 100;
   }
 
-  // For already-approved records: only a spend change triggers re-review;
-  // updating team / biz-type / fan-count / order-count stays approved.
-  // For pending / rejected records: any edit resets to pending.
   const spendChanged = parsed.data.spendAmount != null;
-  if (existing.status !== "approved" || spendChanged) {
-    updates.status = "pending";
-    updates.reviewNote = null;
+  const isTeamRecord = existing.teamId != null;
+
+  if (isTeamRecord) {
+    // Team split records are attribution-only — fanCount/team edits never need re-review.
+    // Only a spend change (unusual) would trigger it, matching the "reference spend" intent.
+    if (spendChanged) { updates.status = "pending"; updates.reviewNote = null; }
+  } else {
+    // Main records: spend change triggers re-review; metadata changes stay approved.
+    if (existing.status !== "approved" || spendChanged) {
+      updates.status = "pending";
+      updates.reviewNote = null;
+    }
   }
 
   const [stat] = await db.update(dailyStatsTable).set(updates).where(eq(dailyStatsTable.id, params.data.id)).returning();
 
-  if (spendDelta !== 0) {
+  // Team split records never touched balance — don't update it on edit either.
+  if (spendDelta !== 0 && !isTeamRecord) {
     const [acct] = await db.select().from(accountsTable).where(eq(accountsTable.id, existing.accountId));
     if (acct) {
       const newCurrentBal = (parseFloat(acct.currentBalance) - spendDelta).toFixed(2);

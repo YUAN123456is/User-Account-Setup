@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListAccounts, useCreateDailyStat, useUpdateDailyStat,
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
   AlertCircle, Clock, XCircle, Facebook, Info, UserPlus, PlusCircle,
+  ChevronDown, ChevronRight, Users,
 } from "lucide-react";
 
 interface Account {
@@ -62,6 +63,24 @@ interface TeamSubRow {
   key: string;
   teamId: string;
   fanCount: string;
+}
+
+interface StatGroup {
+  groupKey: string;
+  date: string;
+  accountId: number;
+  accountName: string | null;
+  accountCurrentBalance: string | null;
+  main: DailyStat | null;
+  teamRecords: DailyStat[];
+  displaySpend: number;
+  displayFans: number;
+  displayFanCost: string | null;
+  displayBalance: string | null;
+  displayStatus: string | null;
+  fbSynced: boolean;
+  businessType: string | null;
+  reviewNote: string | null;
 }
 
 interface ReportRow {
@@ -381,6 +400,12 @@ export default function DailyReportPage() {
   const [histStatusFilter, setHistStatusFilter] = useState("all");
   const [hideZero, setHideZero] = useState(true);
   const [histPage, setHistPage] = useState(1);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) => setExpandedGroups((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   const histApiParams: Record<string, string> = {};
   if (histDateRange.from) histApiParams.dateFrom = histDateRange.from;
@@ -389,19 +414,62 @@ export default function DailyReportPage() {
 
   const { data: histData, isLoading: histLoading } = useListDailyStats(histApiParams);
   const allHistStats = useMemo(() => Array.isArray(histData) ? (histData as DailyStat[]) : [], [histData]);
-  const histFiltered = useMemo(() => {
-    let filtered = allHistStats;
-    if (histStatusFilter === "pending") filtered = filtered.filter((s) => s.status === "pending");
-    else if (histStatusFilter === "approved") filtered = filtered.filter((s) => (!s.status || s.status === "approved") && !s.fbSynced);
-    else if (histStatusFilter === "rejected") filtered = filtered.filter((s) => s.status === "rejected");
-    else if (histStatusFilter === "fb") filtered = filtered.filter((s) => s.fbSynced);
-    if (hideZero) filtered = filtered.filter((s) => Number(s.spendAmount) > 0);
-    return [...filtered].sort((a, b) => b.date.localeCompare(a.date));
-  }, [allHistStats, histStatusFilter, hideZero]);
-  const histPaged = usePagination(histFiltered, 20, histPage);
-  const hasLive = histFiltered.some((s) => s.businessType === "liveChat");
-  const hasEcom = histFiltered.some((s) => s.businessType === "ecommerce");
-  const hasBiz = histFiltered.some((s) => s.businessType != null);
+
+  // Group records by (accountId, date): main record (teamId=null) + team attribution records
+  const histGroups = useMemo((): StatGroup[] => {
+    const map = new Map<string, { main: DailyStat | null; teams: DailyStat[] }>();
+    for (const s of allHistStats) {
+      const key = `${s.accountId}-${s.date}`;
+      if (!map.has(key)) map.set(key, { main: null, teams: [] });
+      const g = map.get(key)!;
+      if (s.teamId == null) g.main = s; else g.teams.push(s);
+    }
+    const groups: StatGroup[] = [];
+    for (const [groupKey, { main, teams }] of map) {
+      const anchor = main ?? teams[0];
+      if (!anchor) continue;
+      const displaySpend = main ? Number(main.spendAmount) : 0;
+      const totalFans = teams.length > 0
+        ? teams.reduce((s, t) => s + (t.fanCount ?? 0), 0)
+        : (main?.fanCount ?? 0);
+      const displayFanCost = displaySpend > 0 && totalFans > 0 ? (displaySpend / totalFans).toFixed(4) : null;
+      groups.push({
+        groupKey,
+        date: anchor.date,
+        accountId: anchor.accountId ?? 0,
+        accountName: anchor.accountName ?? null,
+        accountCurrentBalance: main?.accountCurrentBalance ?? anchor.accountCurrentBalance ?? null,
+        main,
+        teamRecords: teams,
+        displaySpend,
+        displayFans: totalFans,
+        displayFanCost,
+        displayBalance: main?.realBalance != null ? String(main.realBalance) : null,
+        displayStatus: main?.status ?? teams[0]?.status ?? null,
+        fbSynced: main?.fbSynced ?? false,
+        businessType: main?.businessType ?? teams[0]?.businessType ?? null,
+        reviewNote: main?.reviewNote ?? null,
+      });
+    }
+    return groups.sort((a, b) => b.date.localeCompare(a.date));
+  }, [allHistStats]);
+
+  // Filter groups by status and hideZero
+  const filteredGroups = useMemo(() => {
+    let groups = [...histGroups];
+    if (histStatusFilter === "pending") groups = groups.filter((g) => g.displayStatus === "pending" && !g.fbSynced);
+    else if (histStatusFilter === "approved") groups = groups.filter((g) => g.displayStatus === "approved" && !g.fbSynced);
+    else if (histStatusFilter === "rejected") groups = groups.filter((g) => g.displayStatus === "rejected");
+    else if (histStatusFilter === "fb") groups = groups.filter((g) => g.fbSynced);
+    // hideZero: hide groups with no spend AND no team records (pure zero entries)
+    if (hideZero) groups = groups.filter((g) => g.displaySpend > 0 || g.teamRecords.length > 0);
+    return groups;
+  }, [histGroups, histStatusFilter, hideZero]);
+
+  const pagedGroups = usePagination(filteredGroups, 20, histPage);
+  const hasLive = filteredGroups.some((g) => g.businessType === "liveChat");
+  const hasEcom = filteredGroups.some((g) => g.businessType === "ecommerce");
+  const hasBiz = filteredGroups.some((g) => g.businessType != null);
 
   const createMutation = useCreateDailyStat({});
 
@@ -449,17 +517,33 @@ export default function DailyReportPage() {
       // For liveChat with multiple teams, split into one record per team
       const isLive = r.businessType === "liveChat";
       const validTeamRows = isLive ? r.teamRows.filter((t) => t.teamId) : [];
+      // When teams are specified: create one MAIN record (teamId=null) carrying total spend
+      // (this is the one that deducts balance), plus attribution-only team records (spend=0).
       const submitEntries = isLive && validTeamRows.length > 0
-        ? validTeamRows.map((t) => ({
-            accountId: Number(r.accountId),
-            date: sharedDate,
-            spendAmount: (totalSpend / validTeamRows.length).toFixed(2),
-            businessType: "liveChat" as const,
-            teamId: Number(t.teamId),
-            fanCount: t.fanCount ? parseInt(t.fanCount) : null,
-            gmv: null,
-            orderCount: null,
-          }))
+        ? [
+            // Main record — balance deduction happens here
+            {
+              accountId: Number(r.accountId),
+              date: sharedDate,
+              spendAmount: totalSpend.toFixed(2),
+              businessType: "liveChat" as const,
+              teamId: null,
+              fanCount: null,
+              gmv: null,
+              orderCount: null,
+            },
+            // Team attribution records — no balance impact, just fanCount tracking
+            ...validTeamRows.map((t) => ({
+              accountId: Number(r.accountId),
+              date: sharedDate,
+              spendAmount: "0",
+              businessType: "liveChat" as const,
+              teamId: Number(t.teamId),
+              fanCount: t.fanCount ? parseInt(t.fanCount) : null,
+              gmv: null,
+              orderCount: null,
+            })),
+          ]
         : [{
             accountId: Number(r.accountId),
             date: sharedDate,
@@ -708,116 +792,186 @@ export default function DailyReportPage() {
 
         {histLoading ? (
           <div className="h-24 bg-muted animate-pulse rounded-lg" />
-        ) : histFiltered.length === 0 ? (
+        ) : filteredGroups.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
             <BarChart3 className="h-5 w-5 text-muted-foreground/40 mx-auto mb-1.5" />
             <p className="text-sm text-muted-foreground">暂无上报记录</p>
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/40">
-                        <TableHead className="min-w-[88px] whitespace-nowrap">日期</TableHead>
-                        <TableHead className="min-w-[160px]">账户</TableHead>
-                        <TableHead className="min-w-[80px] text-right whitespace-nowrap">消耗</TableHead>
-                        <TableHead className="min-w-[88px] text-right whitespace-nowrap">余额</TableHead>
-                        {hasBiz && <TableHead className="min-w-[64px]">业务</TableHead>}
-                        {hasLive && <TableHead className="min-w-[72px] whitespace-nowrap">团队</TableHead>}
-                        {hasLive && <TableHead className="min-w-[56px] text-right whitespace-nowrap">进粉</TableHead>}
-                        {hasLive && <TableHead className="min-w-[76px] text-right whitespace-nowrap">粉成本</TableHead>}
-                        {hasEcom && <TableHead className="min-w-[86px] text-right whitespace-nowrap">GMV</TableHead>}
-                        {hasEcom && <TableHead className="min-w-[60px] text-right whitespace-nowrap">ROAS</TableHead>}
-                        {hasEcom && <TableHead className="min-w-[52px] text-right whitespace-nowrap">订单</TableHead>}
-                        {hasEcom && <TableHead className="min-w-[76px] text-right whitespace-nowrap">客单</TableHead>}
-                        <TableHead className="min-w-[56px] whitespace-nowrap">状态</TableHead>
-                        <TableHead className="w-10"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {histPaged.map((s, idx) => (
-                        <TableRow key={s.id} className={[
-                          s.status === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : idx % 2 === 1 ? "bg-muted/20" : "",
-                        ].join(" ")}>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 px-3">{s.date}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-6"></TableHead>
+                    <TableHead className="min-w-[88px] whitespace-nowrap">日期</TableHead>
+                    <TableHead className="min-w-[160px]">账户</TableHead>
+                    <TableHead className="min-w-[80px] text-right whitespace-nowrap">总消耗</TableHead>
+                    <TableHead className="min-w-[88px] text-right whitespace-nowrap">余额</TableHead>
+                    {hasBiz && <TableHead className="min-w-[64px]">业务</TableHead>}
+                    {hasLive && <TableHead className="min-w-[100px] whitespace-nowrap">团队</TableHead>}
+                    {hasLive && <TableHead className="min-w-[56px] text-right whitespace-nowrap">进粉</TableHead>}
+                    {hasLive && <TableHead className="min-w-[76px] text-right whitespace-nowrap">粉成本</TableHead>}
+                    {hasEcom && <TableHead className="min-w-[86px] text-right whitespace-nowrap">GMV</TableHead>}
+                    {hasEcom && <TableHead className="min-w-[60px] text-right whitespace-nowrap">ROAS</TableHead>}
+                    {hasEcom && <TableHead className="min-w-[52px] text-right whitespace-nowrap">订单</TableHead>}
+                    {hasEcom && <TableHead className="min-w-[76px] text-right whitespace-nowrap">客单</TableHead>}
+                    <TableHead className="min-w-[56px] whitespace-nowrap">状态</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedGroups.map((g, idx) => {
+                    const isExpanded = expandedGroups.has(g.groupKey);
+                    const hasTeams = g.teamRecords.length > 0;
+                    const rowBg = g.displayStatus === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : idx % 2 === 1 ? "bg-muted/20" : "";
+                    const editStat = g.main ?? g.teamRecords[0];
+                    return (
+                      <Fragment key={g.groupKey}>
+                        {/* ── Main row ── */}
+                        <TableRow className={rowBg}>
+                          {/* Expand toggle */}
+                          <TableCell className="py-3 px-1 w-6">
+                            {hasTeams ? (
+                              <button onClick={() => toggleGroup(g.groupKey)}
+                                className="text-muted-foreground hover:text-primary transition-colors p-0.5">
+                                {isExpanded
+                                  ? <ChevronDown className="h-3.5 w-3.5" />
+                                  : <ChevronRight className="h-3.5 w-3.5" />}
+                              </button>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 px-3">{g.date}</TableCell>
                           <TableCell className="font-medium text-sm py-3 px-3">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              {s.fbSynced && <Facebook className="h-3 w-3 text-blue-400 shrink-0" />}
-                              <TruncatedCell value={s.accountName ?? `#${s.accountId}`} maxWidth="max-w-[180px]" />
+                              {g.fbSynced && <Facebook className="h-3 w-3 text-blue-400 shrink-0" />}
+                              <TruncatedCell value={g.accountName ?? `#${g.accountId}`} maxWidth="max-w-[160px]" />
+                              {hasTeams && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-primary/70 bg-primary/10 rounded px-1 py-0.5 shrink-0">
+                                  <Users className="h-2.5 w-2.5" />{g.teamRecords.length}队
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-orange-500 whitespace-nowrap py-3 px-3">
-                            ${Number(s.spendAmount).toFixed(2)}
+                            ${g.displaySpend.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                            {s.accountCurrentBalance != null ? `$${Number(s.accountCurrentBalance).toFixed(2)}` : "—"}
+                            {g.accountCurrentBalance != null ? `$${Number(g.accountCurrentBalance).toFixed(2)}` : "—"}
                           </TableCell>
                           {hasBiz && (
                             <TableCell className="py-3 px-3">
-                              {s.businessType ? <BizBadge biz={s.businessType} /> : <span className="text-xs text-muted-foreground">—</span>}
+                              {g.businessType ? <BizBadge biz={g.businessType} /> : <span className="text-xs text-muted-foreground">—</span>}
                             </TableCell>
                           )}
                           {hasLive && (
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap py-3 px-3">
-                              {s.teamName ?? "—"}
+                            <TableCell className="text-xs text-muted-foreground py-3 px-3">
+                              {hasTeams
+                                ? <span className="text-primary/60 italic text-[11px]">{isExpanded ? "收起" : "展开查看"}</span>
+                                : (g.main?.teamName ?? "—")}
                             </TableCell>
                           )}
                           {hasLive && (
-                            <TableCell className="text-right font-mono text-xs py-3 px-3">{s.fanCount ?? "—"}</TableCell>
+                            <TableCell className="text-right font-mono text-xs py-3 px-3">
+                              {g.displayFans > 0 ? g.displayFans : "—"}
+                            </TableCell>
                           )}
                           {hasLive && (
                             <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                              {s.fanCost ? `$${Number(s.fanCost).toFixed(2)}` : "—"}
+                              {g.displayFanCost ? `$${g.displayFanCost}` : "—"}
                             </TableCell>
                           )}
                           {hasEcom && (
                             <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                              {s.gmv ? `$${Number(s.gmv).toFixed(2)}` : "—"}
+                              {g.main?.gmv ? `$${Number(g.main.gmv).toFixed(2)}` : "—"}
                             </TableCell>
                           )}
                           {hasEcom && (
                             <TableCell className="text-right font-mono text-xs py-3 px-3">
-                              {s.roas ? Number(s.roas).toFixed(2) : "—"}
+                              {g.main?.roas ? Number(g.main.roas).toFixed(2) : "—"}
                             </TableCell>
                           )}
                           {hasEcom && (
-                            <TableCell className="text-right font-mono text-xs py-3 px-3">{s.orderCount ?? "—"}</TableCell>
+                            <TableCell className="text-right font-mono text-xs py-3 px-3">{g.main?.orderCount ?? "—"}</TableCell>
                           )}
                           {hasEcom && (
                             <TableCell className="text-right font-mono text-xs whitespace-nowrap py-3 px-3">
-                              {s.avgOrderValue ? `$${Number(s.avgOrderValue).toFixed(2)}` : "—"}
+                              {g.main?.avgOrderValue ? `$${Number(g.main.avgOrderValue).toFixed(2)}` : "—"}
                             </TableCell>
                           )}
                           <TableCell className="py-3 px-3">
-                            {s.fbSynced ? (
+                            {g.fbSynced ? (
                               <span className="flex items-center gap-1 text-xs text-blue-400 whitespace-nowrap"><Facebook className="h-3 w-3" />FB</span>
-                            ) : s.status === "pending" ? (
+                            ) : g.displayStatus === "pending" ? (
                               <span className="flex items-center gap-1 text-xs text-amber-400 whitespace-nowrap"><Clock className="h-3 w-3" />待审</span>
-                            ) : s.status === "rejected" ? (
-                              <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap" title={s.reviewNote ?? ""}><XCircle className="h-3 w-3" />驳回</span>
+                            ) : g.displayStatus === "rejected" ? (
+                              <span className="flex items-center gap-1 text-xs text-red-400 whitespace-nowrap" title={g.reviewNote ?? ""}><XCircle className="h-3 w-3" />驳回</span>
                             ) : (
                               <span className="flex items-center gap-1 text-xs text-emerald-500 whitespace-nowrap"><CheckCircle className="h-3 w-3" />通过</span>
                             )}
                           </TableCell>
                           <TableCell className="pr-2 py-3">
-                            {s.status === "rejected" ? (
-                              <button onClick={() => setEditTarget(s)}
+                            {editStat && (g.displayStatus === "rejected" ? (
+                              <button onClick={() => setEditTarget(editStat)}
                                 className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded px-1.5 py-0.5 transition-colors whitespace-nowrap">
                                 <Pencil className="h-3 w-3" />修改
                               </button>
                             ) : (
-                              <button onClick={() => setEditTarget(s)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
+                              <button onClick={() => setEditTarget(editStat)} className="text-muted-foreground hover:text-primary p-1 transition-colors block">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-                            )}
+                            ))}
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                <TablePagination page={histPage} pageSize={20} total={histFiltered.length} onPageChange={setHistPage} />
+
+                        {/* ── Team sub-rows (expanded) ── */}
+                        {isExpanded && g.teamRecords.map((t) => {
+                          const teamFanCost = g.displaySpend > 0 && (t.fanCount ?? 0) > 0
+                            ? (g.displaySpend / t.fanCount!).toFixed(4) : null;
+                          return (
+                            <TableRow key={`team-${t.id}`} className="bg-primary/[0.03] border-l-2 border-l-primary/20">
+                              <TableCell className="py-2 px-1" />
+                              <TableCell className="py-2 px-3 text-xs text-muted-foreground/60">└</TableCell>
+                              <TableCell className="py-2 px-3" colSpan={1}>
+                                <span className="text-xs text-muted-foreground">{t.teamName ?? `团队 #${t.teamId}`}</span>
+                              </TableCell>
+                              {/* spend placeholder — team records have no independent spend */}
+                              <TableCell className="py-2 px-3 text-right text-xs text-muted-foreground/40">—</TableCell>
+                              <TableCell className="py-2 px-3" />
+                              {hasBiz && <TableCell className="py-2 px-3" />}
+                              {hasLive && <TableCell className="py-2 px-3 text-xs text-muted-foreground">{t.teamName ?? "—"}</TableCell>}
+                              {hasLive && <TableCell className="py-2 px-3 text-right font-mono text-xs">{t.fanCount ?? "—"}</TableCell>}
+                              {hasLive && (
+                                <TableCell className="py-2 px-3 text-right font-mono text-xs whitespace-nowrap text-muted-foreground">
+                                  {teamFanCost ? `$${teamFanCost}` : "—"}
+                                </TableCell>
+                              )}
+                              {hasEcom && <TableCell className="py-2 px-3" />}
+                              {hasEcom && <TableCell className="py-2 px-3" />}
+                              {hasEcom && <TableCell className="py-2 px-3" />}
+                              {hasEcom && <TableCell className="py-2 px-3" />}
+                              <TableCell className="py-2 px-3">
+                                {t.status === "pending" ? (
+                                  <span className="flex items-center gap-1 text-[10px] text-amber-400"><Clock className="h-2.5 w-2.5" />待审</span>
+                                ) : t.status === "approved" ? (
+                                  <span className="flex items-center gap-1 text-[10px] text-emerald-500"><CheckCircle className="h-2.5 w-2.5" />通过</span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="py-2 pr-2">
+                                <button onClick={() => setEditTarget(t)} className="text-muted-foreground/50 hover:text-primary p-1 transition-colors block">
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <TablePagination page={histPage} pageSize={20} total={filteredGroups.length} onPageChange={setHistPage} />
           </div>
         )}
       </div>
