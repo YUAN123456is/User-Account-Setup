@@ -13,6 +13,11 @@ export const accountsTable = pgTable("accounts", {
   status: text("status", { enum: ["idle", "active", "banned"] }).notNull().default("idle"),
   currentBalance: decimal("current_balance", { precision: 18, scale: 2 }).notNull().default("0"),
   theoreticalBalance: decimal("theoretical_balance", { precision: 18, scale: 2 }),
+  // balanceOffset stores any "out-of-band" balance adjustments that aren't tracked in
+  // recharge_orders. Set at account creation (initialBalance), and updated whenever
+  // clearBalance or set-balance is called, so that recalculateBalance always returns
+  // the correct value even after manual overrides. Default 0 (safe for existing rows).
+  balanceOffset: decimal("balance_offset", { precision: 18, scale: 2 }).notNull().default("0"),
   lastReportedAt: timestamp("last_reported_at", { withTimezone: true }),
   banNotifyProvider: boolean("ban_notify_provider").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

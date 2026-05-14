@@ -7,7 +7,11 @@ export type DbOrTx = typeof db | Tx;
 /**
  * Single source of truth for account balance:
  *
- *   balance = Σ completed_recharge_amounts − Σ (pending | approved) main_record_spend
+ *   balance = balance_offset + Σ completed_recharge_amounts − Σ (pending | approved) main_record_spend
+ *
+ * balance_offset stores out-of-band adjustments: the initial balance set at account
+ * creation, and any explicit clearBalance / set-balance overrides. This ensures that
+ * manual overrides survive subsequent syncAccountBalance calls without being reset.
  *
  * "Main records" are daily_stats rows where team_id IS NULL.
  * Rejected and deleted records are naturally excluded, so balance auto-corrects
@@ -18,6 +22,11 @@ export type DbOrTx = typeof db | Tx;
  */
 export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promise<string> {
   const conn = (tx ?? db) as typeof db;
+
+  const [acctRow] = await conn
+    .select({ offset: accountsTable.balanceOffset })
+    .from(accountsTable)
+    .where(eq(accountsTable.id, accountId));
 
   const [rechRow] = await conn
     .select({ total: sql<string>`COALESCE(SUM(COALESCE(actual_amount, amount)), 0)::text` })
@@ -33,9 +42,10 @@ export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promis
       sql`${dailyStatsTable.status} IN ('pending', 'approved')`,
     ));
 
+  const offsetTotal = parseFloat(acctRow?.offset ?? "0");
   const rechargeTotal = parseFloat(rechRow?.total ?? "0");
   const spendTotal = parseFloat(spendRow?.total ?? "0");
-  return (rechargeTotal - spendTotal).toFixed(2);
+  return (offsetTotal + rechargeTotal - spendTotal).toFixed(2);
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   DeleteAccountParams,
 } from "@workspace/api-zod";
 import { requireAuth, requireRole } from "../middlewares/require-auth";
+import { recalculateBalance, syncAccountBalance } from "../lib/balance";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,7 @@ router.post("/accounts", requireRole("provider"), async (req, res): Promise<void
     accountName: parsed.data.accountName,
     platform: parsed.data.platform,
     providerId: req.session.userId!,
+    balanceOffset: parsed.data.initialBalance,   // persisted so recalculate includes it
     currentBalance: parsed.data.initialBalance,
     theoreticalBalance: parsed.data.initialBalance,
     status: "idle",
@@ -181,10 +183,28 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // clearBalance: compute the offset needed to make recalculate return 0, then sync.
+  // Done as a special early-return because it requires async recalculation.
   if (parsed.data.clearBalance === true) {
-    updates.currentBalance = "0.00";
-    updates.theoreticalBalance = "0.00";
-    updates.banNotifyProvider = false;
+    await db.transaction(async (tx) => {
+      const [acctRow] = await tx
+        .select({ balanceOffset: accountsTable.balanceOffset })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, params.data.id));
+      const currentOffset = parseFloat(acctRow?.balanceOffset ?? "0");
+      const currentBalance = parseFloat(await recalculateBalance(account.id, tx));
+      // naturalBalance = recharges − spend (excludes offset)
+      const naturalBalance = currentBalance - currentOffset;
+      // new_offset such that (new_offset + naturalBalance) = 0
+      const newOffset = (-naturalBalance).toFixed(2);
+      await tx.update(accountsTable)
+        .set({ balanceOffset: newOffset, banNotifyProvider: false })
+        .where(eq(accountsTable.id, params.data.id));
+      await syncAccountBalance(account.id, tx);
+    });
+    const [refreshed] = await db.select().from(accountsTable).where(eq(accountsTable.id, params.data.id));
+    res.json(await formatAccount(refreshed));
+    return;
   }
 
   if (parsed.data.banNotifyProvider === false) {
@@ -222,12 +242,24 @@ router.post("/accounts/:id/set-balance", requireRole("admin"), async (req, res):
   const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, id));
   if (!account) { res.status(404).json({ error: "Account not found" }); return; }
 
-  const [updated] = await db.update(accountsTable).set({
-    currentBalance: newBalance.toFixed(2),
-    theoreticalBalance: newBalance.toFixed(2),
-  }).where(eq(accountsTable.id, id)).returning();
+  // Compute the offset needed so that recalculate returns exactly `newBalance`.
+  //   new_offset + naturalBalance = newBalance
+  //   naturalBalance = currentBalance − currentOffset  (= recharges − spend)
+  let updated: typeof accountsTable.$inferSelect;
+  await db.transaction(async (tx) => {
+    const currentOffset = parseFloat(account.balanceOffset ?? "0");
+    const currentBalance = parseFloat(await recalculateBalance(id, tx));
+    const naturalBalance = currentBalance - currentOffset;
+    const newOffset = (newBalance - naturalBalance).toFixed(2);
+    await tx.update(accountsTable)
+      .set({ balanceOffset: newOffset })
+      .where(eq(accountsTable.id, id));
+    await syncAccountBalance(id, tx);
+    const [refreshed] = await tx.select().from(accountsTable).where(eq(accountsTable.id, id));
+    updated = refreshed;
+  });
 
-  res.json(await formatAccount(updated));
+  res.json(await formatAccount(updated!));
 });
 
 router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<void> => {
