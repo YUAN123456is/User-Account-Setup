@@ -847,7 +847,8 @@ export default function DailyReportPage() {
                 <TableBody>
                   {pagedGroups.map((g, idx) => {
                     const isExpanded = expandedGroups.has(g.groupKey);
-                    const hasTeams = g.teamRecords.length > 0;
+                    const hasTeams = g.teamRecords.length > 1; // only expand when 2+ teams
+                    const singleTeam = g.teamRecords.length === 1 ? g.teamRecords[0] : null;
                     const rowBg = g.displayStatus === "rejected" ? "bg-red-50/20 dark:bg-red-900/5" : idx % 2 === 1 ? "bg-muted/20" : "";
                     const editStat = g.main ?? g.teamRecords[0];
                     return (
@@ -870,7 +871,7 @@ export default function DailyReportPage() {
                             <div className="flex items-center gap-1.5 min-w-0">
                               {g.fbSynced && <Facebook className="h-3 w-3 text-blue-400 shrink-0" />}
                               <TruncatedCell value={g.accountName ?? `#${g.accountId}`} maxWidth="max-w-[160px]" />
-                              {hasTeams && (
+                              {g.teamRecords.length > 1 && (
                                 <span className="inline-flex items-center gap-0.5 text-[10px] text-primary/70 bg-primary/10 rounded px-1 py-0.5 shrink-0">
                                   <Users className="h-2.5 w-2.5" />{g.teamRecords.length}队
                                 </span>
@@ -892,7 +893,9 @@ export default function DailyReportPage() {
                             <TableCell className="text-xs text-muted-foreground py-3 px-3">
                               {hasTeams
                                 ? <span className="text-primary/60 italic text-[11px]">{isExpanded ? "收起" : "展开查看"}</span>
-                                : (g.main?.teamName ?? "—")}
+                                : singleTeam
+                                  ? (singleTeam.teamName ?? "—")
+                                  : (g.main?.teamName ?? "—")}
                             </TableCell>
                           )}
                           {hasLive && (

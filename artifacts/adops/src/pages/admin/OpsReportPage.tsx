@@ -434,7 +434,8 @@ export default function OpsReportPage() {
               )}
               {!isLoading && pagedGroups.map((g, idx) => {
                 const isExpanded = expandedGroups.has(g.groupKey);
-                const hasTeams = g.visibleTeams.length > 0;
+                const hasTeams = g.visibleTeams.length > 1; // expand only for 2+ teams
+                const singleTeam = g.visibleTeams.length === 1 ? g.visibleTeams[0] : null;
                 const isRejected = g.displayStatus === "rejected";
                 return (
                   <Fragment key={g.groupKey}>
@@ -486,7 +487,9 @@ export default function OpsReportPage() {
                         <TableCell className="text-xs text-muted-foreground py-3 px-4">
                           {hasTeams
                             ? <span className="text-primary/60 italic text-[11px]">{isExpanded ? "收起" : "展开查看"}</span>
-                            : <TruncatedCell value={g.main?.teamName ?? "—"} maxWidth="max-w-[100px]" />}
+                            : singleTeam
+                              ? <TruncatedCell value={singleTeam.teamName ?? "—"} maxWidth="max-w-[100px]" />
+                              : <TruncatedCell value={g.main?.teamName ?? "—"} maxWidth="max-w-[100px]" />}
                         </TableCell>
                       )}
                       {hasLive && (
