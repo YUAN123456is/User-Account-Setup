@@ -18,7 +18,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, X, CheckCircle, Pencil,
-  AlertCircle, Clock, XCircle, Facebook, Info, UserPlus,
+  AlertCircle, Clock, XCircle, Facebook, Info, UserPlus, PlusCircle,
 } from "lucide-react";
 
 interface Account {
@@ -95,6 +95,11 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const [gmv, setGmv] = useState(stat.gmv ? String(Number(stat.gmv).toFixed(2)) : "");
   const [orderCount, setOrderCount] = useState(stat.orderCount ? String(stat.orderCount) : "");
 
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [addTeamId, setAddTeamId] = useState("");
+  const [addFanCount, setAddFanCount] = useState("");
+  const [addSpend, setAddSpend] = useState("");
+
   const liveTeams = teams.filter((t) => t.businessType === "liveChat");
   const spend = parseFloat(spendAmount) || 0;
   const fanNum = parseInt(fanCount) || 0;
@@ -125,6 +130,41 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
       onError: (err: unknown) => { toast({ title: (err as { data?: { error?: string } })?.data?.error ?? "修改失败", variant: "destructive" }); },
     },
   });
+
+  const addTeamCreate = useCreateDailyStat({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+        toast({ title: "团队记录已添加", description: "新记录已提交审核。" });
+        setShowAddTeam(false);
+        setAddTeamId(""); setAddFanCount(""); setAddSpend("");
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "添加失败";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleAddTeam = () => {
+    const sp = parseFloat(addSpend);
+    if (!addTeamId) { toast({ title: "请选择服务团队", variant: "destructive" }); return; }
+    if (isNaN(sp) || sp < 0) { toast({ title: "请输入有效消耗金额", variant: "destructive" }); return; }
+    addTeamCreate.mutate({ data: {
+      accountId: stat.accountId,
+      date: stat.date,
+      spendAmount: sp.toFixed(2),
+      businessType: "liveChat",
+      teamId: Number(addTeamId),
+      fanCount: addFanCount ? parseInt(addFanCount) : null,
+      gmv: null,
+      orderCount: null,
+    }});
+  };
+
+  const addFanNum = parseInt(addFanCount) || 0;
+  const addSpendNum = parseFloat(addSpend) || 0;
+  const addFanCost = addFanNum > 0 && addSpendNum > 0 ? (addSpendNum / addFanNum).toFixed(4) : null;
 
   const handleSave = () => {
     const sp = parseFloat(spendAmount);
@@ -251,6 +291,61 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
             </div>
           )}
         </div>
+
+        {/* ── 新增团队记录 ── */}
+        {businessType === "liveChat" && (
+          <div className="border-t border-border pt-3 mt-1">
+            {!showAddTeam ? (
+              <button
+                type="button"
+                onClick={() => setShowAddTeam(true)}
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+                为此账户新增另一个团队记录
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground">新增团队记录（同账户同日期）</span>
+                  <button type="button" onClick={() => { setShowAddTeam(false); setAddTeamId(""); setAddFanCount(""); setAddSpend(""); }}
+                    className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">消耗金额（美元）<span className="text-destructive">*</span></Label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00"
+                        className="h-7 text-xs pl-5"
+                        value={addSpend} onChange={(e) => setAddSpend(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">服务团队<span className="text-destructive">*</span></Label>
+                    <Select value={addTeamId} onValueChange={setAddTeamId}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="选择..." /></SelectTrigger>
+                      <SelectContent>{liveTeams.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">进粉数量</Label>
+                    <Input type="number" min="0" placeholder="0"
+                      className="h-7 text-xs"
+                      value={addFanCount} onChange={(e) => setAddFanCount(e.target.value)} />
+                    {addFanCost && <p className="text-xs text-muted-foreground">粉成本 <span className="font-mono text-primary">${addFanCost}</span></p>}
+                  </div>
+                </div>
+                <Button size="sm" className="h-7 text-xs w-full" onClick={handleAddTeam} disabled={addTeamCreate.isPending}>
+                  {addTeamCreate.isPending ? "提交中..." : "添加团队记录"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
           <Button onClick={handleSave} disabled={update.isPending}>
