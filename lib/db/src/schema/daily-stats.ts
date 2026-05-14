@@ -29,10 +29,10 @@ export const dailyStatsTable = pgTable("daily_stats", {
   uniqueIndex("daily_stats_main_unique").on(t.accountId, t.date).where(sql`${t.teamId} IS NULL`),
   // Prevent duplicate team attribution records: one per (account, date, team)
   uniqueIndex("daily_stats_team_unique").on(t.accountId, t.date, t.teamId).where(sql`${t.teamId} IS NOT NULL`),
-  // NOTE: The CHECK constraint "team_records_zero_spend" is NOT declared here.
-  // It is added at runtime by ensureDbConstraints() in init-admin.ts, after fixTeamRecordSpend()
-  // has already zeroed any legacy rows that would violate it. Declaring it here would cause
-  // Drizzle to emit it as a migration, which fails on production if dirty data still exists.
+  // NOTE: No CHECK constraint is declared for team_records_zero_spend.
+  // FB-synced team attribution records (team_id IS NOT NULL, fb_synced = true) legitimately
+  // carry non-zero spend for reporting purposes. These records are excluded from the balance
+  // formula (only team_id IS NULL records count), so non-zero spend on team records is safe.
 ]);
 
 export const insertDailyStatSchema = createInsertSchema(dailyStatsTable).omit({ id: true, createdAt: true, updatedAt: true });

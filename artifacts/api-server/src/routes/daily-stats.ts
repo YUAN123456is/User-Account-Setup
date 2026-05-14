@@ -118,23 +118,27 @@ router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): 
 
 // POST /api/daily-stats/:id/reject — admin rejects
 // Rejected records are excluded from the balance sum, so balance auto-restores via recalculate.
+// Both the status update and balance sync run in one transaction for consistency.
 router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  const [stat] = await db
-    .update(dailyStatsTable)
-    .set({ status: "rejected", reviewNote: body.note ?? null })
-    .where(eq(dailyStatsTable.id, id))
-    .returning();
+  let stat: typeof dailyStatsTable.$inferSelect;
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(dailyStatsTable)
+      .set({ status: "rejected", reviewNote: body.note ?? null })
+      .where(eq(dailyStatsTable.id, id))
+      .returning();
+    stat = updated;
+    if (existing.accountId && existing.teamId == null) {
+      await syncAccountBalance(existing.accountId, tx);
+    }
+  });
 
-  if (existing.accountId && existing.teamId == null) {
-    await syncAccountBalance(existing.accountId);
-  }
-
-  res.json(await formatStat(stat));
+  res.json(await formatStat(stat!));
 });
 
 // DELETE /api/daily-stats/:id — admin hard-deletes a record (requires admin password)
