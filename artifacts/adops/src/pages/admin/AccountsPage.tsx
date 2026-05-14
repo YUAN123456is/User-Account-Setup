@@ -1,12 +1,15 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, useUpdateAccount, getListAccountsQueryKey } from "@workspace/api-client-react";
+import { useListAccounts, useListUsers, useAssignAccount, useDeleteAccount, useUpdateAccount, getListAccountsQueryKey, useListRechargeOrders, useListDailyStats } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AccountStatusBadge, PlatformBadge } from "@/components/shared/StatusBadge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AccountStatusBadge, PlatformBadge, RechargeStatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TablePagination, usePagination } from "@/components/shared/TablePagination";
@@ -227,6 +230,211 @@ function BalanceEditDialog({ account, onClose }: { account: Account; onClose: ()
   );
 }
 
+interface StatRow {
+  id: number;
+  date: string;
+  spendAmount: string;
+  realBalance: string;
+  pitcherName?: string | null;
+  businessType?: string | null;
+  teamId?: number | null;
+  fbSynced: boolean;
+  status: string;
+  reviewNote?: string | null;
+}
+
+interface OrderRow {
+  id: number;
+  amount: string;
+  actualAmount?: string | null;
+  status: string;
+  providerName?: string | null;
+  pitcherName?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+
+function AccountDetailDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+  const { data: ordersData, isLoading: ordersLoading } = useListRechargeOrders({ accountId: account.id });
+  const { data: statsData, isLoading: statsLoading } = useListDailyStats({ accountId: account.id });
+
+  const orders = (Array.isArray(ordersData) ? ordersData : []) as OrderRow[];
+  const allStats = (Array.isArray(statsData) ? statsData : []) as unknown as StatRow[];
+  const mainStats = allStats.filter((s) => s.teamId == null);
+
+  const totalRecharged = orders
+    .filter((o) => o.status === "completed")
+    .reduce((s, o) => s + parseFloat(o.actualAmount ?? o.amount), 0);
+
+  const totalSpent = mainStats
+    .filter((s) => s.status === "approved")
+    .reduce((s, d) => s + parseFloat(d.spendAmount), 0);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[88vh] flex flex-col gap-3">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-2 flex-wrap text-base">
+            <span className="truncate max-w-xs">{account.accountName}</span>
+            <PlatformBadge platform={account.platform} />
+            <AccountStatusBadge status={account.status} />
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            {account.platformAccountId}
+            {account.pitcherName && <span className="ml-3 not-italic">投手：{account.pitcherName}</span>}
+            {account.providerName && <span className="ml-3 not-italic">开户商：{account.providerName}</span>}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/40 px-4 py-3 shrink-0">
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">累计充值（已完成）</p>
+            <p className="text-xl font-bold text-green-600 font-mono">+${totalRecharged.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{orders.filter(o => o.status === "completed").length} 笔已完成</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">累计消耗（已审核）</p>
+            <p className="text-xl font-bold text-red-500 font-mono">-${totalSpent.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{mainStats.filter(s => s.status === "approved").length} 天已审核</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">当前余额</p>
+            <p className={`text-xl font-bold font-mono ${Number(account.currentBalance) < 0 ? "text-destructive" : ""}`}>
+              ${Number(account.currentBalance).toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">实时余额</p>
+          </div>
+        </div>
+
+        <Tabs defaultValue="recharge" className="flex flex-col min-h-0 flex-1">
+          <TabsList className="w-full shrink-0">
+            <TabsTrigger value="recharge" className="flex-1">
+              充值记录{!ordersLoading && orders.length > 0 && <span className="ml-1.5 text-xs opacity-70">({orders.length})</span>}
+            </TabsTrigger>
+            <TabsTrigger value="spend" className="flex-1">
+              消耗记录{!statsLoading && mainStats.length > 0 && <span className="ml-1.5 text-xs opacity-70">({mainStats.length})</span>}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="recharge" className="mt-2 flex-1 min-h-0">
+            <ScrollArea className="h-[320px] rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="whitespace-nowrap">提交日期</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">申请金额</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">到账金额</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>开户商</TableHead>
+                    <TableHead>投手</TableHead>
+                    <TableHead>备注</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordersLoading && Array.from({ length: 4 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
+                    ))}</TableRow>
+                  ))}
+                  {!ordersLoading && orders.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground text-sm py-10">暂无充值记录</TableCell>
+                    </TableRow>
+                  )}
+                  {!ordersLoading && orders.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                        {new Date(o.createdAt).toLocaleDateString("zh-CN")}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm text-right">
+                        ${parseFloat(o.amount).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm text-right">
+                        {o.actualAmount != null
+                          ? <span className="text-green-600 font-semibold">${parseFloat(o.actualAmount).toFixed(2)}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        <RechargeStatusBadge status={o.status as "pending" | "completed" | "rejected"} />
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{o.providerName ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{o.pitcherName ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[140px] truncate" title={o.note ?? undefined}>
+                        {o.note ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="spend" className="mt-2 flex-1 min-h-0">
+            <ScrollArea className="h-[320px] rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="whitespace-nowrap">消耗日期</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">消耗金额</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">余额快照</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>投手</TableHead>
+                    <TableHead>业务类型</TableHead>
+                    <TableHead>来源</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statsLoading && Array.from({ length: 4 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+                      <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
+                    ))}</TableRow>
+                  ))}
+                  {!statsLoading && mainStats.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground text-sm py-10">暂无消耗记录</TableCell>
+                    </TableRow>
+                  )}
+                  {!statsLoading && mainStats.map((s) => (
+                    <TableRow key={s.id} className={s.status === "rejected" ? "opacity-40" : undefined}>
+                      <TableCell className="text-sm font-medium whitespace-nowrap">{s.date}</TableCell>
+                      <TableCell className="font-mono text-sm text-right text-red-500 font-semibold">
+                        -${parseFloat(s.spendAmount).toFixed(2)}
+                      </TableCell>
+                      <TableCell className={`font-mono text-sm text-right ${parseFloat(s.realBalance) < 100 && s.status !== "rejected" ? "text-amber-500 font-semibold" : ""} ${parseFloat(s.realBalance) < 0 ? "text-destructive font-semibold" : ""}`}>
+                        ${parseFloat(s.realBalance).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        {s.status === "approved" && (
+                          <Badge className="bg-green-500/15 text-green-600 border-green-500/30 text-xs">已审核</Badge>
+                        )}
+                        {s.status === "pending" && (
+                          <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-xs">待审核</Badge>
+                        )}
+                        {s.status === "rejected" && (
+                          <Badge variant="destructive" className="text-xs">已拒绝</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{s.pitcherName ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {s.businessType === "liveChat" ? "聊单" : s.businessType === "ecommerce" ? "独立站" : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {s.fbSynced
+                          ? <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/30 text-xs">FB 自动</Badge>
+                          : <span className="text-xs text-muted-foreground">手动</span>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const PAGE_SIZE = 20;
 
 export default function AccountsPage() {
@@ -241,6 +449,7 @@ export default function AccountsPage() {
   const [editBalanceAccount, setEditBalanceAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
+  const [detailAccount, setDetailAccount] = useState<Account | null>(null);
   const [sortKey, setSortKey] = useState<string>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -492,7 +701,13 @@ export default function AccountsPage() {
             )}
             {!isLoading && paged.map((a) => (
               <TableRow key={a.id} className={a.status === "banned" ? "bg-destructive/5" : undefined}>
-                <TableCell className="font-medium max-w-[160px]"><TruncatedCell value={a.accountName} /></TableCell>
+                <TableCell
+                  className="font-medium max-w-[160px] cursor-pointer hover:text-primary hover:underline underline-offset-2 transition-colors"
+                  onClick={() => setDetailAccount(a)}
+                  title="点击查看充值 / 消耗记录"
+                >
+                  <TruncatedCell value={a.accountName} />
+                </TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground max-w-[140px]"><TruncatedCell value={a.platformAccountId} /></TableCell>
                 <TableCell><PlatformBadge platform={a.platform} /></TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[100px]">
@@ -533,6 +748,7 @@ export default function AccountsPage() {
         <TablePagination page={page} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} />
       </div>
 
+      {detailAccount && <AccountDetailDialog account={detailAccount} onClose={() => setDetailAccount(null)} />}
       {assignAccount && <AssignDialog account={assignAccount} onClose={() => setAssignAccount(null)} />}
       {editBalanceAccount && <BalanceEditDialog account={editBalanceAccount} onClose={() => setEditBalanceAccount(null)} />}
 
