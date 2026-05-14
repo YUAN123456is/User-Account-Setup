@@ -177,8 +177,8 @@ export default function OpsReportPage() {
     else if (statusFilter === "pending") groups = groups.filter((g) => g.displayStatus === "pending" && !g.fbSynced);
     else if (statusFilter === "rejected") groups = groups.filter((g) => g.displayStatus === "rejected");
     else groups = groups.filter((g) => g.displayStatus !== "rejected");
-    // hideZero: based on main record's spend
-    if (hideZero) groups = groups.filter((g) => g.displaySpend > 0);
+    // hideZero: hide only when both spend=0 AND no team attribution rows
+    if (hideZero) groups = groups.filter((g) => g.displaySpend > 0 || g.teamRecords.length > 0);
     // Business type filter
     if (bizFilter === "liveChat") groups = groups.filter((g) => g.businessType === "liveChat");
     else if (bizFilter === "ecommerce") groups = groups.filter((g) => g.businessType === "ecommerce");
