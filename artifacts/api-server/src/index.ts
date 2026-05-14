@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { initAdminUser, fixTeamRecordSpend, ensureDbConstraints } from "./lib/init-admin";
+import { initAdminUser, fixTeamRecordSpend } from "./lib/init-admin";
 import { runFbSync, yesterday } from "./routes/meta-tokens";
 import { msUntilHourUTC8 } from "./lib/tz";
 
@@ -22,12 +22,9 @@ initAdminUser().catch((err) => {
   logger.error({ err }, "Failed to initialize admin user");
 });
 
-// Run in order: fix bad data first, then lock it down with the DB constraint
-fixTeamRecordSpend()
-  .then(() => ensureDbConstraints())
-  .catch((err) => {
-    logger.error({ err }, "Failed to fix team record spend / ensure DB constraints");
-  });
+fixTeamRecordSpend().catch((err) => {
+  logger.error({ err }, "Failed to fix team record spend");
+});
 
 // Daily auto-sync: run at 02:00 UTC-8 every day
 function scheduleDailyFbSync() {
