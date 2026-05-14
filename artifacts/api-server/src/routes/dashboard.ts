@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, or, gte, lte, isNotNull, isNull, SQL } from "drizzle-orm";
+import { eq, sql, and, gte, lte, isNotNull, isNull, SQL } from "drizzle-orm";
 import { db, accountsTable, usersTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { requireRole } from "../middlewares/require-auth";
 import { yesterdayUTC8, nowUTC8 } from "../lib/tz";
@@ -27,7 +27,7 @@ router.get("/dashboard/summary", requireRole("admin"), async (_req, res): Promis
     and(
       isNull(dailyStatsTable.teamId),
       eq(dailyStatsTable.date, yesterdayStr()),
-      or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
+      eq(dailyStatsTable.status, "approved")
     )
   );
 
@@ -83,7 +83,7 @@ router.get("/dashboard/spend-by-provider", requireRole("admin"), async (req, res
 
     const yesterdayConds: SQL[] = [eq(accountsTable.providerId, row.providerId), eq(dailyStatsTable.date, yesterdayStr())];
 
-    const approvedCond = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+    const approvedCond = eq(dailyStatsTable.status, "approved");
 
     const rangeQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).leftJoin(accountsTable, eq(dailyStatsTable.accountId, accountsTable.id))
@@ -154,7 +154,7 @@ router.get("/dashboard/spend-by-pitcher", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const approvedCond2 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+    const approvedCond2 = eq(dailyStatsTable.status, "approved");
 
     const yesterdayQ = db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable)
@@ -215,7 +215,7 @@ router.get("/dashboard/pitcher-accounts", requireRole("admin"), async (req, res)
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const approvedCond3 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+    const approvedCond3 = eq(dailyStatsTable.status, "approved");
 
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond3));
@@ -255,7 +255,7 @@ router.get("/dashboard/provider-accounts", requireRole("admin"), async (req, res
     if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
     if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-    const approvedCond4 = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+    const approvedCond4 = eq(dailyStatsTable.status, "approved");
 
     const [yesterday] = await db.select({ total: sql<string>`coalesce(sum(${dailyStatsTable.spendAmount}), 0)::text` })
       .from(dailyStatsTable).where(and(isNull(dailyStatsTable.teamId), eq(dailyStatsTable.accountId, acc.id), eq(dailyStatsTable.date, yesterdayStr()), approvedCond4));
@@ -361,7 +361,7 @@ router.get("/dashboard/daily-trend", requireRole("admin"), async (req, res): Pro
     .where(and(
       isNull(dailyStatsTable.teamId),
       gte(dailyStatsTable.date, cutoffStr),
-      or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))
+      eq(dailyStatsTable.status, "approved")
     ))
     .groupBy(dailyStatsTable.date)
     .orderBy(dailyStatsTable.date);
@@ -387,7 +387,7 @@ router.get("/dashboard/cross-report", requireRole("admin"), async (req, res): Pr
   if (dateFrom) dateConds.push(gte(dailyStatsTable.date, dateFrom));
   if (dateTo) dateConds.push(lte(dailyStatsTable.date, dateTo));
 
-  const approvedCond = or(eq(dailyStatsTable.status, "approved"), eq(dailyStatsTable.fbSynced, true))!;
+  const approvedCond = eq(dailyStatsTable.status, "approved");
   // Always filter to main records only (teamId IS NULL) — team attribution records carry spend=0
   // but excluding them explicitly makes the query correct regardless of data integrity.
   const crossWhere = and(isNull(dailyStatsTable.teamId), ...(dateConds.length > 0 ? dateConds : []), approvedCond);

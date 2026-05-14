@@ -185,8 +185,14 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
 
   // clearBalance: compute the offset needed to make recalculate return 0, then sync.
   // Done as a special early-return because it requires async recalculation.
+  // Any other accumulated updates (e.g. status, accountName) are applied first inside
+  // the same transaction so nothing is silently lost.
   if (parsed.data.clearBalance === true) {
     await db.transaction(async (tx) => {
+      // Apply any non-balance updates (status changes, accountName, etc.) first.
+      if (Object.keys(updates).length > 0) {
+        await tx.update(accountsTable).set(updates).where(eq(accountsTable.id, params.data.id));
+      }
       const [acctRow] = await tx
         .select({ balanceOffset: accountsTable.balanceOffset })
         .from(accountsTable)
@@ -197,6 +203,7 @@ router.patch("/accounts/:id", requireAuth, async (req, res): Promise<void> => {
       const naturalBalance = currentBalance - currentOffset;
       // new_offset such that (new_offset + naturalBalance) = 0
       const newOffset = (-naturalBalance).toFixed(2);
+      // banNotifyProvider: false — clearBalance dismisses the provider notification.
       await tx.update(accountsTable)
         .set({ balanceOffset: newOffset, banNotifyProvider: false })
         .where(eq(accountsTable.id, params.data.id));
@@ -273,9 +280,12 @@ router.delete("/accounts/:id", requireRole("admin"), async (req, res): Promise<v
     res.status(404).json({ error: "Account not found" });
     return;
   }
-  await db.delete(dailyStatsTable).where(eq(dailyStatsTable.accountId, params.data.id));
-  await db.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.accountId, params.data.id));
-  await db.delete(accountsTable).where(eq(accountsTable.id, params.data.id));
+  // Wrap all three deletes in one transaction so a mid-flight crash can't leave orphans.
+  await db.transaction(async (tx) => {
+    await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.accountId, params.data.id));
+    await tx.delete(rechargeOrdersTable).where(eq(rechargeOrdersTable.accountId, params.data.id));
+    await tx.delete(accountsTable).where(eq(accountsTable.id, params.data.id));
+  });
   res.status(204).end();
 });
 

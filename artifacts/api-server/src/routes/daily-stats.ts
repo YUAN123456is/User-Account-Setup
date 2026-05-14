@@ -103,17 +103,40 @@ router.get("/daily-stats/pending", requireRole("admin"), async (req, res): Promi
   res.json(formatted);
 });
 
-// POST /api/daily-stats/:id/approve — admin approves (balance unchanged: pending already counted)
+// POST /api/daily-stats/:id/approve — admin approves
+// pending → approved: no balance change (both statuses are counted in the formula).
+// rejected → approved: balance DOES change (rejected excluded → approved included),
+//   so we must call syncAccountBalance inside a transaction.
 router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
-  const [stat] = await db
-    .update(dailyStatsTable)
-    .set({ status: "approved", reviewNote: body.note ?? null })
-    .where(eq(dailyStatsTable.id, id))
-    .returning();
-  if (!stat) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(await formatStat(stat));
+
+  const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  let stat: typeof dailyStatsTable.$inferSelect;
+
+  if (existing.status === "rejected" && existing.accountId && existing.teamId == null) {
+    // Approving a rejected main record changes balance; sync inside transaction.
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(dailyStatsTable)
+        .set({ status: "approved", reviewNote: body.note ?? null })
+        .where(eq(dailyStatsTable.id, id))
+        .returning();
+      stat = updated;
+      await syncAccountBalance(existing.accountId!, tx);
+    });
+  } else {
+    const [updated] = await db
+      .update(dailyStatsTable)
+      .set({ status: "approved", reviewNote: body.note ?? null })
+      .where(eq(dailyStatsTable.id, id))
+      .returning();
+    stat = updated;
+  }
+
+  res.json(await formatStat(stat!));
 });
 
 // POST /api/daily-stats/:id/reject — admin rejects
@@ -315,6 +338,11 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
 
   const isTeamRecord = existing.teamId != null;
   // teamId is immutable after creation — changing it would corrupt balance accounting.
+  // spendAmount on team records is always 0 and managed by the main record; reject attempts.
+  if (parsed.data.spendAmount != null && isTeamRecord) {
+    res.status(400).json({ error: "团队分配记录的消耗额由主记录管理，不可单独修改" });
+    return;
+  }
   const spendChanged = parsed.data.spendAmount != null && !isTeamRecord;
 
   const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
@@ -342,12 +370,14 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (spendChanged && existing.accountId) {
     await db.transaction(async (tx) => {
       // Compute new realBalance from source of truth before the DB update.
-      // preBalance already includes existing.spendAmount in the sum, so:
-      //   newBalance = preBalance - newSpend + oldSpend
+      // preBalance is recalculated from DB (pending + approved records only).
+      // "rejected" records are NOT counted in preBalance, so their oldSpend must
+      // NOT be added back. For pending/approved records, oldSpend IS counted, so
+      // we add it back to undo its contribution before applying the new spend.
       const preBalance = await recalculateBalance(existing.accountId!, tx);
-      const oldSpend = parseFloat(existing.spendAmount);
+      const oldSpendInBalance = existing.status === "rejected" ? 0 : parseFloat(existing.spendAmount);
       const newSpend = parseFloat(parsed.data.spendAmount!);
-      const newBalance = (parseFloat(preBalance) - newSpend + oldSpend).toFixed(2);
+      const newBalance = (parseFloat(preBalance) - newSpend + oldSpendInBalance).toFixed(2);
 
       updates.realBalance = newBalance;
       updates.hasAlert = parseFloat(newBalance) < 100;
