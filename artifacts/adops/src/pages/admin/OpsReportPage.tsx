@@ -74,6 +74,7 @@ export default function OpsReportPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
 
   const [deleteTarget, setDeleteTarget] = useState<DailyStat | null>(null);
+  const [deleteTargetSpend, setDeleteTargetSpend] = useState<number>(0);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
@@ -274,7 +275,7 @@ export default function OpsReportPage() {
               <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm space-y-0.5">
                 <p className="text-xs text-muted-foreground">{deleteTarget.date}</p>
                 <p className="font-medium truncate">{deleteTarget.accountName ?? `#${deleteTarget.accountId}`}</p>
-                <p className="font-mono text-primary font-semibold">${Number(deleteTarget.spendAmount).toFixed(2)}</p>
+                <p className="font-mono text-primary font-semibold">${deleteTargetSpend.toFixed(2)}</p>
               </div>
               <p className="text-xs text-muted-foreground">删除后该记录的消耗将从账户余额中还原，此操作不可撤销。</p>
               <div className="space-y-1.5">
@@ -523,11 +524,16 @@ export default function OpsReportPage() {
                         </TableCell>
                       )}
                       <TableCell className="py-3 px-2 text-center">
-                        {g.main && (
+                        {(g.main ?? g.teamRecords[0]) && (
                           <button
-                            onClick={() => { setDeleteTarget(g.main!); setDeletePassword(""); }}
+                            onClick={() => {
+                              const target = g.main ?? g.teamRecords[0]!;
+                              setDeleteTarget(target);
+                              setDeleteTargetSpend(g.displaySpend);
+                              setDeletePassword("");
+                            }}
                             className="text-muted-foreground/40 hover:text-destructive transition-colors"
-                            title="删除主记录"
+                            title="删除记录"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

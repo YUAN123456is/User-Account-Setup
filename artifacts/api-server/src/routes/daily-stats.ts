@@ -164,8 +164,8 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
     }
   }
 
-  // If deleting the main record, also cascade-delete all team attribution records
-  // for the same account+date to avoid orphaned ghost groups.
+  // If deleting the main record, cascade-delete all team attribution records for same account+date.
+  // If deleting a team record with no main record (orphaned group), also cascade all siblings.
   if (existing.teamId == null && existing.accountId && existing.date) {
     await db.delete(dailyStatsTable).where(
       and(
@@ -173,6 +173,25 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
         eq(dailyStatsTable.date, existing.date),
       )
     );
+  } else if (existing.accountId && existing.date) {
+    const [mainRecord] = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
+      and(
+        eq(dailyStatsTable.accountId, existing.accountId),
+        eq(dailyStatsTable.date, existing.date),
+        isNull(dailyStatsTable.teamId),
+      )
+    );
+    if (!mainRecord) {
+      // Orphaned team records — cascade-delete entire group
+      await db.delete(dailyStatsTable).where(
+        and(
+          eq(dailyStatsTable.accountId, existing.accountId),
+          eq(dailyStatsTable.date, existing.date),
+        )
+      );
+    } else {
+      await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+    }
   } else {
     await db.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
   }
