@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, and, inArray, isNull } from "drizzle-orm";
+import { eq, ne, and, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, usersTable, accountsTable, dailyStatsTable, rechargeOrdersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams, GetUserParams, UpdateUserParams, DeleteUserParams } from "@workspace/api-zod";
@@ -196,7 +196,6 @@ router.delete("/users/:id", requireRole("admin"), async (req, res): Promise<void
       .where(and(
         eq(dailyStatsTable.pitcherId, params.data.id),
         inArray(dailyStatsTable.status, ["pending", "approved"]),
-        isNull(dailyStatsTable.teamId), // only main records affect balance
       ));
     const balanceAffectedIds = [
       ...new Set(activeStats.filter((s) => s.accountId != null).map((s) => s.accountId!)),

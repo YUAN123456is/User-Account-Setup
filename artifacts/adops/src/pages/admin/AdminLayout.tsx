@@ -11,12 +11,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const [pendingCount, setPendingCount] = useState(0);
   useEffect(() => {
-    fetch("/api/daily-stats/pending")
+    fetch("/api/daily-stats/pending", { credentials: "include" })
       .then((r) => r.ok ? r.json() : [])
       .then((d: unknown[]) => setPendingCount(Array.isArray(d) ? d.length : 0))
       .catch(() => {});
     const t = setInterval(() => {
-      fetch("/api/daily-stats/pending")
+      fetch("/api/daily-stats/pending", { credentials: "include" })
         .then((r) => r.ok ? r.json() : [])
         .then((d: unknown[]) => setPendingCount(Array.isArray(d) ? d.length : 0))
         .catch(() => {});

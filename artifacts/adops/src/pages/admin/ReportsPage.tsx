@@ -70,6 +70,7 @@ function FbSyncPanel() {
       const res = await fetch("/api/meta-tokens/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ dateFrom, dateTo }),
       });
       if (!res.ok) throw new Error(`请求失败 (${res.status})`);

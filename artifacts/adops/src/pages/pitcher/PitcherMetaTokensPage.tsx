@@ -30,7 +30,7 @@ interface FbAccount {
 interface SystemAccount { id: number; accountName: string; platformAccountId: string; }
 
 async function api<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, credentials: "include", ...opts });
   if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
   if (res.status === 204) return undefined as T;
   return res.json();
