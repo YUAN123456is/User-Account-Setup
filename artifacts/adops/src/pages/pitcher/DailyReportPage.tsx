@@ -854,7 +854,7 @@ export default function DailyReportPage() {
                           </TableCell>
                           <TableCell className="py-3 px-2 text-right">
                             <div className="flex items-center gap-1 justify-end">
-                              {(s.status === "pending" || s.status === "approved" || s.status === "rejected") && !s.fbSynced && (
+                              {(s.status === "pending" || s.status === "approved" || s.status === "rejected" || s.fbSynced) && (
                                 <button onClick={() => setEditTarget(s)} className="text-muted-foreground/50 hover:text-primary transition-colors" title="编辑">
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>

@@ -1,6 +1,6 @@
 import { useState, useMemo, Fragment } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListDailyStats, useListTeams, getListDailyStatsQueryKey } from "@workspace/api-client-react";
+import { useListDailyStats, useListTeams, useUpdateDailyStat, getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { StatsBar } from "@/components/shared/StatsBar";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { useToast } from "@/hooks/use-toast";
-import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, ChevronRight, Facebook, EyeOff, Trash2, Loader2, Clock, XCircle, CheckCircle, Users } from "lucide-react";
+import { TrendingUp, Search, ChevronsUpDown, ChevronUp, ChevronDown, ChevronRight, Facebook, EyeOff, Trash2, Loader2, Clock, XCircle, CheckCircle, Users, Pencil, Info, X, UserPlus } from "lucide-react";
 import { BizBadge } from "@/components/shared/BizDisplay";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +44,140 @@ interface DailyStat {
 
 interface Team { id: number; name: string; businessType: string; }
 
+interface TeamSubRow { key: string; teamId: string; fanCount: string; }
+function newSubRow(): TeamSubRow { return { key: Math.random().toString(36).slice(2), teamId: "", fanCount: "" }; }
+
 const PAGE_SIZE = 30;
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function MetaEditDialog({ stat, teams, onClose }: { stat: DailyStat; teams: Team[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [biz, setBiz] = useState(stat.businessType ?? "");
+  const [fanCount, setFanCount] = useState(stat.fanCount ? String(stat.fanCount) : "");
+  const [gmv, setGmv] = useState(stat.gmv ? String(Number(stat.gmv).toFixed(2)) : "");
+  const [orderCount, setOrderCount] = useState(stat.orderCount ? String(stat.orderCount) : "");
+  const [rows, setRows] = useState<TeamSubRow[]>(() =>
+    stat.teamBreakdowns && stat.teamBreakdowns.length > 0
+      ? stat.teamBreakdowns.map((tb) => ({ key: Math.random().toString(36).slice(2), teamId: String(tb.teamId), fanCount: tb.fanCount != null ? String(tb.fanCount) : "" }))
+      : [newSubRow()]
+  );
+
+  const liveTeams = teams.filter((t) => t.businessType === "liveChat");
+
+  const update = useUpdateDailyStat({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
+        toast({ title: "修改成功" });
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { data?: { error?: string } })?.data?.error ?? "修改失败";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const handleSave = () => {
+    const validRows = rows.filter((r) => r.teamId);
+    const teamBreakdowns = biz === "liveChat" && validRows.length > 0
+      ? validRows.map((r) => ({ teamId: Number(r.teamId), teamName: teams.find((t) => t.id === Number(r.teamId))?.name ?? "", fanCount: r.fanCount ? parseInt(r.fanCount) : null }))
+      : null;
+    const derivedFanCount = teamBreakdowns
+      ? (teamBreakdowns.reduce((s, t) => s + (t.fanCount ?? 0), 0) || null)
+      : (biz === "liveChat" && fanCount ? parseInt(fanCount) : null);
+    update.mutate({
+      id: stat.id,
+      data: {
+        businessType: (biz as "liveChat" | "ecommerce") || null,
+        teamBreakdowns: teamBreakdowns as { teamId: number; teamName: string; fanCount?: number | null }[] | null,
+        fanCount: derivedFanCount,
+        gmv: biz === "ecommerce" && gmv ? parseFloat(gmv).toFixed(2) : null,
+        orderCount: biz === "ecommerce" && orderCount ? parseInt(orderCount) : null,
+      },
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="h-4 w-4 text-primary" />
+            编辑业务信息
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            <p className="text-xs text-muted-foreground mb-0.5">{stat.date} · {stat.pitcherName ?? "—"}</p>
+            <p className="font-medium truncate">{stat.accountName ?? `#${stat.accountId}`}</p>
+            <p className="font-mono text-xs text-muted-foreground mt-0.5">${Number(stat.spendAmount).toFixed(2)} 消耗</p>
+          </div>
+          {stat.fbSynced && (
+            <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+              <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-400">FB 自动同步数据，消耗由 FB 管理，此处可补充业务类型与团队信息。</p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-sm">业务类型</Label>
+            <div className="flex gap-2">
+              {([["liveChat", "聊单"], ["ecommerce", "独立站"]] as const).map(([v, label]) => (
+                <button key={v} onClick={() => { setBiz((prev) => prev === v ? "" : v); setFanCount(""); setGmv(""); setOrderCount(""); setRows([newSubRow()]); }}
+                  className={["text-xs px-3 py-1.5 rounded border transition-colors", biz === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {biz === "liveChat" && (
+            <div className="space-y-2">
+              <Label className="text-sm">服务团队与进粉</Label>
+              {rows.map((row, si) => (
+                <div key={row.key} className="flex items-center gap-2">
+                  {rows.length > 1 && <span className="text-xs text-muted-foreground w-4 shrink-0">{si + 1}.</span>}
+                  <Select value={row.teamId} onValueChange={(v) => setRows((prev) => prev.map((r) => r.key === row.key ? { ...r, teamId: v } : r))}>
+                    <SelectTrigger className="h-7 text-xs flex-1 min-w-0"><SelectValue placeholder="选择团队..." /></SelectTrigger>
+                    <SelectContent>{liveTeams.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Input type="number" min="0" placeholder="进粉" className="h-7 text-xs w-24 shrink-0"
+                    value={row.fanCount} onChange={(e) => setRows((prev) => prev.map((r) => r.key === row.key ? { ...r, fanCount: e.target.value } : r))} />
+                  {rows.length > 1 && (
+                    <button onClick={() => setRows((prev) => prev.filter((r) => r.key !== row.key))} className="text-muted-foreground hover:text-destructive shrink-0 transition-colors">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={() => setRows((prev) => [...prev, newSubRow()])}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <UserPlus className="h-3 w-3" /> 添加另一个团队
+              </button>
+            </div>
+          )}
+          {biz === "ecommerce" && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-sm">GMV（美元）</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={gmv} onChange={(e) => setGmv(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">订单数</Label>
+                <Input type="number" min="0" placeholder="0" value={orderCount} onChange={(e) => setOrderCount(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSave} disabled={update.isPending}>{update.isPending ? "保存中..." : "保存"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function OpsReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "" });
@@ -60,6 +191,7 @@ export default function OpsReportPage() {
   const [hideZero, setHideZero] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
 
+  const [editTarget, setEditTarget] = useState<DailyStat | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DailyStat | null>(null);
   const [deleteTargetSpend, setDeleteTargetSpend] = useState<number>(0);
   const [deletePassword, setDeletePassword] = useState("");
@@ -218,6 +350,9 @@ export default function OpsReportPage() {
 
   return (
     <div className="space-y-4">
+
+      {/* Meta edit dialog */}
+      {editTarget && <MetaEditDialog stat={editTarget} teams={teams} onClose={() => setEditTarget(null)} />}
 
       {/* Delete confirmation dialog */}
       {deleteTarget && (
@@ -481,17 +616,26 @@ export default function OpsReportPage() {
                         </TableCell>
                       )}
                       <TableCell className="py-3 px-2 text-center">
-                        <button
-                          onClick={() => {
-                            setDeleteTarget(s);
-                            setDeleteTargetSpend(Number(s.spendAmount));
-                            setDeletePassword("");
-                          }}
-                          className="text-muted-foreground/40 hover:text-destructive transition-colors"
-                          title="删除记录"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 justify-center">
+                          <button
+                            onClick={() => setEditTarget(s)}
+                            className="text-muted-foreground/40 hover:text-primary transition-colors"
+                            title="编辑业务/团队"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteTarget(s);
+                              setDeleteTargetSpend(Number(s.spendAmount));
+                              setDeletePassword("");
+                            }}
+                            className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                            title="删除记录"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
 

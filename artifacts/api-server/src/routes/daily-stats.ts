@@ -313,7 +313,7 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
  * Any change resets status to "pending" unless the record is already approved and
  * only metadata (biz type, team breakdowns, fan count, gmv, orderCount) changed.
  */
-router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promise<void> => {
+router.patch("/daily-stats/:id", requireRole("pitcher", "admin"), async (req, res): Promise<void> => {
   const params = UpdateDailyStatParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateDailyStatBody.safeParse(req.body);
@@ -321,7 +321,7 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
 
   const [existing] = await db.select().from(dailyStatsTable).where(eq(dailyStatsTable.id, params.data.id));
   if (!existing) { res.status(404).json({ error: "Stat not found" }); return; }
-  if (existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (req.session.role !== "admin" && existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const spendChanged = parsed.data.spendAmount != null;
 
