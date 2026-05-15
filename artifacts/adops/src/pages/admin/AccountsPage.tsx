@@ -262,25 +262,18 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
   const orders = (Array.isArray(ordersData) ? ordersData : []) as OrderRow[];
   const allStats = (Array.isArray(statsData) ? statsData : []) as unknown as StatRow[];
 
-  // All records sorted by date desc for display
+  // All records sorted by date desc for display in the table
   const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
 
-  // For summary: deduplicate by date — prefer main record (teamId IS NULL), else any record
-  // This avoids double-counting when both main + team records exist for the same date
-  const byDate = new Map<string, StatRow>();
-  for (const s of allStats) {
-    const existing = byDate.get(s.date);
-    if (!existing || (s.teamId == null && existing.teamId != null)) {
-      byDate.set(s.date, s);
-    }
-  }
-  const uniqueDayStats = Array.from(byDate.values());
+  // Main records only (teamId IS NULL) — matches the balance formula exactly
+  const mainStats = allStats.filter((s) => s.teamId == null);
 
   const totalRecharged = orders
     .filter((o) => o.status === "completed")
     .reduce((s, o) => s + parseFloat(o.actualAmount ?? o.amount), 0);
 
-  const totalSpent = uniqueDayStats
+  // Summary spend uses main records only — consistent with balance formula
+  const totalSpent = mainStats
     .filter((s) => s.status === "approved")
     .reduce((s, d) => s + parseFloat(d.spendAmount), 0);
 
@@ -309,7 +302,7 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">累计消耗（已审核）</p>
             <p className="text-xl font-bold text-red-500 font-mono">-${totalSpent.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{uniqueDayStats.filter(s => s.status === "approved").length} 天已审核</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{mainStats.filter(s => s.status === "approved").length} 天已审核（主记录）</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">当前余额</p>
