@@ -262,8 +262,8 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
   const orders = (Array.isArray(ordersData) ? ordersData : []) as OrderRow[];
   const allStats = (Array.isArray(statsData) ? statsData : []) as unknown as StatRow[];
 
-  // All records sorted by date desc for display in the table
-  const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
+  // Only main records (teamId IS NULL) sorted by date desc — team breakdowns are not shown
+  const displayStats = allStats.filter((s) => s.teamId == null).sort((a, b) => b.date.localeCompare(a.date));
 
   // Main records (teamId IS NULL) drive the balance — team records are detail breakdowns only
   const mainStats = allStats.filter((s) => s.teamId == null);
@@ -318,7 +318,7 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
               充值记录{!ordersLoading && orders.length > 0 && <span className="ml-1.5 text-xs opacity-70">({orders.length})</span>}
             </TabsTrigger>
             <TabsTrigger value="spend" className="flex-1">
-              消耗记录{!statsLoading && displayStats.length > 0 && <span className="ml-1.5 text-xs opacity-70">({displayStats.length})</span>}
+              消耗记录{!statsLoading && mainStats.length > 0 && <span className="ml-1.5 text-xs opacity-70">({mainStats.length})</span>}
             </TabsTrigger>
           </TabsList>
 
@@ -382,23 +382,21 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
                   <TableRow className="bg-muted/40">
                     <TableHead className="whitespace-nowrap">消耗日期</TableHead>
                     <TableHead className="text-right whitespace-nowrap">消耗金额</TableHead>
-                    <TableHead className="text-right whitespace-nowrap">余额快照</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>投手</TableHead>
-                    <TableHead>团队</TableHead>
                     <TableHead>业务类型</TableHead>
                     <TableHead>来源</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {statsLoading && Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
+                    <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => (
                       <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                     ))}</TableRow>
                   ))}
                   {!statsLoading && displayStats.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground text-sm py-10">暂无消耗记录</TableCell>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-10">暂无消耗记录</TableCell>
                     </TableRow>
                   )}
                   {!statsLoading && displayStats.map((s) => (
@@ -406,9 +404,6 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
                       <TableCell className="text-sm font-medium whitespace-nowrap">{s.date}</TableCell>
                       <TableCell className="font-mono text-sm text-right text-red-500 font-semibold">
                         -${parseFloat(s.spendAmount).toFixed(2)}
-                      </TableCell>
-                      <TableCell className={`font-mono text-sm text-right ${parseFloat(s.realBalance) < 100 && s.status !== "rejected" ? "text-amber-500 font-semibold" : ""} ${parseFloat(s.realBalance) < 0 ? "text-destructive font-semibold" : ""}`}>
-                        ${parseFloat(s.realBalance).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         {s.status === "approved" && (
@@ -422,9 +417,6 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{s.pitcherName ?? "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {s.teamName ?? (s.teamId == null ? <span className="text-xs opacity-50">主账户</span> : "—")}
-                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {s.businessType === "liveChat" ? "聊单" : s.businessType === "ecommerce" ? "独立站" : "—"}
                       </TableCell>
