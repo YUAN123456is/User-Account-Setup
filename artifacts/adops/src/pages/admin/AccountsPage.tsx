@@ -238,6 +238,7 @@ interface StatRow {
   pitcherName?: string | null;
   businessType?: string | null;
   teamId?: number | null;
+  teamName?: string | null;
   fbSynced: boolean;
   status: string;
   reviewNote?: string | null;
@@ -260,13 +261,26 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
 
   const orders = (Array.isArray(ordersData) ? ordersData : []) as OrderRow[];
   const allStats = (Array.isArray(statsData) ? statsData : []) as unknown as StatRow[];
-  const mainStats = allStats.filter((s) => s.teamId == null);
+
+  // All records sorted by date desc for display
+  const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
+
+  // For summary: deduplicate by date — prefer main record (teamId IS NULL), else any record
+  // This avoids double-counting when both main + team records exist for the same date
+  const byDate = new Map<string, StatRow>();
+  for (const s of allStats) {
+    const existing = byDate.get(s.date);
+    if (!existing || (s.teamId == null && existing.teamId != null)) {
+      byDate.set(s.date, s);
+    }
+  }
+  const uniqueDayStats = Array.from(byDate.values());
 
   const totalRecharged = orders
     .filter((o) => o.status === "completed")
     .reduce((s, o) => s + parseFloat(o.actualAmount ?? o.amount), 0);
 
-  const totalSpent = mainStats
+  const totalSpent = uniqueDayStats
     .filter((s) => s.status === "approved")
     .reduce((s, d) => s + parseFloat(d.spendAmount), 0);
 
@@ -295,7 +309,7 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">累计消耗（已审核）</p>
             <p className="text-xl font-bold text-red-500 font-mono">-${totalSpent.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{mainStats.filter(s => s.status === "approved").length} 天已审核</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{uniqueDayStats.filter(s => s.status === "approved").length} 天已审核</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">当前余额</p>
@@ -312,7 +326,7 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
               充值记录{!ordersLoading && orders.length > 0 && <span className="ml-1.5 text-xs opacity-70">({orders.length})</span>}
             </TabsTrigger>
             <TabsTrigger value="spend" className="flex-1">
-              消耗记录{!statsLoading && mainStats.length > 0 && <span className="ml-1.5 text-xs opacity-70">({mainStats.length})</span>}
+              消耗记录{!statsLoading && displayStats.length > 0 && <span className="ml-1.5 text-xs opacity-70">({displayStats.length})</span>}
             </TabsTrigger>
           </TabsList>
 
@@ -379,22 +393,23 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
                     <TableHead className="text-right whitespace-nowrap">余额快照</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>投手</TableHead>
+                    <TableHead>团队</TableHead>
                     <TableHead>业务类型</TableHead>
                     <TableHead>来源</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {statsLoading && Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => (
+                    <TableRow key={i}>{Array.from({ length: 8 }).map((__, j) => (
                       <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                     ))}</TableRow>
                   ))}
-                  {!statsLoading && mainStats.length === 0 && (
+                  {!statsLoading && displayStats.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground text-sm py-10">暂无消耗记录</TableCell>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground text-sm py-10">暂无消耗记录</TableCell>
                     </TableRow>
                   )}
-                  {!statsLoading && mainStats.map((s) => (
+                  {!statsLoading && displayStats.map((s) => (
                     <TableRow key={s.id} className={s.status === "rejected" ? "opacity-40" : undefined}>
                       <TableCell className="text-sm font-medium whitespace-nowrap">{s.date}</TableCell>
                       <TableCell className="font-mono text-sm text-right text-red-500 font-semibold">
@@ -415,6 +430,9 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{s.pitcherName ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {s.teamName ?? (s.teamId == null ? <span className="text-xs opacity-50">主账户</span> : "—")}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {s.businessType === "liveChat" ? "聊单" : s.businessType === "ecommerce" ? "独立站" : "—"}
                       </TableCell>
