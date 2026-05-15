@@ -78,6 +78,45 @@ router.get("/auth/magic/:token", async (req, res): Promise<void> => {
   });
 });
 
+// ── Dev-only: create a test session for E2E testing ───────────────────────────
+// Only active when NODE_ENV=development. Never compiled into production builds.
+if (process.env["NODE_ENV"] === "development") {
+  router.post("/auth/dev-login", async (req, res): Promise<void> => {
+    const { role } = req.body as { role?: string };
+    if (!role || !["admin", "pitcher", "provider"].includes(role)) {
+      res.status(400).json({ error: "role must be admin | pitcher | provider" });
+      return;
+    }
+    const testUsername = `e2e_test_${role}`;
+    let [user] = await db.select().from(usersTable).where(eq(usersTable.username, testUsername));
+    if (!user) {
+      [user] = await db
+        .insert(usersTable)
+        .values({
+          username: testUsername,
+          displayName: `E2E测试${role}`,
+          passwordHash: "dev-only-not-used",
+          role: role as "admin" | "pitcher" | "provider",
+          isActive: true,
+        })
+        .returning();
+    } else if (!user.isActive) {
+      [user] = await db
+        .update(usersTable)
+        .set({ isActive: true })
+        .where(eq(usersTable.username, testUsername))
+        .returning();
+    }
+    req.session.userId = user.id;
+    req.session.role = user.role;
+    req.session.username = user.username;
+    req.session.save((err) => {
+      if (err) { res.status(500).json({ error: "Session save failed" }); return; }
+      res.json({ user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role, isActive: user.isActive, canAssignAccounts: user.canAssignAccounts } });
+    });
+  });
+}
+
 router.post("/auth/logout", (req, res): void => {
   req.session.destroy(() => {
     res.sendStatus(204);

@@ -17,7 +17,7 @@ export async function initAdminUser(): Promise<void> {
   const [existing] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(eq(usersTable.role, "admin"));
+    .where(eq(usersTable.username, username));
 
   if (existing) {
     await db
