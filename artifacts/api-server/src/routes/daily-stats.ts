@@ -335,9 +335,16 @@ router.patch("/daily-stats/:id", requireRole("pitcher", "admin"), async (req, re
   if (parsed.data.teamBreakdowns !== undefined) {
     const tbs = (parsed.data.teamBreakdowns as TeamBreakdown[] | null | undefined) ?? null;
     updates.teamBreakdowns = tbs as TeamBreakdown[] | null;
-    // Recalculate fanCount from breakdowns if provided; otherwise keep explicit fanCount field
     if (tbs && tbs.length > 0) {
-      updates.fanCount = tbs.reduce((sum, t) => sum + (t.fanCount ?? 0), 0) || null;
+      const teamSum = tbs.reduce((sum, t) => sum + (t.fanCount ?? 0), 0);
+      if (teamSum > 0) {
+        // Use the sum of per-team fan counts when teams have them filled in
+        updates.fanCount = teamSum;
+      } else if (parsed.data.fanCount !== undefined) {
+        // No per-team counts — use the explicitly-provided fanCount (e.g. FB-fetched total)
+        updates.fanCount = parsed.data.fanCount ?? null;
+      }
+      // else: nothing provided — preserve existing fanCount in DB
     } else if (parsed.data.fanCount !== undefined) {
       updates.fanCount = parsed.data.fanCount ?? null;
     }

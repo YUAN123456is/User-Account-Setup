@@ -163,8 +163,9 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
         }))
       : null;
 
+    const teamFanSum = teamBreakdowns ? teamBreakdowns.reduce((s, t) => s + (t.fanCount ?? 0), 0) : 0;
     const derivedFanCount = teamBreakdowns
-      ? (teamBreakdowns.reduce((s, t) => s + (t.fanCount ?? 0), 0) || null)
+      ? (teamFanSum > 0 ? teamFanSum : (businessType === "liveChat" && fanCount ? parseInt(fanCount) : null))
       : (businessType === "liveChat" && fanCount ? parseInt(fanCount) : null);
 
     update.mutate({ id: stat.id, data: {

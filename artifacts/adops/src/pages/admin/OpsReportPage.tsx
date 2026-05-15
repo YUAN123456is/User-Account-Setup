@@ -85,8 +85,9 @@ function MetaEditDialog({ stat, teams, onClose }: { stat: DailyStat; teams: Team
     const teamBreakdowns = biz === "liveChat" && validRows.length > 0
       ? validRows.map((r) => ({ teamId: Number(r.teamId), teamName: teams.find((t) => t.id === Number(r.teamId))?.name ?? "", fanCount: r.fanCount ? parseInt(r.fanCount) : null }))
       : null;
+    const teamFanSum = teamBreakdowns ? teamBreakdowns.reduce((s, t) => s + (t.fanCount ?? 0), 0) : 0;
     const derivedFanCount = teamBreakdowns
-      ? (teamBreakdowns.reduce((s, t) => s + (t.fanCount ?? 0), 0) || null)
+      ? (teamFanSum > 0 ? teamFanSum : (biz === "liveChat" && fanCount ? parseInt(fanCount) : null))
       : (biz === "liveChat" && fanCount ? parseInt(fanCount) : null);
     update.mutate({
       id: stat.id,
