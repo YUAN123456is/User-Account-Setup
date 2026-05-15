@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, accountsTable } from "@workspace/db";
-import { requireAuth } from "../middlewares/require-auth";
+import { requireRole } from "../middlewares/require-auth";
 import { runFbSync } from "./meta-tokens";
 import { yesterdayUTC8 } from "../lib/tz";
 
@@ -32,7 +32,7 @@ function normalizeId(id: string) {
 }
 
 // GET /api/pitcher/meta-tokens
-router.get("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> => {
+router.get("/pitcher/meta-tokens", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const rows = await db
     .select({
@@ -50,7 +50,7 @@ router.get("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> 
 });
 
 // POST /api/pitcher/meta-tokens
-router.post("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void> => {
+router.post("/pitcher/meta-tokens", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const label = typeof body.label === "string" ? body.label.trim() : "";
@@ -62,7 +62,7 @@ router.post("/pitcher/meta-tokens", requireAuth, async (req, res): Promise<void>
 });
 
 // PUT /api/pitcher/meta-tokens/:id
-router.put("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<void> => {
+router.put("/pitcher/meta-tokens/:id", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as Record<string, unknown>;
@@ -79,7 +79,7 @@ router.put("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<vo
 });
 
 // DELETE /api/pitcher/meta-tokens/:id
-router.delete("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/pitcher/meta-tokens/:id", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const id = parseInt(String(req.params.id), 10);
   await db.delete(metaTokensTable).where(and(eq(metaTokensTable.id, id), eq(metaTokensTable.pitcherId, pitcherId)));
@@ -88,7 +88,7 @@ router.delete("/pitcher/meta-tokens/:id", requireAuth, async (req, res): Promise
 
 // GET /api/pitcher/meta-tokens/fb-accounts
 // Fetches FB accounts from Meta API + returns current matching status
-router.get("/pitcher/meta-tokens/fb-accounts", requireAuth, async (req, res): Promise<void> => {
+router.get("/pitcher/meta-tokens/fb-accounts", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
 
   const tokens = await db
@@ -137,7 +137,7 @@ router.get("/pitcher/meta-tokens/fb-accounts", requireAuth, async (req, res): Pr
 
 // POST /api/pitcher/meta-tokens/sync
 // Pitcher triggers sync of their own tokens for a given date range
-router.post("/pitcher/meta-tokens/sync", requireAuth, async (req, res): Promise<void> => {
+router.post("/pitcher/meta-tokens/sync", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const dateFrom = typeof body.dateFrom === "string" ? body.dateFrom : (typeof body.date === "string" ? body.date : yesterdayUTC8());
@@ -153,7 +153,7 @@ router.post("/pitcher/meta-tokens/sync", requireAuth, async (req, res): Promise<
 
 // POST /api/pitcher/meta-tokens/match
 // Links a FB account to a system account (saves fbAccountId as platformAccountId)
-router.post("/pitcher/meta-tokens/match", requireAuth, async (req, res): Promise<void> => {
+router.post("/pitcher/meta-tokens/match", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const systemAccountId = typeof body.systemAccountId === "number" ? body.systemAccountId : null;
@@ -179,7 +179,7 @@ router.post("/pitcher/meta-tokens/match", requireAuth, async (req, res): Promise
 });
 
 // POST /api/pitcher/meta-tokens/unmatch
-router.post("/pitcher/meta-tokens/unmatch", requireAuth, async (req, res): Promise<void> => {
+router.post("/pitcher/meta-tokens/unmatch", requireRole("pitcher"), async (req, res): Promise<void> => {
   const pitcherId = req.session.userId!;
   const body = req.body as Record<string, unknown>;
   const systemAccountId = typeof body.systemAccountId === "number" ? body.systemAccountId : null;

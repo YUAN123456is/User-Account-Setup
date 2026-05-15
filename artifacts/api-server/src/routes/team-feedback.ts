@@ -106,7 +106,7 @@ router.get("/team-feedback", requireRole("admin"), async (req, res): Promise<voi
   res.json(rows.map((r) => formatFeedback(r.feedback, r.teamName ?? null)));
 });
 
-router.get("/pitcher/team-feedback", requireAuth, async (req, res): Promise<void> => {
+router.get("/pitcher/team-feedback", requireRole("pitcher"), async (req, res): Promise<void> => {
   const query = req.query as Record<string, unknown>;
   const teamId = query.teamId ? parseInt(String(query.teamId), 10) : null;
   const dateFrom = typeof query.dateFrom === "string" ? query.dateFrom : null;

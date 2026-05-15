@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListDailyStatsQueryKey } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +63,7 @@ function FbSyncPanel() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const queryClient = useQueryClient();
 
   const handleSync = async () => {
     setLoading(true);
@@ -77,6 +80,7 @@ function FbSyncPanel() {
       const data = await res.json() as SyncResult;
       setResult(data);
       setShowDetail(true);
+      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
     } catch (e) {
       setError(e instanceof Error ? e.message : "同步失败，请重试");
     } finally {
