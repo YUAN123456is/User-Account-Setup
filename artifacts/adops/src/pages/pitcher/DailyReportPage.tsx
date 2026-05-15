@@ -877,10 +877,12 @@ export default function DailyReportPage() {
                           <TableRow key={`tb-${tb.teamId}`} className="bg-primary/[0.03] border-l-2 border-l-primary/20">
                             <TableCell className="py-2 px-1" />
                             <TableCell className="py-2 px-3 text-xs text-muted-foreground/40">└</TableCell>
-                            <TableCell className="py-2 px-3" colSpan={2}>
+                            <TableCell className="py-2 px-3">
                               <span className="text-xs text-muted-foreground">{tb.teamName}</span>
                             </TableCell>
-                            {hasBiz && <TableCell className="py-2 px-3" colSpan={hasBiz ? 1 : 0} />}
+                            <TableCell className="py-2 px-3" />{/* spend */}
+                            <TableCell className="py-2 px-3" />{/* balance */}
+                            {hasBiz && <TableCell className="py-2 px-3" />}
                             {hasLive && <TableCell className="py-2 px-3 text-xs text-muted-foreground">{tb.teamName}</TableCell>}
                             {hasLive && <TableCell className="py-2 px-3 text-right font-mono text-xs">{tb.fanCount ?? "—"}</TableCell>}
                             {hasLive && <TableCell className="py-2 px-3" />}

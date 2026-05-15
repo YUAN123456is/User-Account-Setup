@@ -1,6 +1,5 @@
 interface StatRow {
   businessType?: string | null;
-  teamName?: string | null;
   fanCount?: number | null;
   fanCost?: string | null;
   gmv?: string | null;

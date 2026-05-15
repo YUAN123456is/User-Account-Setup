@@ -55,31 +55,23 @@ export default function PitcherDashboardPage() {
   const activeCount = accounts.filter((a) => a.status === "active").length;
   const totalAccountCount = accounts.length;
 
-  // Only count main records (teamId==null) — one per account per day
-  const mainTodayStats = useMemo(() => todayStats.filter((s) => s.teamId == null), [todayStats]);
-  const reportedTodayCount = new Set(mainTodayStats.map((s) => s.accountId)).size;
+  // Each API record is now unique per (accountId, date) — no deduplication needed
+  const reportedTodayCount = new Set(todayStats.map((s) => s.accountId)).size;
   const notReportedCount = Math.max(0, totalAccountCount - reportedTodayCount);
   const pendingCount = allOrders.filter((o) => o.status === "pending").length;
-  // Deduplicate by accountId so team records don't double-count alerts
   const alertCount = useMemo(() => {
     const seen = new Set<number>();
     let count = 0;
-    for (const s of mainTodayStats) {
+    for (const s of todayStats) {
       if (!seen.has(s.accountId) && s.hasAlert) { count++; seen.add(s.accountId); }
     }
     return count;
-  }, [mainTodayStats]);
+  }, [todayStats]);
 
-  const recentFive = useMemo(() => {
-    // Deduplicate by (accountId+date): prefer main record (teamId==null)
-    const map = new Map<string, DailyStat>();
-    for (const s of recentStats) {
-      const key = `${s.accountId}__${s.date}`;
-      const existing = map.get(key);
-      if (!existing || s.teamId == null) map.set(key, s);
-    }
-    return [...map.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
-  }, [recentStats]);
+  const recentFive = useMemo(
+    () => [...recentStats].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [recentStats],
+  );
   const recentOrders = useMemo(
     () =>
       [...allOrders]
