@@ -265,17 +265,34 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
   // All records sorted by date desc for display in the table
   const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
 
-  // Main records only (teamId IS NULL) — matches the balance formula exactly
+  // Main records only (teamId IS NULL) — for day count display
   const mainStats = allStats.filter((s) => s.teamId == null);
 
   const totalRecharged = orders
     .filter((o) => o.status === "completed")
     .reduce((s, o) => s + parseFloat(o.actualAmount ?? o.amount), 0);
 
-  // Summary spend uses main records only — consistent with balance formula
-  const totalSpent = mainStats
-    .filter((s) => s.status === "approved")
-    .reduce((s, d) => s + parseFloat(d.spendAmount), 0);
+  // Effective spend — matches the balance formula (per-day dedup):
+  //   days WITH a main record  → use main record spend
+  //   days WITHOUT a main record → sum all team records for that day
+  const approvedStats = allStats.filter((s) => s.status === "approved");
+  const byDate = new Map<string, { hasMain: boolean; mainSpend: number; teamSpend: number }>();
+  for (const s of approvedStats) {
+    const key = s.date;
+    const existing = byDate.get(key) ?? { hasMain: false, mainSpend: 0, teamSpend: 0 };
+    if (s.teamId == null) {
+      existing.hasMain = true;
+      existing.mainSpend += parseFloat(s.spendAmount);
+    } else {
+      existing.teamSpend += parseFloat(s.spendAmount);
+    }
+    byDate.set(key, existing);
+  }
+  const totalSpent = Array.from(byDate.values()).reduce(
+    (sum, d) => sum + (d.hasMain ? d.mainSpend : d.teamSpend),
+    0,
+  );
+  const effectiveDays = byDate.size;
 
   return (
     <Dialog open onOpenChange={onClose}>
