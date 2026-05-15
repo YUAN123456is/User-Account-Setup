@@ -679,8 +679,9 @@ export default function DailyReportPage() {
           const ecomApproved = approvedStats.filter((s) => s.businessType === "ecommerce");
           const totalSpend = approvedStats.reduce((s, st) => s + Number(st.spendAmount), 0);
           const totalFans = liveApproved.reduce((s, st) => s + (st.fanCount ?? 0), 0);
+          const liveChatSpend = liveApproved.reduce((s, st) => s + Number(st.spendAmount), 0);
           const totalGmv = ecomApproved.reduce((s, st) => s + Number(st.gmv ?? 0), 0);
-          const avgFanCost = totalFans > 0 && totalSpend > 0 ? totalSpend / totalFans : 0;
+          const avgFanCost = totalFans > 0 ? liveChatSpend / totalFans : 0;
           const pendingCount = filteredStats.filter((s) => s.status === "pending" && !s.fbSynced).length;
           const items = [
             { label: "已通过消耗", value: `$${totalSpend.toFixed(2)}` },

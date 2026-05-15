@@ -29,7 +29,7 @@ interface PendingStat {
 }
 
 async function api<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, credentials: "include", ...opts });
   if (!res.ok) { const e = await res.json() as { error: string }; throw new Error(e.error); }
   return res.json();
 }
