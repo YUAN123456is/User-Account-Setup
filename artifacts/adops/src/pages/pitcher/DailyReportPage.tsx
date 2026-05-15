@@ -120,7 +120,6 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [addTeamId, setAddTeamId] = useState("");
   const [addFanCount, setAddFanCount] = useState("");
-  const [addSpend, setAddSpend] = useState("");
 
   const liveTeams = teams.filter((t) => t.businessType === "liveChat");
   const spend = parseFloat(spendAmount) || 0;
@@ -134,8 +133,11 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const wasRejected = stat.status === "rejected";
   const isFbSynced = !!stat.fbSynced;
   const isApproved = stat.status === "approved";
-  // FB-synced records: spend is authoritative from FB, never editable
-  const spendChanged = !isFbSynced && parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
+  const isTeamRecord = stat.teamId != null;
+  // FB-synced records and team attribution records: spend is never editable.
+  // Team records always have spend=0 managed by the main record.
+  const spendLocked = isFbSynced || isTeamRecord;
+  const spendChanged = !spendLocked && parseFloat(spendAmount) !== parseFloat(String(stat.spendAmount));
   const willTriggerReview = !isApproved || spendChanged;
 
   const update = useUpdateDailyStat({
@@ -156,13 +158,12 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const addTeamCreate = useCreateDailyStat({});
 
   const handleAddTeam = () => {
-    const sp = addSpend ? parseFloat(addSpend) : 0;
     if (!addTeamId) { toast({ title: "请选择服务团队", variant: "destructive" }); return; }
-    if (addSpend && (isNaN(sp) || sp < 0)) { toast({ title: "消耗金额格式不正确", variant: "destructive" }); return; }
+    // Team attribution records have spend=0 — total spend is tracked by the main record only.
     addTeamCreate.mutate({ data: {
       accountId: stat.accountId,
       date: stat.date,
-      spendAmount: sp > 0 ? sp.toFixed(2) : "0",
+      spendAmount: "0",
       businessType: "liveChat",
       teamId: Number(addTeamId),
       fanCount: addFanCount ? parseInt(addFanCount) : null,
@@ -172,9 +173,9 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["listDailyStats"] });
         queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
-        toast({ title: "团队记录已添加", description: "新记录已提交审核。" });
+        toast({ title: "团队记录已添加" });
         setShowAddTeam(false);
-        setAddTeamId(""); setAddFanCount(""); setAddSpend("");
+        setAddTeamId(""); setAddFanCount("");
       },
       onError: (err: unknown) => {
         const msg = (err as { data?: { error?: string } })?.data?.error ?? "添加失败";
@@ -182,10 +183,6 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
       },
     });
   };
-
-  const addFanNum = parseInt(addFanCount) || 0;
-  const addSpendNum = parseFloat(addSpend) || 0;
-  const addFanCost = addFanNum > 0 && addSpendNum > 0 ? (addSpendNum / addFanNum).toFixed(4) : null;
 
   const handleSave = () => {
     const sp = parseFloat(spendAmount);
@@ -245,7 +242,15 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               </p>
             </div>
           )}
-          {!isFbSynced && isApproved && (
+          {isTeamRecord && !isFbSynced && (
+            <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+              <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-400">
+                这是团队归因记录，消耗由主记录统一管理，<span className="font-medium">此处不可修改</span>。可在此更新进粉数量等信息。
+              </p>
+            </div>
+          )}
+          {!spendLocked && isApproved && (
             <div className="flex items-start gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
               <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-400">
@@ -256,15 +261,16 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
           <div className="space-y-1.5">
             <Label className="text-sm">
               消耗金额（美元）
-              {!isFbSynced && <span className="text-destructive">*</span>}
-              {!isFbSynced && isApproved && spendChanged && (
+              {!spendLocked && <span className="text-destructive">*</span>}
+              {!spendLocked && isApproved && spendChanged && (
                 <span className="ml-2 text-xs font-normal text-amber-400">修改后将触发审核</span>
               )}
             </Label>
-            {isFbSynced ? (
+            {spendLocked ? (
               <div className="flex items-center h-9 px-3 rounded-md border bg-muted/50 text-sm font-mono text-muted-foreground">
                 ${Number(stat.spendAmount).toFixed(2)}
-                <span className="ml-2 text-xs text-blue-400/70">FB 数据</span>
+                {isFbSynced && <span className="ml-2 text-xs text-blue-400/70">FB 数据</span>}
+                {isTeamRecord && !isFbSynced && <span className="ml-2 text-xs text-muted-foreground/60">由主记录管理</span>}
               </div>
             ) : (
               <Input type="number" min="0" step="0.01" value={spendAmount} onChange={(e) => setSpendAmount(e.target.value)} />
@@ -329,21 +335,12 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-foreground">新增团队记录（同账户同日期）</span>
-                  <button type="button" onClick={() => { setShowAddTeam(false); setAddTeamId(""); setAddFanCount(""); setAddSpend(""); }}
+                  <button type="button" onClick={() => { setShowAddTeam(false); setAddTeamId(""); setAddFanCount(""); }}
                     className="text-muted-foreground hover:text-foreground">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">消耗金额（可选，仅作参考）</Label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00"
-                        className="h-7 text-xs pl-5"
-                        value={addSpend} onChange={(e) => setAddSpend(e.target.value)} />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">服务团队<span className="text-destructive">*</span></Label>
                     <Select value={addTeamId} onValueChange={setAddTeamId}>
@@ -356,7 +353,6 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
                     <Input type="number" min="0" placeholder="0"
                       className="h-7 text-xs"
                       value={addFanCount} onChange={(e) => setAddFanCount(e.target.value)} />
-                    {addFanCost && <p className="text-xs text-muted-foreground">粉成本 <span className="font-mono text-primary">${addFanCost}</span></p>}
                   </div>
                 </div>
                 <Button type="button" size="sm" className="h-7 text-xs w-full" onClick={handleAddTeam} disabled={addTeamCreate.isPending}>
@@ -539,7 +535,7 @@ export default function DailyReportPage() {
       }
     }
     setSubmitting(true);
-    let failed = 0; let succeeded = 0; let duplicates = 0;
+    let failed = 0; let duplicates = 0; let mainSpend = 0; let teamAttributionCount = 0;
     for (const r of rows) {
       const totalSpend = parseFloat(r.spendAmount);
       // For liveChat with multiple teams, split into one record per team
@@ -583,27 +579,40 @@ export default function DailyReportPage() {
             orderCount: (r.businessType === "ecommerce" && r.orderCount) ? parseInt(r.orderCount) : null,
           }];
 
+      let mainFailed = false;
       for (const entry of submitEntries) {
+        const isMainEntry = entry.teamId == null;
+        // If the main record failed, skip all subsequent team attribution records for this row.
+        // Creating team records without a main would produce orphan team records.
+        if (mainFailed && !isMainEntry) continue;
         try {
           await new Promise<void>((resolve, reject) => {
             createMutation.mutate({ data: entry }, { onSuccess: () => resolve(), onError: (e) => reject(e) });
           });
-          succeeded++;
+          if (isMainEntry) mainSpend++;
+          else teamAttributionCount++;
         } catch (e: unknown) {
           const msg = (e as { data?: { error?: string } })?.data?.error ?? "";
-          if (msg.includes("已上报")) { duplicates++; toast({ title: "重复上报", description: msg, variant: "destructive" }); }
-          else { failed++; }
+          if (msg.includes("已上报")) {
+            duplicates++;
+            if (isMainEntry) mainFailed = true; // abort team records for this row
+            toast({ title: "重复上报", description: msg, variant: "destructive" });
+          } else {
+            failed++;
+            if (isMainEntry) mainFailed = true;
+          }
         }
       }
     }
     queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
     queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
     setSubmitting(false);
+    const succeeded = mainSpend + teamAttributionCount;
     if (failed === 0 && succeeded > 0) {
       setSubmitted(true);
       setRows([newRow()]);
       const dupNote = duplicates > 0 ? `（${duplicates} 条重复跳过）` : "";
-      toast({ title: "提交成功", description: `${succeeded} 条上报数据已提交审核。${dupNote}` });
+      toast({ title: "提交成功", description: `${mainSpend} 条上报数据已提交审核。${dupNote}` });
       setTimeout(() => setSubmitted(false), 3000);
     } else if (failed > 0) {
       toast({ title: `${failed} 条提交失败`, variant: "destructive" });
