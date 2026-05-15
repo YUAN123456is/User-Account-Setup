@@ -25,7 +25,6 @@ interface DailyStat {
   hasAlert: boolean;
   status?: string | null;
   fbSynced?: boolean;
-  teamId?: number | null;
 }
 interface RechargeOrder {
   id: number;
