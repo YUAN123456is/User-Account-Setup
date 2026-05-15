@@ -90,8 +90,7 @@ export default function OpsReportPage() {
         return;
       }
       toast({ title: "已删除", description: `${deleteTarget.date} · ${deleteTarget.accountName ?? `#${deleteTarget.accountId}`}` });
-      await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey(apiParams) });
-      await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      await queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
       setDeleteTarget(null);
       setDeletePassword("");
     } finally {

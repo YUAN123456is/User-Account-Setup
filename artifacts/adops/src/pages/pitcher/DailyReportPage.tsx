@@ -137,7 +137,7 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const update = useUpdateDailyStat({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
         const needsReview = wasRejected || willTriggerReview;
         toast({
           title: needsReview ? "已提交审核" : "修改成功",
@@ -371,7 +371,7 @@ export default function DailyReportPage() {
       const data = await res.json() as { error?: string };
       if (!res.ok) { toast({ title: data.error ?? "删除失败", variant: "destructive" }); return; }
       toast({ title: "已删除", description: `${stat.date} · ${stat.accountName ?? ""}` });
-      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+      queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
     } finally {
       setDeletingId(null);
@@ -488,7 +488,7 @@ export default function DailyReportPage() {
       }
     }
     queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey({}) });
-    queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+    queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
     setSubmitting(false);
     if (failed === 0 && succeeded > 0) {
       setSubmitted(true);

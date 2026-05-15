@@ -195,7 +195,7 @@ export default function PendingApprovalsPage() {
   // ✅ Fixed: was incorrectly using useState(() => load())
   useEffect(() => { void load(); }, [load]);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey({}) });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListDailyStatsQueryKey() });
 
   const handleApprove = async () => {
     if (!approveTarget) return;
