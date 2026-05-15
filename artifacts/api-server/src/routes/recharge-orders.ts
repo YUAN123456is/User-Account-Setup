@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, desc, SQL } from "drizzle-orm";
 import { db, rechargeOrdersTable, accountsTable, usersTable } from "@workspace/db";
 import { syncAccountBalance } from "../lib/balance";
 import {
@@ -69,8 +69,8 @@ router.get("/recharge-orders", requireAuth, async (req, res): Promise<void> => {
   }
 
   const orders = conditions.length > 0
-    ? await db.select().from(rechargeOrdersTable).where(and(...conditions))
-    : await db.select().from(rechargeOrdersTable);
+    ? await db.select().from(rechargeOrdersTable).where(and(...conditions)).orderBy(desc(rechargeOrdersTable.createdAt))
+    : await db.select().from(rechargeOrdersTable).orderBy(desc(rechargeOrdersTable.createdAt));
 
   const formatted = await Promise.all(orders.map(formatOrder));
   res.json(formatted);

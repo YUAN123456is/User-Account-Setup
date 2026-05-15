@@ -117,7 +117,7 @@ router.get("/pitcher/meta-tokens/fb-accounts", requireRole("pitcher"), async (re
       const fbAccounts = await fetchAdAccounts(token.accessToken);
       for (const fbAcc of fbAccounts) {
         const fbId = normalizeId(fbAcc.account_id);
-        const matched = systemAccounts.find((a) => normalizeId(a.platformAccountId) === fbId);
+        const matched = systemAccounts.find((a) => a.platformAccountId != null && normalizeId(a.platformAccountId) === fbId);
         result.push({
           fbAccountId: fbId,
           fbAccountName: fbAcc.name,
@@ -193,7 +193,7 @@ router.post("/pitcher/meta-tokens/unmatch", requireRole("pitcher"), async (req, 
 
   await db
     .update(accountsTable)
-    .set({ platformAccountId: "" })
+    .set({ platformAccountId: null })
     .where(eq(accountsTable.id, systemAccountId));
 
   res.json({ ok: true });

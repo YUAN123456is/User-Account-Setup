@@ -5,7 +5,7 @@ import { usersTable } from "./users";
 
 export const accountsTable = pgTable("accounts", {
   id: serial("id").primaryKey(),
-  platformAccountId: text("platform_account_id").notNull(),
+  platformAccountId: text("platform_account_id"),
   accountName: text("account_name").notNull(),
   platform: text("platform", { enum: ["FB", "GG", "TT", "TW", "OTHER"] }).notNull(),
   providerId: integer("provider_id").notNull().references(() => usersTable.id),

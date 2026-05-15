@@ -50,7 +50,7 @@ function ApproveDialog({ order, onClose }: { order: RechargeOrder; onClose: () =
   const update = useUpdateRechargeOrder({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         toast({ title: "已确认充值", description: "账户余额已更新。" });
         onClose();
@@ -131,7 +131,7 @@ function RejectDialog({ order, onClose }: { order: RechargeOrder; onClose: () =>
   const update = useUpdateRechargeOrder({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         toast({ title: "已拒绝充值申请" });
         onClose();

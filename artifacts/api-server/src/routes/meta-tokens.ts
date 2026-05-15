@@ -107,7 +107,11 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
       ? and(eq(metaTokensTable.isActive, true), eq(metaTokensTable.pitcherId, pitcherIdFilter))
       : eq(metaTokensTable.isActive, true)
   );
-  const fbAccounts = await db.select().from(accountsTable).where(eq(accountsTable.platform, "FB"));
+  const fbAccounts = await db.select().from(accountsTable).where(
+    pitcherIdFilter != null
+      ? and(eq(accountsTable.platform, "FB"), eq(accountsTable.pitcherId, pitcherIdFilter))
+      : eq(accountsTable.platform, "FB")
+  );
   const dates = dateRange(dateFrom, dateTo);
   const results: SyncDayResult[] = [];
 

@@ -349,8 +349,11 @@ router.patch("/daily-stats/:id", requireRole("pitcher", "admin"), async (req, re
     res.json(await formatStat(existing)); return;
   }
 
-  // Any change to spend or fields on an approved record goes back to pending for re-review
-  if (existing.status !== "approved" || spendChanged) {
+  // Reset status to pending if spend changed (always needs re-review), or if a non-admin
+  // editor touches a rejected/pending record (pitcher resubmitting after fix).
+  // Admin metadata-only edits (e.g. tagging a team) must NOT un-reject or un-approve records.
+  const isAdminMetaOnlyEdit = req.session.role === "admin" && !spendChanged;
+  if (!isAdminMetaOnlyEdit && (existing.status !== "approved" || spendChanged)) {
     updates.status = "pending";
     updates.reviewNote = null;
   }
