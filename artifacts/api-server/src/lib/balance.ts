@@ -25,7 +25,7 @@ export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promis
   const [row] = await conn
     .select({
       balance: sql<string>`(
-        COALESCE(a.balance_offset, 0)
+        COALESCE(${accountsTable.balanceOffset}, 0)
         + COALESCE((
             SELECT SUM(COALESCE(actual_amount, amount))
             FROM ${rechargeOrdersTable}
