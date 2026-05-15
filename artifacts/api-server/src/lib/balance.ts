@@ -17,35 +17,34 @@ export type DbOrTx = typeof db | Tx;
  *   Every day with spend MUST have a main record — team records alone are not enough.
  * - Rejected/deleted records are excluded automatically; balance self-corrects on rejection.
  *
- * All arithmetic is done in PostgreSQL numeric to avoid JS floating-point drift.
+ * All arithmetic is done entirely in PostgreSQL numeric to avoid JS floating-point drift.
  * Pass `tx` when called inside db.transaction() to run within the same transaction.
  */
 export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promise<string> {
   const conn = (tx ?? db) as typeof db;
 
-  const [acctRow] = await conn
-    .select({ offset: accountsTable.balanceOffset })
+  const [row] = await conn
+    .select({
+      balance: sql<string>`(
+        COALESCE(a.balance_offset, 0)
+        + COALESCE((
+            SELECT SUM(COALESCE(actual_amount, amount))
+            FROM ${rechargeOrdersTable}
+            WHERE account_id = ${accountId} AND status = 'completed'
+          ), 0)
+        - COALESCE((
+            SELECT SUM(spend_amount)
+            FROM ${dailyStatsTable}
+            WHERE account_id = ${accountId}
+              AND team_id IS NULL
+              AND status IN ('pending', 'approved')
+          ), 0)
+      )::numeric(18,2)::text`,
+    })
     .from(accountsTable)
     .where(eq(accountsTable.id, accountId));
 
-  const [rechRow] = await conn
-    .select({ total: sql<string>`COALESCE(SUM(COALESCE(actual_amount, amount)), 0)::text` })
-    .from(rechargeOrdersTable)
-    .where(and(eq(rechargeOrdersTable.accountId, accountId), eq(rechargeOrdersTable.status, "completed")));
-
-  const [spendRow] = await conn
-    .select({ total: sql<string>`COALESCE(SUM(spend_amount), 0)::text` })
-    .from(dailyStatsTable)
-    .where(and(
-      eq(dailyStatsTable.accountId, accountId),
-      isNull(dailyStatsTable.teamId),
-      sql`${dailyStatsTable.status} IN ('pending', 'approved')`,
-    ));
-
-  const offsetTotal = parseFloat(acctRow?.offset ?? "0");
-  const rechargeTotal = parseFloat(rechRow?.total ?? "0");
-  const spendTotal = parseFloat(spendRow?.total ?? "0");
-  return (offsetTotal + rechargeTotal - spendTotal).toFixed(2);
+  return row?.balance ?? "0.00";
 }
 
 /**
