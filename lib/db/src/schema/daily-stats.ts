@@ -1,10 +1,27 @@
-import { pgTable, serial, timestamp, integer, decimal, text, boolean, uniqueIndex } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { pgTable, serial, timestamp, integer, decimal, text, boolean, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { accountsTable } from "./accounts";
 import { usersTable } from "./users";
-import { teamsTable } from "./teams";
+
+/**
+ * One row per (account_id, date).
+ *
+ * team_breakdowns: optional JSON array — embedded when the account is served by
+ * one or more liveChat teams. Stored denormalised (teamName copied at write time)
+ * so queries never need to join teams for display.
+ *
+ * fan_count: total fans across all team breakdowns (sum), or the single-team /
+ * FB-provided fan count when no breakdowns are present.
+ *
+ * Balance formula uses ALL rows in this table (status pending|approved).
+ * No team_id column exists — the old "team attribution record" pattern is gone.
+ */
+export type TeamBreakdown = {
+  teamId: number;
+  teamName: string;
+  fanCount: number | null;
+};
 
 export const dailyStatsTable = pgTable("daily_stats", {
   id: serial("id").primaryKey(),
@@ -15,7 +32,7 @@ export const dailyStatsTable = pgTable("daily_stats", {
   pitcherId: integer("pitcher_id").notNull().references(() => usersTable.id),
   hasAlert: boolean("has_alert").notNull().default(false),
   businessType: text("business_type", { enum: ["liveChat", "ecommerce"] }),
-  teamId: integer("team_id").references(() => teamsTable.id),
+  teamBreakdowns: jsonb("team_breakdowns").$type<TeamBreakdown[]>(),
   fanCount: integer("fan_count"),
   gmv: decimal("gmv", { precision: 18, scale: 2 }),
   orderCount: integer("order_count"),
@@ -25,14 +42,8 @@ export const dailyStatsTable = pgTable("daily_stats", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
-  // Prevent duplicate main records: one per (account, date) where teamId IS NULL
-  uniqueIndex("daily_stats_main_unique").on(t.accountId, t.date).where(sql`${t.teamId} IS NULL`),
-  // Prevent duplicate team attribution records: one per (account, date, team)
-  uniqueIndex("daily_stats_team_unique").on(t.accountId, t.date, t.teamId).where(sql`${t.teamId} IS NOT NULL`),
-  // NOTE: No CHECK constraint is declared for team_records_zero_spend.
-  // FB-synced team attribution records (team_id IS NOT NULL, fb_synced = true) legitimately
-  // carry non-zero spend for reporting purposes. These records are excluded from the balance
-  // formula (only team_id IS NULL records count), so non-zero spend on team records is safe.
+  // One record per (account, date) — enforced at both DB and application level.
+  uniqueIndex("daily_stats_account_date_unique").on(t.accountId, t.date),
 ]);
 
 export const insertDailyStatSchema = createInsertSchema(dailyStatsTable).omit({ id: true, createdAt: true, updatedAt: true });

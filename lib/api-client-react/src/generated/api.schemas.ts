@@ -158,6 +158,13 @@ export interface AssignAccountBody {
   pitcherId: number | null;
 }
 
+export interface TeamBreakdown {
+  teamId: number;
+  teamName: string;
+  /** @nullable */
+  fanCount?: number | null;
+}
+
 /**
  * @nullable
  */
@@ -186,11 +193,15 @@ export interface DailyStat {
   hasAlert: boolean;
   /** @nullable */
   businessType?: DailyStatBusinessType;
-  /** @nullable */
-  teamId?: number | null;
-  /** @nullable */
-  teamName?: string | null;
-  /** @nullable */
+  /**
+   * Per-team attribution breakdown (liveChat only). Stored denormalised.
+   * @nullable
+   */
+  teamBreakdowns?: TeamBreakdown[] | null;
+  /**
+   * Total fans across all team breakdowns (or single FB-provided value)
+   * @nullable
+   */
   fanCount?: number | null;
   /**
    * Computed: spendAmount / fanCount
@@ -233,7 +244,7 @@ export interface CreateDailyStatBody {
   /** @nullable */
   businessType?: CreateDailyStatBodyBusinessType;
   /** @nullable */
-  teamId?: number | null;
+  teamBreakdowns?: TeamBreakdown[] | null;
   /** @nullable */
   fanCount?: number | null;
   /** @nullable */
@@ -262,7 +273,7 @@ export interface UpdateDailyStatBody {
   /** @nullable */
   businessType?: UpdateDailyStatBodyBusinessType;
   /** @nullable */
-  teamId?: number | null;
+  teamBreakdowns?: TeamBreakdown[] | null;
   /** @nullable */
   fanCount?: number | null;
   /** @nullable */

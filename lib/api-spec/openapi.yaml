@@ -1281,6 +1281,19 @@ components:
         - pitcherId
 
     # ─── Daily Stats ──────────────────────────────────────────────────────
+    TeamBreakdown:
+      type: object
+      properties:
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        fanCount:
+          type: ["integer", "null"]
+      required:
+        - teamId
+        - teamName
+
     DailyStat:
       type: object
       properties:
@@ -1307,12 +1320,14 @@ components:
         businessType:
           type: ["string", "null"]
           enum: [liveChat, ecommerce, null]
-        teamId:
-          type: ["integer", "null"]
-        teamName:
-          type: ["string", "null"]
+        teamBreakdowns:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/TeamBreakdown"
+          description: "Per-team attribution breakdown (liveChat only). Stored denormalised."
         fanCount:
           type: ["integer", "null"]
+          description: "Total fans across all team breakdowns (or single FB-provided value)"
         fanCost:
           type: ["string", "null"]
           description: "Computed: spendAmount / fanCount"
@@ -1350,8 +1365,10 @@ components:
         businessType:
           type: ["string", "null"]
           enum: [liveChat, ecommerce, null]
-        teamId:
-          type: ["integer", "null"]
+        teamBreakdowns:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/TeamBreakdown"
         fanCount:
           type: ["integer", "null"]
         gmv:
@@ -1373,8 +1390,10 @@ components:
         businessType:
           type: ["string", "null"]
           enum: [liveChat, ecommerce, null]
-        teamId:
-          type: ["integer", "null"]
+        teamBreakdowns:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/TeamBreakdown"
         fanCount:
           type: ["integer", "null"]
         gmv:

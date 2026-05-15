@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, metaTokensTable, facebookDailySpendTable, accountsTable, usersTable, dailyStatsTable } from "@workspace/db";
 import { recalculateBalance, syncAccountBalance } from "../lib/balance";
 import { requireRole } from "../middlewares/require-auth";
@@ -173,8 +173,7 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
             });
 
           // Write to daily_stats — FB data is always authoritative.
-          // Only touch the main record (teamId IS NULL). Team-split records are
-          // service-attribution entries managed separately by the pitcher.
+          // One record per (account, date); team breakdowns are embedded as JSON.
           if (matchedAccount) {
             const [existing] = await db
               .select()
@@ -182,8 +181,7 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
               .where(
                 and(
                   eq(dailyStatsTable.accountId, matchedAccount.id),
-                  eq(dailyStatsTable.date, syncDate),
-                  isNull(dailyStatsTable.teamId)
+                  eq(dailyStatsTable.date, syncDate)
                 )
               );
 

@@ -320,9 +320,24 @@ export const ListDailyStatsResponseItem = zod.object({
       zod.literal(null),
     ])
     .nullish(),
-  teamId: zod.number().nullish(),
-  teamName: zod.string().nullish(),
-  fanCount: zod.number().nullish(),
+  teamBreakdowns: zod
+    .array(
+      zod.object({
+        teamId: zod.number(),
+        teamName: zod.string(),
+        fanCount: zod.number().nullish(),
+      }),
+    )
+    .nullish()
+    .describe(
+      "Per-team attribution breakdown (liveChat only). Stored denormalised.",
+    ),
+  fanCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total fans across all team breakdowns (or single FB-provided value)",
+    ),
   fanCost: zod.string().nullish().describe("Computed: spendAmount \/ fanCount"),
   gmv: zod.string().nullish(),
   orderCount: zod.number().nullish(),
@@ -346,7 +361,15 @@ export const CreateDailyStatBody = zod.object({
       zod.literal(null),
     ])
     .nullish(),
-  teamId: zod.number().nullish(),
+  teamBreakdowns: zod
+    .array(
+      zod.object({
+        teamId: zod.number(),
+        teamName: zod.string(),
+        fanCount: zod.number().nullish(),
+      }),
+    )
+    .nullish(),
   fanCount: zod.number().nullish(),
   gmv: zod.string().nullish(),
   orderCount: zod.number().nullish(),
@@ -369,7 +392,15 @@ export const UpdateDailyStatBody = zod.object({
       zod.literal(null),
     ])
     .nullish(),
-  teamId: zod.number().nullish(),
+  teamBreakdowns: zod
+    .array(
+      zod.object({
+        teamId: zod.number(),
+        teamName: zod.string(),
+        fanCount: zod.number().nullish(),
+      }),
+    )
+    .nullish(),
   fanCount: zod.number().nullish(),
   gmv: zod.string().nullish(),
   orderCount: zod.number().nullish(),
@@ -393,9 +424,24 @@ export const UpdateDailyStatResponse = zod.object({
       zod.literal(null),
     ])
     .nullish(),
-  teamId: zod.number().nullish(),
-  teamName: zod.string().nullish(),
-  fanCount: zod.number().nullish(),
+  teamBreakdowns: zod
+    .array(
+      zod.object({
+        teamId: zod.number(),
+        teamName: zod.string(),
+        fanCount: zod.number().nullish(),
+      }),
+    )
+    .nullish()
+    .describe(
+      "Per-team attribution breakdown (liveChat only). Stored denormalised.",
+    ),
+  fanCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total fans across all team breakdowns (or single FB-provided value)",
+    ),
   fanCost: zod.string().nullish().describe("Computed: spendAmount \/ fanCount"),
   gmv: zod.string().nullish(),
   orderCount: zod.number().nullish(),

@@ -237,8 +237,8 @@ interface StatRow {
   realBalance: string;
   pitcherName?: string | null;
   businessType?: string | null;
-  teamId?: number | null;
-  teamName?: string | null;
+  teamBreakdowns?: { teamId: number; teamName: string; fanCount: number | null }[] | null;
+  fanCount?: number | null;
   fbSynced: boolean;
   status: string;
   reviewNote?: string | null;
@@ -262,11 +262,8 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
   const orders = (Array.isArray(ordersData) ? ordersData : []) as OrderRow[];
   const allStats = (Array.isArray(statsData) ? statsData : []) as unknown as StatRow[];
 
-  // Only main records (teamId IS NULL) sorted by date desc — team breakdowns are not shown
-  const displayStats = allStats.filter((s) => s.teamId == null).sort((a, b) => b.date.localeCompare(a.date));
-
-  // Main records (teamId IS NULL) drive the balance — team records are detail breakdowns only
-  const mainStats = allStats.filter((s) => s.teamId == null);
+  const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
+  const mainStats = allStats;
 
   const totalRecharged = orders
     .filter((o) => o.status === "completed")

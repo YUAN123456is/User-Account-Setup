@@ -15,11 +15,14 @@ import {
   User, CalendarDays, ChevronDown, ChevronRight, AlertTriangle,
 } from "lucide-react";
 
+interface TeamBreakdown { teamId: number; teamName: string; fanCount: number | null; }
+
 interface PendingStat {
   id: number; accountId: number; accountName: string | null;
   date: string; spendAmount: string; realBalance: string;
   pitcherId: number; pitcherName: string | null;
-  businessType: string | null; teamName: string | null;
+  businessType: string | null;
+  teamBreakdowns: TeamBreakdown[] | null;
   fanCount: number | null; fanCost: string | null;
   gmv: string | null; orderCount: number | null; roas: string | null;
   status: string; reviewNote: string | null; createdAt: string;
@@ -100,10 +103,12 @@ function StatRow({
 
       {open && (
         <div className="px-8 pb-3 grid grid-cols-2 gap-x-6 gap-y-1.5 bg-muted/10">
-          {stat.teamName && (
+          {stat.teamBreakdowns && stat.teamBreakdowns.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="w-14 shrink-0">服务团队</span>
-              <span className="text-foreground font-medium">{stat.teamName}</span>
+              <span className="text-foreground font-medium">
+                {stat.teamBreakdowns.map((t) => t.teamName).join("、")}
+              </span>
             </div>
           )}
           {stat.fanCount != null && (

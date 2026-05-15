@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, inArray, desc, SQL, isNull } from "drizzle-orm";
-import { db, dailyStatsTable, accountsTable, usersTable, teamsTable } from "@workspace/db";
+import { eq, and, gte, lte, inArray, desc, SQL } from "drizzle-orm";
+import { db, dailyStatsTable, accountsTable, usersTable } from "@workspace/db";
+import type { TeamBreakdown } from "@workspace/db";
 import {
   CreateDailyStatBody,
   UpdateDailyStatBody,
@@ -12,15 +13,21 @@ import { recalculateBalance, syncAccountBalance } from "../lib/balance";
 
 const router: IRouter = Router();
 
+/**
+ * Formats a raw daily_stats DB row into the API response shape.
+ *
+ * teamBreakdowns: embedded JSON (no extra JOIN needed — team names are stored
+ * denormalised at write time).
+ *
+ * fanCount on the row is the total across all team breakdowns (or the single
+ * FB-provided value). fanCost is derived from that total.
+ */
 async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
   const account = stat.accountId
     ? (await db.select({ accountName: accountsTable.accountName, platformAccountId: accountsTable.platformAccountId, currentBalance: accountsTable.currentBalance }).from(accountsTable).where(eq(accountsTable.id, stat.accountId)))[0]
     : null;
   const pitcher = stat.pitcherId
     ? (await db.select({ displayName: usersTable.displayName, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, stat.pitcherId)))[0]
-    : null;
-  const team = stat.teamId
-    ? (await db.select({ name: teamsTable.name }).from(teamsTable).where(eq(teamsTable.id, stat.teamId)))[0]
     : null;
 
   const spend = parseFloat(stat.spendAmount);
@@ -45,8 +52,7 @@ async function formatStat(stat: typeof dailyStatsTable.$inferSelect) {
     pitcherName: pitcher?.displayName ?? pitcher?.username ?? null,
     hasAlert: stat.hasAlert,
     businessType: stat.businessType ?? null,
-    teamId: stat.teamId ?? null,
-    teamName: team?.name ?? null,
+    teamBreakdowns: (stat.teamBreakdowns as TeamBreakdown[] | null) ?? null,
     fanCount: stat.fanCount ?? null,
     fanCost,
     gmv: stat.gmv ?? null,
@@ -105,8 +111,7 @@ router.get("/daily-stats/pending", requireRole("admin"), async (req, res): Promi
 
 // POST /api/daily-stats/:id/approve — admin approves
 // pending → approved: no balance change (both statuses are counted in the formula).
-// rejected → approved: balance DOES change (rejected excluded → approved included),
-//   so we must call syncAccountBalance inside a transaction.
+// rejected → approved: balance DOES change, so sync inside a transaction.
 router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
@@ -116,8 +121,7 @@ router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): 
 
   let stat: typeof dailyStatsTable.$inferSelect;
 
-  if (existing.status === "rejected" && existing.accountId && existing.teamId == null) {
-    // Approving a rejected main record changes balance; sync inside transaction.
+  if (existing.status === "rejected" && existing.accountId) {
     await db.transaction(async (tx) => {
       const [updated] = await tx
         .update(dailyStatsTable)
@@ -140,8 +144,7 @@ router.post("/daily-stats/:id/approve", requireRole("admin"), async (req, res): 
 });
 
 // POST /api/daily-stats/:id/reject — admin rejects
-// Rejected records are excluded from the balance sum, so balance auto-restores via recalculate.
-// Both the status update and balance sync run in one transaction for consistency.
+// Rejected records are excluded from balance sum; balance auto-restores via recalculate.
 router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const body = req.body as { note?: string };
@@ -156,7 +159,7 @@ router.post("/daily-stats/:id/reject", requireRole("admin"), async (req, res): P
       .where(eq(dailyStatsTable.id, id))
       .returning();
     stat = updated;
-    if (existing.accountId && existing.teamId == null) {
+    if (existing.accountId) {
       await syncAccountBalance(existing.accountId, tx);
     }
   });
@@ -180,32 +183,11 @@ router.delete("/daily-stats/:id", requireRole("admin"), async (req, res): Promis
   if (!existing) { res.status(404).json({ error: "记录不存在" }); return; }
 
   const accountId = existing.accountId;
-  const isMainRecord = existing.teamId == null;
 
   await db.transaction(async (tx) => {
-    // Cascade delete: main record → all records for same account+date;
-    // team record with no main sibling → all siblings; otherwise just this record.
-    if (isMainRecord && accountId && existing.date) {
-      await tx.delete(dailyStatsTable).where(
-        and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date))
-      );
-    } else if (accountId && existing.date) {
-      const [mainRecord] = await tx.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
-        and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date), isNull(dailyStatsTable.teamId))
-      );
-      if (!mainRecord) {
-        await tx.delete(dailyStatsTable).where(
-          and(eq(dailyStatsTable.accountId, accountId), eq(dailyStatsTable.date, existing.date))
-        );
-      } else {
-        await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
-      }
-    } else {
-      await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
-    }
-
-    // Deleted records are no longer in the table, so recalculate auto-corrects the balance.
-    if (isMainRecord && accountId) {
+    await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+    // Deleted records drop out of the balance formula automatically.
+    if (accountId) {
       await syncAccountBalance(accountId, tx);
     }
   });
@@ -229,23 +211,11 @@ router.delete("/daily-stats/:id/self", requireRole("pitcher"), async (req, res):
   }
 
   const accountId = existing.accountId;
-  const isMainRecord = existing.teamId == null;
 
   await db.transaction(async (tx) => {
-    if (isMainRecord && accountId && existing.date) {
-      await tx.delete(dailyStatsTable).where(
-        and(
-          eq(dailyStatsTable.accountId, accountId),
-          eq(dailyStatsTable.date, existing.date),
-          eq(dailyStatsTable.pitcherId, existing.pitcherId!),
-        )
-      );
-    } else {
-      await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
-    }
-    // Record was already rejected (excluded from balance sum), so this delete is a no-op for balance.
-    // Still sync for correctness in case of data drift.
-    if (isMainRecord && accountId) {
+    await tx.delete(dailyStatsTable).where(eq(dailyStatsTable.id, id));
+    // Record was already rejected (excluded from balance sum), sync for consistency.
+    if (accountId) {
       await syncAccountBalance(accountId, tx);
     }
   });
@@ -253,6 +223,15 @@ router.delete("/daily-stats/:id/self", requireRole("pitcher"), async (req, res):
   res.json({ ok: true });
 });
 
+/**
+ * POST /api/daily-stats — pitcher submits daily spend report.
+ *
+ * One record per (account, date). teamBreakdowns is an optional JSON array
+ * embedded directly in the row (no separate team attribution records).
+ *
+ * fanCount is derived from teamBreakdowns sum when breakdowns are provided;
+ * otherwise taken from the explicit fanCount field.
+ */
 router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<void> => {
   const parsed = CreateDailyStatBody.safeParse(req.body);
   if (!parsed.success) {
@@ -272,30 +251,28 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
     return;
   }
 
-  // Team split records (teamId != null) are attribution-only: spend=0, no balance effect.
-  // Main records (teamId=null) carry the actual spend and deduct the balance.
-  const isTeamSplitRecord = parsed.data.teamId != null;
-  const rawSpend = parsed.data.spendAmount ? parseFloat(parsed.data.spendAmount) : 0;
-  const spend = isTeamSplitRecord ? 0 : rawSpend;
-
-  const dupConditions = parsed.data.teamId != null
-    ? and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date), eq(dailyStatsTable.teamId, parsed.data.teamId))
-    : and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date), isNull(dailyStatsTable.teamId));
-  const existing = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(dupConditions);
-  if (existing.length > 0) {
-    res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
+  // Check for duplicate: one record per (accountId, date)
+  const [dup] = await db.select({ id: dailyStatsTable.id }).from(dailyStatsTable).where(
+    and(eq(dailyStatsTable.accountId, parsed.data.accountId), eq(dailyStatsTable.date, parsed.data.date))
+  );
+  if (dup) {
+    res.status(409).json({ error: "该账户当日数据已上报，如需修改请使用编辑功能" });
     return;
   }
+
+  const teamBreakdowns = (parsed.data.teamBreakdowns as TeamBreakdown[] | null | undefined) ?? null;
+  const spend = parseFloat(parsed.data.spendAmount);
+
+  // fanCount: sum of team breakdown fan counts (liveChat multi-team), or explicit field
+  const fanCount = teamBreakdowns && teamBreakdowns.length > 0
+    ? (teamBreakdowns.reduce((sum, t) => sum + (t.fanCount ?? 0), 0) || null)
+    : (parsed.data.fanCount ?? null);
 
   let stat!: typeof dailyStatsTable.$inferSelect;
   try {
     await db.transaction(async (tx) => {
-      // Recalculate balance before insert so realBalance snapshot is accurate.
-      // preBalance = balance before this spend; realBalance = balance after.
       const preBalance = await recalculateBalance(parsed.data.accountId, tx);
-      const realBalance = isTeamSplitRecord
-        ? preBalance
-        : (parseFloat(preBalance) - spend).toFixed(2);
+      const realBalance = (parseFloat(preBalance) - spend).toFixed(2);
 
       const [inserted] = await tx.insert(dailyStatsTable).values({
         accountId: parsed.data.accountId,
@@ -303,25 +280,23 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
         spendAmount: spend.toFixed(2),
         realBalance,
         pitcherId: req.session.userId!,
-        hasAlert: !isTeamSplitRecord && parseFloat(realBalance) < 100,
+        hasAlert: parseFloat(realBalance) < 100,
         businessType: (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null,
-        teamId: parsed.data.teamId ?? null,
-        fanCount: parsed.data.fanCount ?? null,
+        teamBreakdowns: teamBreakdowns as TeamBreakdown[] | null,
+        fanCount,
         gmv: parsed.data.gmv ?? null,
         orderCount: parsed.data.orderCount ?? null,
-        status: isTeamSplitRecord ? "approved" : "pending",
+        status: "pending",
         fbSynced: false,
       }).returning();
       stat = inserted;
 
-      if (!isTeamSplitRecord) {
-        await syncAccountBalance(parsed.data.accountId, tx);
-      }
+      await syncAccountBalance(parsed.data.accountId, tx);
     });
   } catch (err: unknown) {
     const pgErr = err as { code?: string };
     if (pgErr?.code === "23505") {
-      res.status(409).json({ error: "该账户今日相同团队数据已上报，如需修改请使用编辑功能" });
+      res.status(409).json({ error: "该账户当日数据已上报，如需修改请使用编辑功能" });
       return;
     }
     throw err;
@@ -330,6 +305,14 @@ router.post("/daily-stats", requireRole("pitcher"), async (req, res): Promise<vo
   res.status(201).json(await formatStat(stat));
 });
 
+/**
+ * PATCH /api/daily-stats/:id — pitcher updates a daily stat.
+ *
+ * Spend changes trigger a balance recalculation.
+ * teamBreakdowns can be updated; fanCount is recalculated from breakdowns if provided.
+ * Any change resets status to "pending" unless the record is already approved and
+ * only metadata (biz type, team breakdowns, fan count, gmv, orderCount) changed.
+ */
 router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promise<void> => {
   const params = UpdateDailyStatParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -340,44 +323,42 @@ router.patch("/daily-stats/:id", requireRole("pitcher"), async (req, res): Promi
   if (!existing) { res.status(404).json({ error: "Stat not found" }); return; }
   if (existing.pitcherId !== req.session.userId!) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const isTeamRecord = existing.teamId != null;
-  // teamId is immutable after creation — changing it would corrupt balance accounting.
-  // spendAmount on team records is always 0 and managed by the main record; reject attempts.
-  if (parsed.data.spendAmount != null && isTeamRecord) {
-    res.status(400).json({ error: "团队分配记录的消耗额由主记录管理，不可单独修改" });
-    return;
-  }
-  const spendChanged = parsed.data.spendAmount != null && !isTeamRecord;
+  const spendChanged = parsed.data.spendAmount != null;
 
   const updates: Partial<typeof dailyStatsTable.$inferInsert> = {};
   if (parsed.data.businessType !== undefined) updates.businessType = (parsed.data.businessType as "liveChat" | "ecommerce" | null | undefined) ?? null;
-  if (parsed.data.fanCount !== undefined) updates.fanCount = parsed.data.fanCount ?? null;
   if (parsed.data.gmv !== undefined) updates.gmv = parsed.data.gmv ?? null;
   if (parsed.data.orderCount !== undefined) updates.orderCount = parsed.data.orderCount ?? null;
   if (spendChanged) updates.spendAmount = parsed.data.spendAmount!;
+
+  // Update teamBreakdowns and derive fanCount
+  if (parsed.data.teamBreakdowns !== undefined) {
+    const tbs = (parsed.data.teamBreakdowns as TeamBreakdown[] | null | undefined) ?? null;
+    updates.teamBreakdowns = tbs as TeamBreakdown[] | null;
+    // Recalculate fanCount from breakdowns if provided; otherwise keep explicit fanCount field
+    if (tbs && tbs.length > 0) {
+      updates.fanCount = tbs.reduce((sum, t) => sum + (t.fanCount ?? 0), 0) || null;
+    } else if (parsed.data.fanCount !== undefined) {
+      updates.fanCount = parsed.data.fanCount ?? null;
+    }
+  } else if (parsed.data.fanCount !== undefined) {
+    updates.fanCount = parsed.data.fanCount ?? null;
+  }
 
   if (!spendChanged && Object.keys(updates).length === 0) {
     res.json(await formatStat(existing)); return;
   }
 
-  if (isTeamRecord) {
-    // Team records: no spend changes allowed, metadata edits stay approved.
-  } else {
-    if (existing.status !== "approved" || spendChanged) {
-      updates.status = "pending";
-      updates.reviewNote = null;
-    }
+  // Any change to spend or fields on an approved record goes back to pending for re-review
+  if (existing.status !== "approved" || spendChanged) {
+    updates.status = "pending";
+    updates.reviewNote = null;
   }
 
   let stat: typeof dailyStatsTable.$inferSelect;
 
   if (spendChanged && existing.accountId) {
     await db.transaction(async (tx) => {
-      // Compute new realBalance from source of truth before the DB update.
-      // preBalance is recalculated from DB (pending + approved records only).
-      // "rejected" records are NOT counted in preBalance, so their oldSpend must
-      // NOT be added back. For pending/approved records, oldSpend IS counted, so
-      // we add it back to undo its contribution before applying the new spend.
       const preBalance = await recalculateBalance(existing.accountId!, tx);
       const oldSpendInBalance = existing.status === "rejected" ? 0 : parseFloat(existing.spendAmount);
       const newSpend = parseFloat(parsed.data.spendAmount!);

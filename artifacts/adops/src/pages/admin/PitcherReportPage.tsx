@@ -55,18 +55,8 @@ function AccountHistoryDialog({
   );
 
   const allRows = Array.isArray(data) ? (data as Array<typeof data extends (infer T)[] ? T : never>) : [];
-  // Deduplicate by date: prefer main record (teamId=null), fallback to first team record (legacy data).
-  // This prevents $0 team attribution rows from inflating the count.
-  const rows = (() => {
-    const byDate = new Map<string, typeof allRows[number]>();
-    for (const r of allRows) {
-      const existing = byDate.get(r.date);
-      if (!existing || (r as { teamId?: number | null }).teamId == null) {
-        byDate.set(r.date, r);
-      }
-    }
-    return [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
-  })();
+  // Each record is now unique per (accountId, date) — no deduplication needed
+  const rows = [...allRows].sort((a, b) => b.date.localeCompare(a.date));
   const totalSpend = rows.reduce((s, r) => s + Number(r.spendAmount), 0);
 
   return (
@@ -99,7 +89,7 @@ function AccountHistoryDialog({
             <div className="text-center text-sm text-muted-foreground py-10">该账户暂无消耗记录</div>
           ) : (
             (() => {
-              type R = typeof rows[number] & { businessType?: string | null; teamName?: string | null; fanCount?: number | null; fanCost?: string | null; gmv?: string | null; roas?: string | null; orderCount?: number | null; avgOrderValue?: string | null; };
+              type R = typeof rows[number] & { businessType?: string | null; teamBreakdowns?: { teamId: number; teamName: string; fanCount: number | null }[] | null; fanCount?: number | null; fanCost?: string | null; gmv?: string | null; roas?: string | null; orderCount?: number | null; avgOrderValue?: string | null; };
               const rs = rows as R[];
               const hasLive = rs.some((r) => r.businessType === "liveChat");
               const hasEcom = rs.some((r) => r.businessType === "ecommerce");
@@ -138,7 +128,7 @@ function AccountHistoryDialog({
                               ${Number(r.realBalance).toFixed(2)}
                             </td>
                             {showBizCol && <td className="px-3 py-2"><BizBadge biz={r.businessType ?? null} /></td>}
-                            {hasLive && <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{r.teamName ?? "—"}</td>}
+                            {hasLive && <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{r.teamBreakdowns && r.teamBreakdowns.length > 0 ? r.teamBreakdowns.map((t) => t.teamName).join("、") : "—"}</td>}
                             {hasLive && <td className="px-3 py-2 font-mono text-right text-xs">{r.fanCount ?? "—"}</td>}
                             {hasLive && <td className="px-3 py-2 font-mono text-right text-xs whitespace-nowrap">{r.fanCost ? `$${Number(r.fanCost).toFixed(2)}` : "—"}</td>}
                             {hasEcom && <td className="px-3 py-2 font-mono text-right text-xs whitespace-nowrap">{r.gmv ? `$${Number(r.gmv).toFixed(2)}` : "—"}</td>}

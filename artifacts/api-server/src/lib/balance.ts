@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, accountsTable, rechargeOrdersTable, dailyStatsTable } from "@workspace/db";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -7,18 +7,17 @@ export type DbOrTx = typeof db | Tx;
 /**
  * Single source of truth for account balance:
  *
- *   balance = balance_offset + Σ completed_recharge_amounts − Σ main_record_spend
+ *   balance = balance_offset + Σ completed_recharge_amounts − Σ spend
  *
  * Rules:
  * - balance_offset: initial balance at account creation or explicit manual overrides.
  * - Recharges: only completed orders count (actual_amount if set, else amount).
- * - Spend: only "main" daily_stats rows (team_id IS NULL) with status pending or approved.
- *   Team records (team_id IS NOT NULL) are breakdowns/details and never affect balance.
- *   Every day with spend MUST have a main record — team records alone are not enough.
+ * - Spend: every daily_stats row with status pending or approved.
+ *   There is exactly one row per (account_id, date); team breakdown info is embedded
+ *   as JSON in the row and does NOT affect this formula.
  * - Rejected/deleted records are excluded automatically; balance self-corrects on rejection.
  *
  * All arithmetic is done entirely in PostgreSQL numeric to avoid JS floating-point drift.
- * Pass `tx` when called inside db.transaction() to run within the same transaction.
  */
 export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promise<string> {
   const conn = (tx ?? db) as typeof db;
@@ -36,7 +35,6 @@ export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promis
             SELECT SUM(spend_amount)
             FROM ${dailyStatsTable}
             WHERE account_id = ${accountId}
-              AND team_id IS NULL
               AND status IN ('pending', 'approved')
           ), 0)
       )::numeric(18,2)::text`,
@@ -50,8 +48,6 @@ export async function recalculateBalance(accountId: number, tx?: DbOrTx): Promis
 /**
  * Recalculates and persists the balance to accounts.current_balance /
  * accounts.theoretical_balance. Returns the new balance string.
- *
- * Call this after any operation that changes spend or recharge amounts.
  */
 export async function syncAccountBalance(accountId: number, tx?: DbOrTx): Promise<string> {
   const conn = (tx ?? db) as typeof db;
