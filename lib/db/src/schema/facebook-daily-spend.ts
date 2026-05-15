@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, text, integer, decimal } from "drizzle-orm/pg-core";
+import { pgTable, serial, timestamp, text, integer, decimal, unique } from "drizzle-orm/pg-core";
 import { accountsTable } from "./accounts";
 import { metaTokensTable } from "./meta-tokens";
 
@@ -12,7 +12,9 @@ export const facebookDailySpendTable = pgTable("facebook_daily_spend", {
   tokenId: integer("token_id").notNull().references(() => metaTokensTable.id),
   matchedAccountId: integer("matched_account_id").references(() => accountsTable.id),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  unique("facebook_daily_spend_date_fb_account_id_unique").on(t.date, t.fbAccountId),
+]);
 
 export type FacebookDailySpend = typeof facebookDailySpendTable.$inferSelect;
 export type InsertFacebookDailySpend = typeof facebookDailySpendTable.$inferInsert;

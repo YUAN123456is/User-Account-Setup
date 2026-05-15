@@ -259,8 +259,14 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`Token「${token.label}」: ${msg}`);
+        // Auto-deactivate tokens that FB explicitly rejects as invalid/expired
+        const isAuthError = /invalid.*(access token|oauth)|token.*expired|not a confirmed user|OAuthException/i.test(msg);
         await db.update(metaTokensTable)
-          .set({ lastSyncAt: new Date(), lastSyncResult: `失败：${msg}` })
+          .set({
+            lastSyncAt: new Date(),
+            lastSyncResult: `失败：${msg}`,
+            ...(isAuthError ? { isActive: false } : {}),
+          })
           .where(eq(metaTokensTable.id, token.id));
       }
     }
