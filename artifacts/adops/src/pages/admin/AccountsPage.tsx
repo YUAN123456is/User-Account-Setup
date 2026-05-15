@@ -265,34 +265,16 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
   // All records sorted by date desc for display in the table
   const displayStats = [...allStats].sort((a, b) => b.date.localeCompare(a.date));
 
-  // Main records only (teamId IS NULL) — for day count display
+  // Main records (teamId IS NULL) drive the balance — team records are detail breakdowns only
   const mainStats = allStats.filter((s) => s.teamId == null);
 
   const totalRecharged = orders
     .filter((o) => o.status === "completed")
     .reduce((s, o) => s + parseFloat(o.actualAmount ?? o.amount), 0);
 
-  // Effective spend — matches the balance formula (per-day dedup):
-  //   days WITH a main record  → use main record spend
-  //   days WITHOUT a main record → sum all team records for that day
-  const approvedStats = allStats.filter((s) => s.status === "approved");
-  const byDate = new Map<string, { hasMain: boolean; mainSpend: number; teamSpend: number }>();
-  for (const s of approvedStats) {
-    const key = s.date;
-    const existing = byDate.get(key) ?? { hasMain: false, mainSpend: 0, teamSpend: 0 };
-    if (s.teamId == null) {
-      existing.hasMain = true;
-      existing.mainSpend += parseFloat(s.spendAmount);
-    } else {
-      existing.teamSpend += parseFloat(s.spendAmount);
-    }
-    byDate.set(key, existing);
-  }
-  const totalSpent = Array.from(byDate.values()).reduce(
-    (sum, d) => sum + (d.hasMain ? d.mainSpend : d.teamSpend),
-    0,
-  );
-  const effectiveDays = byDate.size;
+  const totalSpent = mainStats
+    .filter((s) => s.status === "approved" || s.status === "pending")
+    .reduce((s, d) => s + parseFloat(d.spendAmount), 0);
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -319,7 +301,7 @@ function AccountDetailDialog({ account, onClose }: { account: Account; onClose: 
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">累计消耗（已审核）</p>
             <p className="text-xl font-bold text-red-500 font-mono">-${totalSpent.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{mainStats.filter(s => s.status === "approved").length} 天已审核（主记录）</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{mainStats.filter(s => s.status === "approved").length} 天已审核</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">当前余额</p>
