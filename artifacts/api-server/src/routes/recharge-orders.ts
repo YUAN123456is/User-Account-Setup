@@ -260,4 +260,43 @@ router.patch("/recharge-orders/:id", requireAuth, async (req, res): Promise<void
   res.json(await formatOrder(updated!));
 });
 
+// PATCH /api/recharge-orders/:id/adjust — admin only, password-protected
+// Allows correcting actualAmount on an already-completed order and re-syncs balance.
+router.patch("/recharge-orders/:id/adjust", requireRole("admin"), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "无效的订单 ID" }); return; }
+
+  const body = req.body as { actualAmount?: unknown; adminPassword?: unknown };
+  const adminPassword = process.env["ADMIN_PASSWORD"];
+  if (!adminPassword || body.adminPassword !== adminPassword) {
+    res.status(403).json({ error: "密码错误" });
+    return;
+  }
+
+  const newAmount = parseFloat(String(body.actualAmount ?? ""));
+  if (isNaN(newAmount) || newAmount <= 0) {
+    res.status(400).json({ error: "请输入有效的实际到账金额" });
+    return;
+  }
+
+  const [order] = await db.select().from(rechargeOrdersTable).where(eq(rechargeOrdersTable.id, id));
+  if (!order) { res.status(404).json({ error: "订单不存在" }); return; }
+  if (order.status !== "completed") {
+    res.status(409).json({ error: "只能修改已完成的订单" });
+    return;
+  }
+
+  let updated: typeof rechargeOrdersTable.$inferSelect;
+  await db.transaction(async (tx) => {
+    [updated] = await tx
+      .update(rechargeOrdersTable)
+      .set({ actualAmount: newAmount.toFixed(2) })
+      .where(eq(rechargeOrdersTable.id, id))
+      .returning();
+    await syncAccountBalance(order.accountId, tx);
+  });
+
+  res.json(await formatOrder(updated!));
+});
+
 export default router;

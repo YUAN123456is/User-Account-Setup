@@ -14,7 +14,7 @@ import { TablePagination, usePagination } from "@/components/shared/TablePaginat
 import { StatsBar } from "@/components/shared/StatsBar";
 import { QuickDateFilter, type DateRange } from "@/components/shared/QuickDateFilter";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Wallet, Search, ChevronsUpDown, ChevronUp, ChevronDown, Loader2, AlertTriangle } from "lucide-react";
+import { Check, X, Wallet, Search, ChevronsUpDown, ChevronUp, ChevronDown, Loader2, AlertTriangle, Pencil } from "lucide-react";
 import { TruncatedCell } from "@/components/shared/TruncatedCell";
 
 interface RechargeOrder {
@@ -182,6 +182,95 @@ function RejectDialog({ order, onClose }: { order: RechargeOrder; onClose: () =>
   );
 }
 
+function AdjustDialog({ order, onClose }: { order: RechargeOrder; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [actualAmount, setActualAmount] = useState(String(Number(order.actualAmount ?? order.amount).toFixed(2)));
+  const [password, setPassword] = useState("");
+  const [isPending, setIsPending] = useState(false);
+
+  const handleSubmit = async () => {
+    const val = parseFloat(actualAmount);
+    if (isNaN(val) || val <= 0) {
+      toast({ title: "请输入有效的实际到账金额", variant: "destructive" });
+      return;
+    }
+    if (!password) {
+      toast({ title: "请输入管理员密码", variant: "destructive" });
+      return;
+    }
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/recharge-orders/${order.id}/adjust`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ actualAmount: val.toFixed(2), adminPassword: password }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        toast({ title: data.error ?? "修改失败，请重试", variant: "destructive" });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: getListRechargeOrdersQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      toast({ title: "实际到账金额已更新", description: "账户余额已重新计算。" });
+      onClose();
+    } catch {
+      toast({ title: "网络错误，请重试", variant: "destructive" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !isPending && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4" />修改实际到账金额</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm space-y-0.5">
+            <p className="text-xs text-muted-foreground">充值账户</p>
+            <p className="font-medium">{order.accountName ?? `账户 #${order.accountId}`}</p>
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
+              <span>申请金额：<span className="font-mono text-foreground">${Number(order.amount).toFixed(2)}</span></span>
+              {order.pitcherName && <span>投手：{order.pitcherName}</span>}
+              {order.providerName && <span>开户商：{order.providerName}</span>}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">实际到账金额（美元）<span className="text-destructive">*</span></Label>
+            <Input
+              type="number" min="0.01" step="0.01"
+              value={actualAmount}
+              onChange={(e) => setActualAmount(e.target.value)}
+              placeholder="0.00"
+              disabled={isPending}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">管理员密码<span className="text-destructive">*</span></Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="请输入管理员密码验证..."
+              disabled={isPending}
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>取消</Button>
+          <Button onClick={handleSubmit} disabled={isPending} className="gap-1.5">
+            {isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />处理中...</> : "确认修改"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function FinancePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -191,6 +280,7 @@ export default function FinancePage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [approveTarget, setApproveTarget] = useState<RechargeOrder | null>(null);
   const [rejectTarget, setRejectTarget] = useState<RechargeOrder | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<RechargeOrder | null>(null);
 
   const handleSort = (key: string) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -369,6 +459,17 @@ export default function FinancePage() {
                       </Button>
                     </div>
                   )}
+                  {o.status === "completed" && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      onClick={() => setAdjustTarget(o)}
+                      title="修改实际到账金额"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -379,6 +480,7 @@ export default function FinancePage() {
 
       {approveTarget && <ApproveDialog order={approveTarget} onClose={() => setApproveTarget(null)} />}
       {rejectTarget && <RejectDialog order={rejectTarget} onClose={() => setRejectTarget(null)} />}
+      {adjustTarget && <AdjustDialog order={adjustTarget} onClose={() => setAdjustTarget(null)} />}
     </div>
   );
 }
