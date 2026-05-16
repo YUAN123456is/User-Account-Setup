@@ -219,19 +219,17 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
                   .where(eq(accountsTable.id, matchedAccount.id));
               });
             } else {
-              // Record exists — FB data always wins; recalculate balance from source of truth
+              // Record exists — only overwrite spend and FB-derived conversion metrics.
+              // Preserve teamBreakdowns and any other fields the user manually entered.
               await db.transaction(async (tx) => {
                 await tx.update(dailyStatsTable).set({
                   spendAmount: spendNum.toFixed(2),
                   fbSynced: true,
                   status: "approved" as const,
-                  // FB data is authoritative — reset ALL conversion and team fields so a
-                  // manually-submitted record with teamBreakdowns cannot be left with stale
-                  // team data that contradicts the FB-derived businessType/fanCount.
                   businessType: fbBizType ?? null,
                   fanCount: fbFanCount ?? null,
                   orderCount: fbOrderCount ?? null,
-                  teamBreakdowns: null,
+                  // teamBreakdowns intentionally not touched — preserve user-entered team info
                 }).where(eq(dailyStatsTable.id, existing.id));
                 const newBalance = await syncAccountBalance(matchedAccount.id, tx);
                 await tx.update(dailyStatsTable)
