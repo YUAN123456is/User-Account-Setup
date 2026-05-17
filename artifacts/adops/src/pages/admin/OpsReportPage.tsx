@@ -126,7 +126,7 @@ function MetaEditDialog({ stat, teams, onClose }: { stat: DailyStat; teams: Team
             <Label className="text-sm">业务类型</Label>
             <div className="flex gap-2">
               {([["liveChat", "聊单"], ["ecommerce", "独立站"]] as const).map(([v, label]) => (
-                <button key={v} onClick={() => { setBiz((prev) => prev === v ? "" : v); setFanCount(""); setGmv(""); setOrderCount(""); setRows([newSubRow()]); }}
+                <button key={v} onClick={() => { setBiz((prev) => { const next = prev === v ? "" : v; setFanCount(""); setGmv(""); setOrderCount(""); if (next === "liveChat" && stat.teamBreakdowns && stat.teamBreakdowns.length > 0) { setRows(stat.teamBreakdowns.map((tb) => ({ key: Math.random().toString(36).slice(2), teamId: String(tb.teamId), fanCount: tb.fanCount != null ? String(tb.fanCount) : "" }))); } else { setRows([newSubRow()]); } return next; }); }}
                   className={["text-xs px-3 py-1.5 rounded border transition-colors", biz === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted text-muted-foreground"].join(" ")}>
                   {label}
                 </button>

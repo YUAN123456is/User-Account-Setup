@@ -226,9 +226,11 @@ export async function runFbSync(dateFrom: string, dateTo: string, pitcherIdFilte
                   spendAmount: spendNum.toFixed(2),
                   fbSynced: true,
                   status: "approved" as const,
-                  businessType: fbBizType ?? null,
-                  fanCount: fbFanCount ?? null,
-                  orderCount: fbOrderCount ?? null,
+                  // Only overwrite FB-derived fields when FB actually returns data.
+                  // If FB returns null (no action events), preserve the user-set values.
+                  ...(fbBizType !== null ? { businessType: fbBizType } : {}),
+                  ...(fbFanCount !== null ? { fanCount: fbFanCount } : {}),
+                  ...(fbOrderCount !== null ? { orderCount: fbOrderCount } : {}),
                   // teamBreakdowns intentionally not touched — preserve user-entered team info
                 }).where(eq(dailyStatsTable.id, existing.id));
                 const newBalance = await syncAccountBalance(matchedAccount.id, tx);

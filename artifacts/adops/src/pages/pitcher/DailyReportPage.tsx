@@ -181,9 +181,21 @@ function EditDialog({ stat, accounts, teams, onClose }: { stat: DailyStat; accou
   const acc = accounts.find((a) => a.id === stat.accountId);
 
   const toggleBiz = (v: string) => {
-    setBiz((prev) => prev === v ? "" : v);
-    setFanCount(""); setGmv(""); setOrderCount("");
-    setEditTeamRows([newTeamSubRow()]);
+    setBiz((prev) => {
+      const next = prev === v ? "" : v;
+      setFanCount(""); setGmv(""); setOrderCount("");
+      // Restore saved team rows when switching back to liveChat; clear only when switching away.
+      if (next === "liveChat" && stat.teamBreakdowns && stat.teamBreakdowns.length > 0) {
+        setEditTeamRows(stat.teamBreakdowns.map((tb) => ({
+          key: Math.random().toString(36).slice(2),
+          teamId: String(tb.teamId),
+          fanCount: tb.fanCount != null ? String(tb.fanCount) : "",
+        })));
+      } else {
+        setEditTeamRows([newTeamSubRow()]);
+      }
+      return next;
+    });
   };
 
   return (
