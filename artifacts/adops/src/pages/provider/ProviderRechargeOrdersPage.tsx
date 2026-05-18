@@ -19,6 +19,7 @@ interface RechargeOrder {
   id: number;
   accountId: number;
   accountName?: string;
+  platformAccountId?: string | null;
   amount: string | number;
   actualAmount?: string | null;
   feeRate?: string | null;
@@ -75,6 +76,9 @@ function ApproveDialog({ order, onClose }: { order: RechargeOrder; onClose: () =
           <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm space-y-0.5">
             <p className="text-muted-foreground text-xs">充值账户</p>
             <p className="font-medium">{order.accountName ?? `账户 #${order.accountId}`}</p>
+            {order.platformAccountId && (
+              <p className="text-xs text-muted-foreground font-mono">{order.platformAccountId}</p>
+            )}
             <p className="text-xs text-muted-foreground">申请金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span>
               {order.feeRate && <span className="ml-2 text-amber-600">手续费率 {order.feeRate}%</span>}
             </p>
@@ -139,6 +143,9 @@ function RejectDialog({ order, onClose }: { order: RechargeOrder; onClose: () =>
         <div className="space-y-3 py-1">
           <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm">
             <p className="font-medium">{order.accountName ?? `账户 #${order.accountId}`}</p>
+            {order.platformAccountId && (
+              <p className="text-xs text-muted-foreground font-mono">{order.platformAccountId}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5">
               申请金额：<span className="font-mono">${Number(order.amount).toFixed(2)}</span>
             </p>
@@ -295,8 +302,11 @@ export default function ProviderRechargeOrdersPage() {
             )}
             {!isLoading && paged.map((o) => (
               <TableRow key={o.id}>
-                <TableCell className="font-medium max-w-[180px]">
-                  <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} />
+                <TableCell className="max-w-[200px]">
+                  <TruncatedCell value={o.accountName ?? `账户 #${o.accountId}`} className="font-medium" />
+                  {o.platformAccountId && (
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">{o.platformAccountId}</p>
+                  )}
                 </TableCell>
                 <TableCell className="font-mono font-semibold text-right whitespace-nowrap">${Number(o.amount).toFixed(2)}</TableCell>
                 <TableCell className="font-mono text-sm text-right whitespace-nowrap">
